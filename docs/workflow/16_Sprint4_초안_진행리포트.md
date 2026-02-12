@@ -11,7 +11,12 @@
 - OpenAPI 반영
   - `AnswerDraftRequest`, `AnswerDraftResponse` 스키마 추가
 
+## 추가 완료 (2차)
+- 채널 포맷 분기 추가
+  - 입력 옵션: `channel=email|messenger`
+  - email: 인사/본문/마무리 포함 템플릿
+  - messenger: 요약 중심 짧은 템플릿
+
 ## 다음 작업
-- 답변 템플릿 다변화(정중/기술/요약 톤)
-- 이메일/메신저 채널 포맷 분기
 - 승인 플로우(Draft→Review→Approved)와 연결
+- 답변 버전 히스토리 조회 API 추가

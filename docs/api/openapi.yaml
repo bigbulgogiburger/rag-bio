@@ -410,6 +410,10 @@ components:
           type: string
           enum: [professional, technical, brief]
           default: professional
+        channel:
+          type: string
+          enum: [email, messenger]
+          default: email
 
     AnswerDraftResponse:
       type: object

@@ -18,11 +18,13 @@ public class AnswerComposerService {
         this.analysisService = analysisService;
     }
 
-    public AnswerDraftResponse compose(UUID inquiryId, String question, String tone) {
+    public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel) {
         AnalyzeResponse analysis = analysisService.analyze(inquiryId, question, 5);
         String normalizedTone = (tone == null || tone.isBlank()) ? "professional" : tone.trim().toLowerCase();
+        String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
         String draft = createDraftByTone(analysis, normalizedTone);
+        draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags());
 
         List<String> citations = new ArrayList<>();
         for (EvidenceItem ev : analysis.evidences()) {
@@ -62,6 +64,17 @@ public class AnswerComposerService {
                 default -> "문의 주신 내용은 일부 근거가 있으나 조건 의존성이 있어 단정이 어렵습니다. " +
                         "아래 확인 항목을 점검한 뒤 재판정을 권장드립니다.";
             };
+        };
+    }
+
+    private String formatByChannel(String draft, String channel, List<String> riskFlags) {
+        String cautionLine = riskFlags.isEmpty() ? ""
+                : "\n- 주의: " + String.join(", ", riskFlags);
+
+        return switch (channel) {
+            case "messenger" -> "[요약]\n" + draft + cautionLine + "\n\n필요하시면 바로 조건별 체크리스트로 정리해드릴게요.";
+            default -> "안녕하세요. Bio-Rad CS팀입니다.\n\n" + draft + cautionLine
+                    + "\n\n추가로 샘플 조건(전처리/장비 설정)을 알려주시면 더 정확히 안내드리겠습니다.\n감사합니다.";
         };
     }
 }

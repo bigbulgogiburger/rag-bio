@@ -75,6 +75,7 @@ export interface AnalyzeResult {
 }
 
 export type AnswerTone = "professional" | "technical" | "brief";
+export type AnswerChannel = "email" | "messenger";
 
 export interface AnswerDraftResult {
   inquiryId: string;
@@ -183,12 +184,13 @@ export async function analyzeInquiry(
 export async function draftInquiryAnswer(
   inquiryId: string,
   question: string,
-  tone: AnswerTone = "professional"
+  tone: AnswerTone = "professional",
+  channel: AnswerChannel = "email"
 ): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, tone })
+    body: JSON.stringify({ question, tone, channel })
   });
 
   if (!response.ok) {
