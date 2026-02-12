@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info:
+  title: Bio-Rad CS Copilot API
+  version: 0.1.0
+paths:
+  /api/v1/inquiries:
+    post:
+      summary: Create inquiry
+      responses:
+        '201':
+          description: Inquiry created

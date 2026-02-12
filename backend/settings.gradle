@@ -1,0 +1,10 @@
+rootProject.name = 'biorad-cs-rag-backend'
+
+include(':app-api')
+include(':contexts:ingestion-context')
+include(':contexts:inquiry-context')
+include(':contexts:knowledge-retrieval-context')
+include(':contexts:verification-context')
+include(':contexts:response-composition-context')
+include(':contexts:communication-context')
+include(':contexts:audit-context')

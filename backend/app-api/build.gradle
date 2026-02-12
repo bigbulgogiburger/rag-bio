@@ -1,0 +1,31 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'java'
+}
+
+dependencies {
+    implementation project(':contexts:inquiry-context')
+    implementation project(':contexts:ingestion-context')
+    implementation project(':contexts:knowledge-retrieval-context')
+    implementation project(':contexts:verification-context')
+    implementation project(':contexts:response-composition-context')
+    implementation project(':contexts:communication-context')
+    implementation project(':contexts:audit-context')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    runtimeOnly 'com.h2database:h2'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = false
+}
