@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { createInquiry } from "@/lib/api/client";
+import { createInquiry, uploadInquiryDocument } from "@/lib/api/client";
 
 export default function InquiryForm() {
   const [question, setQuestion] = useState("");
   const [customerChannel, setCustomerChannel] = useState("email");
+  const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -15,9 +16,19 @@ export default function InquiryForm() {
     setStatus(null);
 
     try {
-      const result = await createInquiry({ question, customerChannel });
-      setStatus(`Created inquiry ${result.inquiryId} (${result.status})`);
+      const inquiry = await createInquiry({ question, customerChannel });
+
+      if (file) {
+        const upload = await uploadInquiryDocument(inquiry.inquiryId, file);
+        setStatus(
+          `문의 ${inquiry.inquiryId} 생성 완료 / 파일 ${upload.fileName} 업로드 완료 (${upload.status})`
+        );
+      } else {
+        setStatus(`문의 ${inquiry.inquiryId} 생성 완료 (${inquiry.status})`);
+      }
+
       setQuestion("");
+      setFile(null);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -50,6 +61,14 @@ export default function InquiryForm() {
           <option value="messenger">Messenger</option>
           <option value="portal">Portal</option>
         </select>
+      </label>
+      <label style={{ display: "grid", gap: "0.35rem" }}>
+        Attach document (PDF/DOC/DOCX)
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
       </label>
       <button
         type="submit"

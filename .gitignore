@@ -18,6 +18,11 @@ frontend/.turbo/
 # Java / Gradle
 **/build/
 **/.gradle/
+**/bin/
+
+# Local runtime artifacts
+uploads/
+.serena/
 
 # Environment
 .env
