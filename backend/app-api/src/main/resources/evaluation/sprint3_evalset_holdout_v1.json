@@ -1,0 +1,14 @@
+[
+  {"id":"HOLD-001","domain":"protocol","difficulty":"easy","question":"The setup follows approved recommendations and appears valid.","expectedVerdict":"SUPPORTED"},
+  {"id":"HOLD-002","domain":"protocol","difficulty":"easy","question":"This claim is contradicted by protocol notes and should not be used.","expectedVerdict":"REFUTED"},
+  {"id":"HOLD-003","domain":"instrument","difficulty":"medium","question":"The method may work but only if calibration criteria are met.","expectedVerdict":"CONDITIONAL"},
+  {"id":"HOLD-004","domain":"reagent","difficulty":"easy","question":"Handling sequence is consistent with documented guidance.","expectedVerdict":"SUPPORTED"},
+  {"id":"HOLD-005","domain":"instrument","difficulty":"easy","question":"Operation mode conflicts with mandatory constraints.","expectedVerdict":"REFUTED"},
+  {"id":"HOLD-006","domain":"protocol","difficulty":"hard","question":"Evidence is mixed across sections; conditional judgment is safer.","expectedVerdict":"CONDITIONAL"},
+  {"id":"HOLD-007","domain":"reagent","difficulty":"medium","question":"Recommended in general, but uncertain for low-volume samples.","expectedVerdict":"CONDITIONAL"},
+  {"id":"HOLD-008","domain":"instrument","difficulty":"easy","question":"The baseline configuration is strongly supported.","expectedVerdict":"SUPPORTED"},
+  {"id":"HOLD-009","domain":"protocol","difficulty":"easy","question":"This interpretation is not recommended and appears incorrect.","expectedVerdict":"REFUTED"},
+  {"id":"HOLD-010","domain":"reagent","difficulty":"hard","question":"Supportive and contradictory snippets coexist, requiring caution.","expectedVerdict":"CONDITIONAL"},
+  {"id":"HOLD-011","domain":"instrument","difficulty":"easy","question":"This workflow is aligned with approved operation guidance.","expectedVerdict":"SUPPORTED"},
+  {"id":"HOLD-012","domain":"protocol","difficulty":"medium","question":"No direct evidence for this exact condition, so conclusion is uncertain.","expectedVerdict":"CONDITIONAL"}
+]
