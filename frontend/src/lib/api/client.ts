@@ -58,6 +58,22 @@ export interface IndexingRunResult {
   failed: number;
 }
 
+export interface AnalyzeEvidenceItem {
+  chunkId: string;
+  documentId: string;
+  score: number;
+  excerpt: string;
+}
+
+export interface AnalyzeResult {
+  inquiryId: string;
+  verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
+  confidence: number;
+  reason: string;
+  riskFlags: string[];
+  evidences: AnalyzeEvidenceItem[];
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function createInquiry(payload: CreateInquiryPayload): Promise<AskQuestionResult> {
@@ -133,4 +149,22 @@ export async function runInquiryIndexing(inquiryId: string, failedOnly = false):
   }
 
   return (await response.json()) as IndexingRunResult;
+}
+
+export async function analyzeInquiry(
+  inquiryId: string,
+  question: string,
+  topK = 5
+): Promise<AnalyzeResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, topK })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to analyze inquiry: ${response.status}`);
+  }
+
+  return (await response.json()) as AnalyzeResult;
 }

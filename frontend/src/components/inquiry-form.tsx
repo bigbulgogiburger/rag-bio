@@ -2,12 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import {
+  analyzeInquiry,
   createInquiry,
   getInquiry,
   getInquiryIndexingStatus,
   listInquiryDocuments,
   runInquiryIndexing,
   uploadInquiryDocument,
+  type AnalyzeResult,
   type DocumentStatus,
   type InquiryDetail,
   type InquiryIndexingStatus
@@ -25,6 +27,8 @@ export default function InquiryForm() {
   const [lookupInquiry, setLookupInquiry] = useState<InquiryDetail | null>(null);
   const [lookupDocuments, setLookupDocuments] = useState<DocumentStatus[]>([]);
   const [indexingStatus, setIndexingStatus] = useState<InquiryIndexingStatus | null>(null);
+  const [analysisQuestion, setAnalysisQuestion] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -100,6 +104,31 @@ export default function InquiryForm() {
       setLookupDocuments(idxStatus.documents);
       setStatus(`인덱싱 실행 완료: 처리 ${run.processed}, 성공 ${run.succeeded}, 실패 ${run.failed}`);
     } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onAnalyze = async () => {
+    if (!inquiryId) {
+      setStatus("분석할 inquiryId를 입력해줘.");
+      return;
+    }
+    if (!analysisQuestion.trim()) {
+      setStatus("분석 질문을 입력해줘.");
+      return;
+    }
+
+    setLookupLoading(true);
+    setStatus(null);
+
+    try {
+      const result = await analyzeInquiry(inquiryId, analysisQuestion.trim(), 5);
+      setAnalysisResult(result);
+      setStatus(`분석 완료: verdict=${result.verdict}, confidence=${result.confidence}`);
+    } catch (error) {
+      setAnalysisResult(null);
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setLookupLoading(false);
@@ -199,6 +228,42 @@ export default function InquiryForm() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="panel" style={{ display: "grid", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0 }}>Sprint3 Analysis (Retrieve + Verdict)</h3>
+        <label style={{ display: "grid", gap: "0.35rem" }}>
+          분석 질문
+          <textarea
+            rows={3}
+            value={analysisQuestion}
+            onChange={(event) => setAnalysisQuestion(event.target.value)}
+            placeholder="예: 해당 프로토콜이 타당한가요?"
+            style={{ resize: "vertical", border: "1px solid #dcded6", borderRadius: "8px", padding: "0.6rem" }}
+          />
+        </label>
+        <div>
+          <button type="button" onClick={onAnalyze} disabled={lookupLoading}>근거검색+판정 실행</button>
+        </div>
+
+        {analysisResult && (
+          <div style={{ fontSize: "0.95rem", display: "grid", gap: "0.35rem" }}>
+            <div>Verdict: <b>{analysisResult.verdict}</b> / Confidence: {analysisResult.confidence}</div>
+            <div>Reason: {analysisResult.reason}</div>
+            {analysisResult.riskFlags.length > 0 && (
+              <div>Risk: {analysisResult.riskFlags.join(", ")}</div>
+            )}
+            {analysisResult.evidences.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                {analysisResult.evidences.map((ev) => (
+                  <li key={ev.chunkId}>
+                    score={ev.score.toFixed(3)} / chunk={ev.chunkId.slice(0, 8)} / {ev.excerpt}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
 
