@@ -7,6 +7,7 @@ import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -92,6 +94,26 @@ public class DocumentController {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store uploaded file", e);
         }
+    }
+
+    @GetMapping
+    public List<DocumentStatusResponse> list(@PathVariable String inquiryId) {
+        UUID inquiryUuid = parseInquiryId(inquiryId);
+        inquiryRepository.findById(new InquiryId(inquiryUuid))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+
+        return documentMetadataJpaRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid)
+                .stream()
+                .map(document -> new DocumentStatusResponse(
+                        document.getId().toString(),
+                        document.getInquiryId().toString(),
+                        document.getFileName(),
+                        document.getContentType(),
+                        document.getFileSize(),
+                        document.getStatus(),
+                        document.getCreatedAt()
+                ))
+                .toList();
     }
 
     private UUID parseInquiryId(String inquiryId) {
