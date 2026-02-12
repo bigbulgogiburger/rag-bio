@@ -4,12 +4,14 @@ import { FormEvent, useState } from "react";
 import {
   analyzeInquiry,
   createInquiry,
+  draftInquiryAnswer,
   getInquiry,
   getInquiryIndexingStatus,
   listInquiryDocuments,
   runInquiryIndexing,
   uploadInquiryDocument,
   type AnalyzeResult,
+  type AnswerDraftResult,
   type DocumentStatus,
   type InquiryDetail,
   type InquiryIndexingStatus
@@ -29,6 +31,7 @@ export default function InquiryForm() {
   const [indexingStatus, setIndexingStatus] = useState<InquiryIndexingStatus | null>(null);
   const [analysisQuestion, setAnalysisQuestion] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null);
+  const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -129,6 +132,31 @@ export default function InquiryForm() {
       setStatus(`분석 완료: verdict=${result.verdict}, confidence=${result.confidence}`);
     } catch (error) {
       setAnalysisResult(null);
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onDraftAnswer = async () => {
+    if (!inquiryId) {
+      setStatus("답변 초안을 만들 inquiryId를 입력해줘.");
+      return;
+    }
+    if (!analysisQuestion.trim()) {
+      setStatus("답변 초안용 질문을 입력해줘.");
+      return;
+    }
+
+    setLookupLoading(true);
+    setStatus(null);
+
+    try {
+      const draft = await draftInquiryAnswer(inquiryId, analysisQuestion.trim());
+      setAnswerDraft(draft);
+      setStatus(`답변 초안 생성 완료: verdict=${draft.verdict}`);
+    } catch (error) {
+      setAnswerDraft(null);
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setLookupLoading(false);
@@ -243,8 +271,9 @@ export default function InquiryForm() {
             style={{ resize: "vertical", border: "1px solid #dcded6", borderRadius: "8px", padding: "0.6rem" }}
           />
         </label>
-        <div>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button type="button" onClick={onAnalyze} disabled={lookupLoading}>근거검색+판정 실행</button>
+          <button type="button" onClick={onDraftAnswer} disabled={lookupLoading}>CS 답변 초안 생성</button>
         </div>
 
         {analysisResult && (
@@ -263,6 +292,15 @@ export default function InquiryForm() {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {answerDraft && (
+          <div style={{ fontSize: "0.95rem", display: "grid", gap: "0.35rem", background: "#f7faf9", padding: "0.7rem", borderRadius: "8px" }}>
+            <div><b>Draft Verdict:</b> {answerDraft.verdict} (confidence {answerDraft.confidence})</div>
+            <div><b>Draft:</b> {answerDraft.draft}</div>
+            {answerDraft.citations.length > 0 && <div><b>Citations:</b> {answerDraft.citations.join(" | ")}</div>}
+            {answerDraft.riskFlags.length > 0 && <div><b>Risk:</b> {answerDraft.riskFlags.join(", ")}</div>}
           </div>
         )}
       </section>

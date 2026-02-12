@@ -175,6 +175,31 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/answers/draft:
+    post:
+      tags: [Inquiry]
+      summary: CS 답변 초안 생성
+      operationId: draftInquiryAnswer
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerDraftRequest'
+      responses:
+        '200':
+          description: 답변 초안 생성 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerDraftResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     InquiryIdPath:
@@ -373,6 +398,38 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvidenceItem'
+
+    AnswerDraftRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 1
+
+    AnswerDraftResponse:
+      type: object
+      required: [inquiryId, verdict, confidence, draft, citations, riskFlags]
+      properties:
+        inquiryId:
+          type: string
+          format: uuid
+        verdict:
+          type: string
+          enum: [SUPPORTED, REFUTED, CONDITIONAL]
+        confidence:
+          type: number
+          format: double
+        draft:
+          type: string
+        citations:
+          type: array
+          items:
+            type: string
+        riskFlags:
+          type: array
+          items:
+            type: string
 
     ErrorResponse:
       type: object

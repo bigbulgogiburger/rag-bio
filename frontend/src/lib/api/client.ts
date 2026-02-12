@@ -74,6 +74,15 @@ export interface AnalyzeResult {
   evidences: AnalyzeEvidenceItem[];
 }
 
+export interface AnswerDraftResult {
+  inquiryId: string;
+  verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
+  confidence: number;
+  draft: string;
+  citations: string[];
+  riskFlags: string[];
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function createInquiry(payload: CreateInquiryPayload): Promise<AskQuestionResult> {
@@ -167,4 +176,18 @@ export async function analyzeInquiry(
   }
 
   return (await response.json()) as AnalyzeResult;
+}
+
+export async function draftInquiryAnswer(inquiryId: string, question: string): Promise<AnswerDraftResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to draft answer: ${response.status}`);
+  }
+
+  return (await response.json()) as AnswerDraftResult;
 }
