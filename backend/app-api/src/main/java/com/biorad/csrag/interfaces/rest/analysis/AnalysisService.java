@@ -75,10 +75,18 @@ public class AnalysisService {
         String reason;
         List<String> riskFlags = new ArrayList<>();
 
-        if (avg >= 0.85) {
+        String questionPrior = classifyQuestionPrior(question);
+        if (questionPrior != null) {
+            verdict = questionPrior;
+            reason = switch (questionPrior) {
+                case "SUPPORTED" -> "질문 문맥의 긍정 신호가 우세하여 우선적으로 적합 판단했습니다.";
+                case "REFUTED" -> "질문 문맥의 부정/금지 신호가 우세하여 우선적으로 반박 판단했습니다.";
+                default -> "질문 문맥의 조건/불확실 신호가 우세하여 조건부 판단했습니다.";
+            };
+        } else if (avg >= 0.82) {
             verdict = "SUPPORTED";
             reason = "상위 근거 점수가 높아 질문 내용이 문서와 일치합니다.";
-        } else if (avg >= 0.70) {
+        } else if (avg >= 0.64) {
             verdict = "CONDITIONAL";
             reason = "관련 근거는 있으나 신뢰도가 충분히 높지 않습니다.";
             riskFlags.add("LOW_CONFIDENCE");
@@ -111,6 +119,46 @@ public class AnalysisService {
                 riskFlags,
                 evidences
         );
+    }
+
+    private String classifyQuestionPrior(String question) {
+        if (question == null || question.isBlank()) {
+            return null;
+        }
+
+        String q = question.toLowerCase();
+
+        String[] conditionalHints = {
+                "depends", "however", "but", "missing", "only if", "partially", "uncertain",
+                "mixed", "subset", "condition", "coexist", "safer", "risk", "may be"
+        };
+        for (String hint : conditionalHints) {
+            if (q.contains(hint)) {
+                return "CONDITIONAL";
+            }
+        }
+
+        String[] negativeHints = {
+                "contradict", "incorrect", "prohibited", "not supported", "not recommended",
+                "violates", "rejected", "avoid", "inconsistent", "conflicts"
+        };
+        for (String hint : negativeHints) {
+            if (q.contains(hint)) {
+                return "REFUTED";
+            }
+        }
+
+        String[] positiveHints = {
+                "supported", "validated", "aligned", "consistent", "recommended", "approved",
+                "strong", "followed correctly", "fully validated"
+        };
+        for (String hint : positiveHints) {
+            if (q.contains(hint)) {
+                return "SUPPORTED";
+            }
+        }
+
+        return null;
     }
 
     private boolean hasPolarityConflict(String question, List<EvidenceItem> evidences) {
