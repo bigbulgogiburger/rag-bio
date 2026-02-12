@@ -1,32 +1,32 @@
 [
-  {
-    "id": "EVAL-001",
-    "question": "This protocol is fully validated with strong supporting data.",
-    "expectedVerdict": "SUPPORTED"
-  },
-  {
-    "id": "EVAL-002",
-    "question": "The claim directly contradicts available evidence and should be rejected.",
-    "expectedVerdict": "REFUTED"
-  },
-  {
-    "id": "EVAL-003",
-    "question": "There is some supporting evidence but key conditions are missing.",
-    "expectedVerdict": "CONDITIONAL"
-  },
-  {
-    "id": "EVAL-004",
-    "question": "No clear reference exists for this exact setup.",
-    "expectedVerdict": "CONDITIONAL"
-  },
-  {
-    "id": "EVAL-005",
-    "question": "Experimental settings are aligned with the documented guidance.",
-    "expectedVerdict": "SUPPORTED"
-  },
-  {
-    "id": "EVAL-006",
-    "question": "The statement is inconsistent with the protocol and appears incorrect.",
-    "expectedVerdict": "REFUTED"
-  }
+  {"id":"EVAL-001","domain":"protocol","difficulty":"easy","question":"This protocol is fully validated with strong supporting data.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-002","domain":"protocol","difficulty":"easy","question":"The claim directly contradicts available evidence and should be rejected.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-003","domain":"protocol","difficulty":"medium","question":"There is some supporting evidence but key conditions are missing.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-004","domain":"instrument","difficulty":"medium","question":"No clear reference exists for this exact setup.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-005","domain":"protocol","difficulty":"easy","question":"Experimental settings are aligned with the documented guidance.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-006","domain":"reagent","difficulty":"easy","question":"The statement is inconsistent with the protocol and appears incorrect.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-007","domain":"instrument","difficulty":"easy","question":"The recommended calibration steps are followed correctly.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-008","domain":"instrument","difficulty":"easy","question":"This setup violates the mandatory safety sequence.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-009","domain":"reagent","difficulty":"medium","question":"The reagent ratio may work but depends on sample concentration.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-010","domain":"protocol","difficulty":"medium","question":"Evidence is mixed: one section supports while another warns against use.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-011","domain":"protocol","difficulty":"easy","question":"Documented procedure strongly supports this execution path.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-012","domain":"reagent","difficulty":"easy","question":"The buffer selection is clearly not recommended in the guide.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-013","domain":"instrument","difficulty":"medium","question":"The method is acceptable only if temperature remains within strict range.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-014","domain":"instrument","difficulty":"hard","question":"Findings look valid but conflict with another appendix section.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-015","domain":"protocol","difficulty":"easy","question":"This workflow is supported by repeated validation notes.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-016","domain":"protocol","difficulty":"easy","question":"The claim is contradicted by the acceptance criteria in the manual.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-017","domain":"reagent","difficulty":"medium","question":"The concentration appears acceptable but storage history is missing.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-018","domain":"protocol","difficulty":"easy","question":"All listed checkpoints align with official recommendations.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-019","domain":"instrument","difficulty":"easy","question":"The suggested operation mode is explicitly prohibited.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-020","domain":"instrument","difficulty":"medium","question":"Guidance is partially relevant but omits an essential prerequisite.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-021","domain":"reagent","difficulty":"easy","question":"The reagent handling sequence is consistent with the handbook.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-022","domain":"reagent","difficulty":"easy","question":"The dilution instruction conflicts with the standard operating note.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-023","domain":"protocol","difficulty":"hard","question":"Multiple snippets disagree, so a single definitive conclusion is risky.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-024","domain":"instrument","difficulty":"easy","question":"The run configuration is strongly supported by the troubleshooting guide.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-025","domain":"protocol","difficulty":"easy","question":"This interpretation is clearly incorrect per validation appendix.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-026","domain":"reagent","difficulty":"medium","question":"Result may be valid under controlled humidity, otherwise uncertain.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-027","domain":"instrument","difficulty":"easy","question":"The described setup is aligned with approved baseline settings.","expectedVerdict":"SUPPORTED"},
+  {"id":"EVAL-028","domain":"protocol","difficulty":"easy","question":"This action is not supported and should be avoided.","expectedVerdict":"REFUTED"},
+  {"id":"EVAL-029","domain":"reagent","difficulty":"medium","question":"Evidence supports the claim but only for a subset of sample types.","expectedVerdict":"CONDITIONAL"},
+  {"id":"EVAL-030","domain":"protocol","difficulty":"hard","question":"Supportive and contradictory excerpts coexist; conditional judgment is safer.","expectedVerdict":"CONDITIONAL"}
 ]

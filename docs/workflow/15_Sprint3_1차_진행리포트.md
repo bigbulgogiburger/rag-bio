@@ -20,9 +20,10 @@
 - 상충근거 리스크 규칙 고도화
   - 점수 편차 기반 + 근거 polarity 충돌 기반 감지
   - 상충 시 verdict를 CONDITIONAL로 보정
-- 평가셋 v1 추가
+- 평가셋 v1 확장 (30건)
   - `backend/app-api/src/main/resources/evaluation/sprint3_evalset_v1.json`
-- 자동 리포트 스크립트 추가
+  - domain/difficulty 필드 포함
+- 자동 리포트 스크립트 고도화
   - `scripts/evaluate_sprint3.mjs`
   - 사용: `INQUIRY_ID=<uuid> node scripts/evaluate_sprint3.mjs`
 
