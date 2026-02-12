@@ -182,7 +182,7 @@ export default function InquiryForm() {
         {indexingStatus && (
           <div style={{ fontSize: "0.92rem" }}>
             <b>인덱싱 요약</b>
-            <div>전체 {indexingStatus.total} / 업로드 {indexingStatus.uploaded} / 파싱중 {indexingStatus.parsing} / 파싱완료 {indexingStatus.parsed} / 청킹완료 {indexingStatus.chunked} / 실패 {indexingStatus.failed}</div>
+            <div>전체 {indexingStatus.total} / 업로드 {indexingStatus.uploaded} / 파싱중 {indexingStatus.parsing} / 파싱완료 {indexingStatus.parsed} / 청킹완료 {indexingStatus.chunked} / 벡터저장완료 {indexingStatus.indexed} / 실패 {indexingStatus.failed}</div>
           </div>
         )}
 
@@ -193,6 +193,7 @@ export default function InquiryForm() {
                 {doc.fileName} / {doc.status} / {(doc.fileSize / 1024).toFixed(1)}KB
                 {doc.ocrConfidence != null ? ` / ocr:${doc.ocrConfidence.toFixed(2)}` : ""}
                 {doc.chunkCount != null ? ` / chunks:${doc.chunkCount}` : ""}
+                {doc.vectorCount != null ? ` / vectors:${doc.vectorCount}` : ""}
                 {doc.lastError ? ` / error: ${doc.lastError}` : ""}
               </li>
             ))}

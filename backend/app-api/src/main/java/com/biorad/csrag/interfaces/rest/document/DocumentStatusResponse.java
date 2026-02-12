@@ -13,6 +13,7 @@ public record DocumentStatusResponse(
         Instant updatedAt,
         String lastError,
         Double ocrConfidence,
-        Integer chunkCount
+        Integer chunkCount,
+        Integer vectorCount
 ) {
 }

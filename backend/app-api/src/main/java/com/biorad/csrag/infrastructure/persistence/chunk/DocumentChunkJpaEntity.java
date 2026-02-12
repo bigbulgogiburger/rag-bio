@@ -45,4 +45,32 @@ public class DocumentChunkJpaEntity {
         this.content = content;
         this.createdAt = createdAt;
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getDocumentId() {
+        return documentId;
+    }
+
+    public int getChunkIndex() {
+        return chunkIndex;
+    }
+
+    public int getStartOffset() {
+        return startOffset;
+    }
+
+    public int getEndOffset() {
+        return endOffset;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

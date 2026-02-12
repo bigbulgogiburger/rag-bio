@@ -9,6 +9,7 @@ public record InquiryIndexingStatusResponse(
         int parsing,
         int parsed,
         int chunked,
+        int indexed,
         int failed,
         List<DocumentStatusResponse> documents
 ) {

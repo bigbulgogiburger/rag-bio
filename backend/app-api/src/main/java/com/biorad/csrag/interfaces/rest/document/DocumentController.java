@@ -104,6 +104,7 @@ public class DocumentController {
                     null,
                     null,
                     null,
+                    null,
                     now,
                     now
             );
@@ -130,6 +131,7 @@ public class DocumentController {
         int parsing = (int) docs.stream().filter(d -> "PARSING".equals(d.status())).count();
         int parsed = (int) docs.stream().filter(d -> "PARSED".equals(d.status()) || "PARSED_OCR".equals(d.status())).count();
         int chunked = (int) docs.stream().filter(d -> "CHUNKED".equals(d.status())).count();
+        int indexed = (int) docs.stream().filter(d -> "INDEXED".equals(d.status())).count();
         int failed = (int) docs.stream().filter(d -> "FAILED_PARSING".equals(d.status())).count();
 
         return new InquiryIndexingStatusResponse(
@@ -139,6 +141,7 @@ public class DocumentController {
                 parsing,
                 parsed,
                 chunked,
+                indexed,
                 failed,
                 docs
         );
@@ -176,7 +179,8 @@ public class DocumentController {
                         document.getUpdatedAt(),
                         document.getLastError(),
                         document.getOcrConfidence(),
-                        document.getChunkCount()
+                        document.getChunkCount(),
+                        document.getVectorCount()
                 ))
                 .toList();
     }

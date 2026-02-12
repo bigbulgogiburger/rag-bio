@@ -5,6 +5,7 @@ import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaR
 import com.biorad.csrag.interfaces.rest.chunk.ChunkingService;
 import com.biorad.csrag.interfaces.rest.document.ocr.OcrResult;
 import com.biorad.csrag.interfaces.rest.document.ocr.OcrService;
+import com.biorad.csrag.interfaces.rest.vector.VectorizingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,15 +26,18 @@ public class DocumentIndexingService {
     private final DocumentMetadataJpaRepository documentRepository;
     private final OcrService ocrService;
     private final ChunkingService chunkingService;
+    private final VectorizingService vectorizingService;
 
     public DocumentIndexingService(
             DocumentMetadataJpaRepository documentRepository,
             OcrService ocrService,
-            ChunkingService chunkingService
+            ChunkingService chunkingService,
+            VectorizingService vectorizingService
     ) {
         this.documentRepository = documentRepository;
         this.ocrService = ocrService;
         this.chunkingService = chunkingService;
+        this.vectorizingService = vectorizingService;
     }
 
     @Transactional
@@ -68,6 +72,10 @@ public class DocumentIndexingService {
                 int chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText);
                 doc.markChunked(chunkCount);
                 log.info("document.chunking.success documentId={} chunkCount={}", doc.getId(), chunkCount);
+
+                int vectorCount = vectorizingService.upsertDocumentChunks(doc.getId());
+                doc.markIndexed(vectorCount);
+                log.info("document.vectorizing.success documentId={} vectorCount={}", doc.getId(), vectorCount);
 
                 succeeded++;
             } catch (Exception e) {
