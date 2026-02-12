@@ -55,10 +55,10 @@ public class AnalysisService {
             rank++;
         }
 
-        return buildVerdict(inquiryId, evidences);
+        return buildVerdict(inquiryId, question, evidences);
     }
 
-    private AnalyzeResponse buildVerdict(UUID inquiryId, List<EvidenceItem> evidences) {
+    private AnalyzeResponse buildVerdict(UUID inquiryId, String question, List<EvidenceItem> evidences) {
         if (evidences.isEmpty()) {
             return new AnalyzeResponse(
                     inquiryId.toString(),
@@ -88,11 +88,19 @@ public class AnalysisService {
             riskFlags.add("WEAK_EVIDENCE_MATCH");
         }
 
+        boolean conflictingBySpread = false;
         if (evidences.size() >= 2) {
             double spread = Math.abs(evidences.get(0).score() - evidences.get(evidences.size() - 1).score());
-            if (spread > 0.25) {
+            conflictingBySpread = spread > 0.25;
+        }
+
+        boolean conflictingByPolarity = hasPolarityConflict(question, evidences);
+        if (conflictingBySpread || conflictingByPolarity) {
+            if (!riskFlags.contains("CONFLICTING_EVIDENCE")) {
                 riskFlags.add("CONFLICTING_EVIDENCE");
             }
+            verdict = "CONDITIONAL";
+            reason = "상충되는 근거가 감지되어 조건부 판단이 필요합니다.";
         }
 
         return new AnalyzeResponse(
@@ -103,6 +111,47 @@ public class AnalysisService {
                 riskFlags,
                 evidences
         );
+    }
+
+    private boolean hasPolarityConflict(String question, List<EvidenceItem> evidences) {
+        int questionPolarity = polarityScore(question);
+        boolean hasPositive = false;
+        boolean hasNegative = false;
+
+        for (EvidenceItem evidence : evidences) {
+            int score = polarityScore(evidence.excerpt());
+            if (score > 0) hasPositive = true;
+            if (score < 0) hasNegative = true;
+        }
+
+        if (hasPositive && hasNegative) {
+            return true;
+        }
+
+        if (questionPolarity > 0 && hasNegative) {
+            return true;
+        }
+
+        return questionPolarity < 0 && hasPositive;
+    }
+
+    private int polarityScore(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        String lower = text.toLowerCase();
+        int score = 0;
+
+        String[] positive = {"valid", "supported", "aligned", "consistent", "recommended", "strong"};
+        String[] negative = {"invalid", "contradict", "inconsistent", "rejected", "not recommended", "weak"};
+
+        for (String token : positive) {
+            if (lower.contains(token)) score++;
+        }
+        for (String token : negative) {
+            if (lower.contains(token)) score--;
+        }
+        return score;
     }
 
     private String summarize(String content) {

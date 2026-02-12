@@ -1,0 +1,32 @@
+[
+  {
+    "id": "EVAL-001",
+    "question": "This protocol is fully validated with strong supporting data.",
+    "expectedVerdict": "SUPPORTED"
+  },
+  {
+    "id": "EVAL-002",
+    "question": "The claim directly contradicts available evidence and should be rejected.",
+    "expectedVerdict": "REFUTED"
+  },
+  {
+    "id": "EVAL-003",
+    "question": "There is some supporting evidence but key conditions are missing.",
+    "expectedVerdict": "CONDITIONAL"
+  },
+  {
+    "id": "EVAL-004",
+    "question": "No clear reference exists for this exact setup.",
+    "expectedVerdict": "CONDITIONAL"
+  },
+  {
+    "id": "EVAL-005",
+    "question": "Experimental settings are aligned with the documented guidance.",
+    "expectedVerdict": "SUPPORTED"
+  },
+  {
+    "id": "EVAL-006",
+    "question": "The statement is inconsistent with the protocol and appears incorrect.",
+    "expectedVerdict": "REFUTED"
+  }
+]
