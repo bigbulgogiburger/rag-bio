@@ -11,6 +11,7 @@ public record DocumentStatusResponse(
         String status,
         Instant createdAt,
         Instant updatedAt,
-        String lastError
+        String lastError,
+        Double ocrConfidence
 ) {
 }

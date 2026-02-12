@@ -34,6 +34,7 @@ export interface DocumentStatus {
   createdAt: string;
   updatedAt: string;
   lastError: string | null;
+  ocrConfidence: number | null;
 }
 
 export interface InquiryIndexingStatus {

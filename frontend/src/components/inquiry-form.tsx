@@ -191,6 +191,7 @@ export default function InquiryForm() {
             {lookupDocuments.map((doc) => (
               <li key={doc.documentId}>
                 {doc.fileName} / {doc.status} / {(doc.fileSize / 1024).toFixed(1)}KB
+                {doc.ocrConfidence != null ? ` / ocr:${doc.ocrConfidence.toFixed(2)}` : ""}
                 {doc.lastError ? ` / error: ${doc.lastError}` : ""}
               </li>
             ))}

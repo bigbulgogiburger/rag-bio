@@ -102,6 +102,7 @@ public class DocumentController {
                     "UPLOADED",
                     null,
                     null,
+                    null,
                     now,
                     now
             );
@@ -170,7 +171,8 @@ public class DocumentController {
                         document.getStatus(),
                         document.getCreatedAt(),
                         document.getUpdatedAt(),
-                        document.getLastError()
+                        document.getLastError(),
+                        document.getOcrConfidence()
                 ))
                 .toList();
     }

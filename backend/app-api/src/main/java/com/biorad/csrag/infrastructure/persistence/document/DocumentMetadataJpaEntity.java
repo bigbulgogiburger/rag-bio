@@ -41,6 +41,9 @@ public class DocumentMetadataJpaEntity {
     @Column(name = "last_error", length = 500)
     private String lastError;
 
+    @Column(name = "ocr_confidence")
+    private Double ocrConfidence;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -60,6 +63,7 @@ public class DocumentMetadataJpaEntity {
             String status,
             String extractedText,
             String lastError,
+            Double ocrConfidence,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -72,6 +76,7 @@ public class DocumentMetadataJpaEntity {
         this.status = status;
         this.extractedText = extractedText;
         this.lastError = lastError;
+        this.ocrConfidence = ocrConfidence;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -85,6 +90,7 @@ public class DocumentMetadataJpaEntity {
     public String getStatus() { return status; }
     public String getExtractedText() { return extractedText; }
     public String getLastError() { return lastError; }
+    public Double getOcrConfidence() { return ocrConfidence; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -98,6 +104,15 @@ public class DocumentMetadataJpaEntity {
         this.status = "PARSED";
         this.extractedText = extractedText;
         this.lastError = null;
+        this.ocrConfidence = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markParsedFromOcr(String extractedText, double confidence) {
+        this.status = "PARSED_OCR";
+        this.extractedText = extractedText;
+        this.lastError = null;
+        this.ocrConfidence = confidence;
         this.updatedAt = Instant.now();
     }
 
