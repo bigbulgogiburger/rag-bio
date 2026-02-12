@@ -32,6 +32,25 @@ export interface DocumentStatus {
   fileSize: number;
   status: string;
   createdAt: string;
+  updatedAt: string;
+  lastError: string | null;
+}
+
+export interface InquiryIndexingStatus {
+  inquiryId: string;
+  total: number;
+  uploaded: number;
+  parsing: number;
+  parsed: number;
+  failed: number;
+  documents: DocumentStatus[];
+}
+
+export interface IndexingRunResult {
+  inquiryId: string;
+  processed: number;
+  succeeded: number;
+  failed: number;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -84,4 +103,26 @@ export async function listInquiryDocuments(inquiryId: string): Promise<DocumentS
   }
 
   return (await response.json()) as DocumentStatus[];
+}
+
+export async function getInquiryIndexingStatus(inquiryId: string): Promise<InquiryIndexingStatus> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing-status`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch indexing status: ${response.status}`);
+  }
+
+  return (await response.json()) as InquiryIndexingStatus;
+}
+
+export async function runInquiryIndexing(inquiryId: string): Promise<IndexingRunResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing/run`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to run indexing: ${response.status}`);
+  }
+
+  return (await response.json()) as IndexingRunResult;
 }

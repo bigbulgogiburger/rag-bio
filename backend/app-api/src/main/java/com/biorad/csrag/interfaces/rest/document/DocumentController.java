@@ -41,16 +41,19 @@ public class DocumentController {
 
     private final InquiryRepository inquiryRepository;
     private final DocumentMetadataJpaRepository documentMetadataJpaRepository;
+    private final DocumentIndexingService documentIndexingService;
 
     @Value("${app.storage.upload-dir:uploads}")
     private String uploadDir;
 
     public DocumentController(
             InquiryRepository inquiryRepository,
-            DocumentMetadataJpaRepository documentMetadataJpaRepository
+            DocumentMetadataJpaRepository documentMetadataJpaRepository,
+            DocumentIndexingService documentIndexingService
     ) {
         this.inquiryRepository = inquiryRepository;
         this.documentMetadataJpaRepository = documentMetadataJpaRepository;
+        this.documentIndexingService = documentIndexingService;
     }
 
     @PostMapping
@@ -88,6 +91,7 @@ public class DocumentController {
             Path target = baseDir.resolve(documentId + "_" + fileName);
             file.transferTo(target);
 
+            Instant now = Instant.now();
             DocumentMetadataJpaEntity entity = new DocumentMetadataJpaEntity(
                     documentId,
                     inquiryUuid,
@@ -96,7 +100,10 @@ public class DocumentController {
                     file.getSize(),
                     target.toString(),
                     "UPLOADED",
-                    Instant.now()
+                    null,
+                    null,
+                    now,
+                    now
             );
             documentMetadataJpaRepository.save(entity);
             log.info("document.upload.success inquiryId={} documentId={} status=UPLOADED", inquiryUuid, documentId);
@@ -109,6 +116,44 @@ public class DocumentController {
 
     @GetMapping
     public List<DocumentStatusResponse> list(@PathVariable String inquiryId) {
+        return getDocumentStatuses(inquiryId);
+    }
+
+    @GetMapping("/indexing-status")
+    public InquiryIndexingStatusResponse indexingStatus(@PathVariable String inquiryId) {
+        log.info("document.indexing.status.request inquiryId={}", inquiryId);
+        List<DocumentStatusResponse> docs = getDocumentStatuses(inquiryId);
+
+        int uploaded = (int) docs.stream().filter(d -> "UPLOADED".equals(d.status())).count();
+        int parsing = (int) docs.stream().filter(d -> "PARSING".equals(d.status())).count();
+        int parsed = (int) docs.stream().filter(d -> "PARSED".equals(d.status())).count();
+        int failed = (int) docs.stream().filter(d -> "FAILED_PARSING".equals(d.status())).count();
+
+        return new InquiryIndexingStatusResponse(
+                inquiryId,
+                docs.size(),
+                uploaded,
+                parsing,
+                parsed,
+                failed,
+                docs
+        );
+    }
+
+    @PostMapping("/indexing/run")
+    public IndexingRunResponse runIndexing(@PathVariable String inquiryId) {
+        log.info("document.indexing.run.request inquiryId={}", inquiryId);
+        UUID inquiryUuid = parseInquiryId(inquiryId);
+        inquiryRepository.findById(new InquiryId(inquiryUuid))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+
+        IndexingRunResponse response = documentIndexingService.run(inquiryUuid);
+        log.info("document.indexing.run.success inquiryId={} processed={} succeeded={} failed={}",
+                response.inquiryId(), response.processed(), response.succeeded(), response.failed());
+        return response;
+    }
+
+    private List<DocumentStatusResponse> getDocumentStatuses(String inquiryId) {
         log.info("document.list.request inquiryId={}", inquiryId);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
@@ -123,7 +168,9 @@ public class DocumentController {
                         document.getContentType(),
                         document.getFileSize(),
                         document.getStatus(),
-                        document.getCreatedAt()
+                        document.getCreatedAt(),
+                        document.getUpdatedAt(),
+                        document.getLastError()
                 ))
                 .toList();
     }

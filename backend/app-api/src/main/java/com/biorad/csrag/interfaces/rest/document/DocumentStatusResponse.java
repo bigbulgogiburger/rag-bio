@@ -9,6 +9,8 @@ public record DocumentStatusResponse(
         String contentType,
         long fileSize,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        Instant updatedAt,
+        String lastError
 ) {
 }

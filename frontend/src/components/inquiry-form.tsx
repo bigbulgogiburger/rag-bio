@@ -4,10 +4,13 @@ import { FormEvent, useState } from "react";
 import {
   createInquiry,
   getInquiry,
+  getInquiryIndexingStatus,
   listInquiryDocuments,
+  runInquiryIndexing,
   uploadInquiryDocument,
   type DocumentStatus,
-  type InquiryDetail
+  type InquiryDetail,
+  type InquiryIndexingStatus
 } from "@/lib/api/client";
 
 export default function InquiryForm() {
@@ -21,6 +24,7 @@ export default function InquiryForm() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupInquiry, setLookupInquiry] = useState<InquiryDetail | null>(null);
   const [lookupDocuments, setLookupDocuments] = useState<DocumentStatus[]>([]);
+  const [indexingStatus, setIndexingStatus] = useState<InquiryIndexingStatus | null>(null);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -49,8 +53,10 @@ export default function InquiryForm() {
     }
   };
 
+  const inquiryId = lookupInquiryId.trim();
+
   const onLookup = async () => {
-    if (!lookupInquiryId.trim()) {
+    if (!inquiryId) {
       setStatus("조회할 inquiryId를 입력해줘.");
       return;
     }
@@ -59,16 +65,41 @@ export default function InquiryForm() {
     setStatus(null);
 
     try {
-      const [inquiry, documents] = await Promise.all([
-        getInquiry(lookupInquiryId.trim()),
-        listInquiryDocuments(lookupInquiryId.trim())
+      const [inquiry, documents, idxStatus] = await Promise.all([
+        getInquiry(inquiryId),
+        listInquiryDocuments(inquiryId),
+        getInquiryIndexingStatus(inquiryId)
       ]);
       setLookupInquiry(inquiry);
       setLookupDocuments(documents);
+      setIndexingStatus(idxStatus);
       setStatus(`문의 ${inquiry.inquiryId} 상태 조회 완료`);
     } catch (error) {
       setLookupInquiry(null);
       setLookupDocuments([]);
+      setIndexingStatus(null);
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onRunIndexing = async () => {
+    if (!inquiryId) {
+      setStatus("인덱싱 실행할 inquiryId를 입력해줘.");
+      return;
+    }
+
+    setLookupLoading(true);
+    setStatus(null);
+
+    try {
+      const run = await runInquiryIndexing(inquiryId);
+      const idxStatus = await getInquiryIndexingStatus(inquiryId);
+      setIndexingStatus(idxStatus);
+      setLookupDocuments(idxStatus.documents);
+      setStatus(`인덱싱 실행 완료: 처리 ${run.processed}, 성공 ${run.succeeded}, 실패 ${run.failed}`);
+    } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setLookupLoading(false);
@@ -136,14 +167,8 @@ export default function InquiryForm() {
             placeholder="inquiry UUID"
             style={{ minWidth: "340px", border: "1px solid #dcded6", borderRadius: "8px", padding: "0.55rem" }}
           />
-          <button
-            type="button"
-            onClick={onLookup}
-            disabled={lookupLoading}
-            style={{ borderRadius: "999px", border: 0, padding: "0.55rem 0.9rem", cursor: "pointer" }}
-          >
-            {lookupLoading ? "Loading..." : "조회"}
-          </button>
+          <button type="button" onClick={onLookup} disabled={lookupLoading}>조회</button>
+          <button type="button" onClick={onRunIndexing} disabled={lookupLoading}>인덱싱 실행</button>
         </div>
 
         {lookupInquiry && (
@@ -154,11 +179,19 @@ export default function InquiryForm() {
           </div>
         )}
 
+        {indexingStatus && (
+          <div style={{ fontSize: "0.92rem" }}>
+            <b>인덱싱 요약</b>
+            <div>전체 {indexingStatus.total} / 업로드 {indexingStatus.uploaded} / 파싱중 {indexingStatus.parsing} / 파싱완료 {indexingStatus.parsed} / 실패 {indexingStatus.failed}</div>
+          </div>
+        )}
+
         {lookupDocuments.length > 0 && (
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             {lookupDocuments.map((doc) => (
               <li key={doc.documentId}>
                 {doc.fileName} / {doc.status} / {(doc.fileSize / 1024).toFixed(1)}KB
+                {doc.lastError ? ` / error: ${doc.lastError}` : ""}
               </li>
             ))}
           </ul>
