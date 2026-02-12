@@ -44,6 +44,9 @@ public class DocumentMetadataJpaEntity {
     @Column(name = "ocr_confidence")
     private Double ocrConfidence;
 
+    @Column(name = "chunk_count")
+    private Integer chunkCount;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -64,6 +67,7 @@ public class DocumentMetadataJpaEntity {
             String extractedText,
             String lastError,
             Double ocrConfidence,
+            Integer chunkCount,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -77,6 +81,7 @@ public class DocumentMetadataJpaEntity {
         this.extractedText = extractedText;
         this.lastError = lastError;
         this.ocrConfidence = ocrConfidence;
+        this.chunkCount = chunkCount;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -91,6 +96,7 @@ public class DocumentMetadataJpaEntity {
     public String getExtractedText() { return extractedText; }
     public String getLastError() { return lastError; }
     public Double getOcrConfidence() { return ocrConfidence; }
+    public Integer getChunkCount() { return chunkCount; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -105,6 +111,7 @@ public class DocumentMetadataJpaEntity {
         this.extractedText = extractedText;
         this.lastError = null;
         this.ocrConfidence = null;
+        this.chunkCount = null;
         this.updatedAt = Instant.now();
     }
 
@@ -113,12 +120,21 @@ public class DocumentMetadataJpaEntity {
         this.extractedText = extractedText;
         this.lastError = null;
         this.ocrConfidence = confidence;
+        this.chunkCount = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markChunked(int chunkCount) {
+        this.status = "CHUNKED";
+        this.chunkCount = chunkCount;
+        this.lastError = null;
         this.updatedAt = Instant.now();
     }
 
     public void markFailed(String error) {
         this.status = "FAILED_PARSING";
         this.lastError = error == null ? "unknown" : error;
+        this.chunkCount = null;
         this.updatedAt = Instant.now();
     }
 }

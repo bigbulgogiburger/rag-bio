@@ -35,6 +35,7 @@ export interface DocumentStatus {
   updatedAt: string;
   lastError: string | null;
   ocrConfidence: number | null;
+  chunkCount: number | null;
 }
 
 export interface InquiryIndexingStatus {
@@ -43,6 +44,7 @@ export interface InquiryIndexingStatus {
   uploaded: number;
   parsing: number;
   parsed: number;
+  chunked: number;
   failed: number;
   documents: DocumentStatus[];
 }

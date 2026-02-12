@@ -12,6 +12,7 @@ public record DocumentStatusResponse(
         Instant createdAt,
         Instant updatedAt,
         String lastError,
-        Double ocrConfidence
+        Double ocrConfidence,
+        Integer chunkCount
 ) {
 }

@@ -2,6 +2,7 @@ package com.biorad.csrag.interfaces.rest.document;
 
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
+import com.biorad.csrag.interfaces.rest.chunk.ChunkingService;
 import com.biorad.csrag.interfaces.rest.document.ocr.OcrResult;
 import com.biorad.csrag.interfaces.rest.document.ocr.OcrService;
 import org.slf4j.Logger;
@@ -23,10 +24,16 @@ public class DocumentIndexingService {
 
     private final DocumentMetadataJpaRepository documentRepository;
     private final OcrService ocrService;
+    private final ChunkingService chunkingService;
 
-    public DocumentIndexingService(DocumentMetadataJpaRepository documentRepository, OcrService ocrService) {
+    public DocumentIndexingService(
+            DocumentMetadataJpaRepository documentRepository,
+            OcrService ocrService,
+            ChunkingService chunkingService
+    ) {
         this.documentRepository = documentRepository;
         this.ocrService = ocrService;
+        this.chunkingService = chunkingService;
     }
 
     @Transactional
@@ -47,13 +54,20 @@ public class DocumentIndexingService {
                 doc.markParsing();
                 String extracted = extractText(doc);
 
+                String finalText;
                 if (needsOcr(doc, extracted)) {
                     OcrResult ocr = ocrService.extract(Path.of(doc.getStoragePath()));
-                    doc.markParsedFromOcr(limitText(ocr.text()), ocr.confidence());
+                    finalText = limitText(ocr.text());
+                    doc.markParsedFromOcr(finalText, ocr.confidence());
                     log.info("document.indexing.ocr.success documentId={} confidence={}", doc.getId(), ocr.confidence());
                 } else {
-                    doc.markParsed(limitText(extracted));
+                    finalText = limitText(extracted);
+                    doc.markParsed(finalText);
                 }
+
+                int chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText);
+                doc.markChunked(chunkCount);
+                log.info("document.chunking.success documentId={} chunkCount={}", doc.getId(), chunkCount);
 
                 succeeded++;
             } catch (Exception e) {
