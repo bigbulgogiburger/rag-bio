@@ -4,6 +4,8 @@ import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaE
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
@@ -28,6 +30,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/inquiries/{inquiryId}/documents")
 public class DocumentController {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "application/pdf",
@@ -55,6 +59,12 @@ public class DocumentController {
             @PathVariable String inquiryId,
             @RequestParam("file") MultipartFile file
     ) {
+        log.info("document.upload.request inquiryId={} fileName={} size={} contentType={}",
+                inquiryId,
+                file.getOriginalFilename(),
+                file.getSize(),
+                file.getContentType());
+
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
@@ -89,6 +99,7 @@ public class DocumentController {
                     Instant.now()
             );
             documentMetadataJpaRepository.save(entity);
+            log.info("document.upload.success inquiryId={} documentId={} status=UPLOADED", inquiryUuid, documentId);
 
             return new DocumentUploadResponse(documentId.toString(), inquiryUuid.toString(), fileName, "UPLOADED");
         } catch (IOException e) {
@@ -98,6 +109,7 @@ public class DocumentController {
 
     @GetMapping
     public List<DocumentStatusResponse> list(@PathVariable String inquiryId) {
+        log.info("document.list.request inquiryId={}", inquiryId);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));

@@ -7,6 +7,8 @@ import com.biorad.csrag.inquiry.domain.model.Inquiry;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +25,8 @@ import java.util.UUID;
 @RequestMapping("/api/v1/inquiries")
 public class InquiryController {
 
+    private static final Logger log = LoggerFactory.getLogger(InquiryController.class);
+
     private final AskQuestionUseCase askQuestionUseCase;
     private final InquiryRepository inquiryRepository;
 
@@ -34,19 +38,28 @@ public class InquiryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AskQuestionResult createInquiry(@Valid @RequestBody CreateInquiryRequest request) {
+        log.info("inquiry.create.request channel={} questionLength={}",
+                request.customerChannel(), request.question() == null ? 0 : request.question().length());
+
         AskQuestionCommand command = new AskQuestionCommand(
                 request.question(),
                 request.customerChannel() == null ? "unspecified" : request.customerChannel()
         );
-        return askQuestionUseCase.ask(command);
+        AskQuestionResult result = askQuestionUseCase.ask(command);
+
+        log.info("inquiry.create.success inquiryId={} status={}", result.inquiryId(), result.status());
+        return result;
     }
 
     @GetMapping("/{inquiryId}")
     public InquiryDetailResponse getInquiry(@PathVariable String inquiryId) {
         UUID id = parseInquiryId(inquiryId);
+        log.info("inquiry.get.request inquiryId={}", inquiryId);
+
         Inquiry inquiry = inquiryRepository.findById(new InquiryId(id))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
 
+        log.info("inquiry.get.success inquiryId={} status={}", inquiry.getId().value(), inquiry.getStatus());
         return new InquiryDetailResponse(
                 inquiry.getId().value().toString(),
                 inquiry.getQuestion(),

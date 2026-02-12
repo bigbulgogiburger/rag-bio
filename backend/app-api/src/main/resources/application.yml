@@ -27,5 +27,9 @@ app:
   storage:
     upload-dir: uploads
 
+logging:
+  pattern:
+    level: "%5p [req:%X{requestId:-none}]"
+
 server:
   port: 8080
