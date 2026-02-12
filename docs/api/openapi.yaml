@@ -406,6 +406,10 @@ components:
         question:
           type: string
           minLength: 1
+        tone:
+          type: string
+          enum: [professional, technical, brief]
+          default: professional
 
     AnswerDraftResponse:
       type: object

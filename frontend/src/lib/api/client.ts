@@ -74,6 +74,8 @@ export interface AnalyzeResult {
   evidences: AnalyzeEvidenceItem[];
 }
 
+export type AnswerTone = "professional" | "technical" | "brief";
+
 export interface AnswerDraftResult {
   inquiryId: string;
   verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
@@ -178,11 +180,15 @@ export async function analyzeInquiry(
   return (await response.json()) as AnalyzeResult;
 }
 
-export async function draftInquiryAnswer(inquiryId: string, question: string): Promise<AnswerDraftResult> {
+export async function draftInquiryAnswer(
+  inquiryId: string,
+  question: string,
+  tone: AnswerTone = "professional"
+): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question })
+    body: JSON.stringify({ question, tone })
   });
 
   if (!response.ok) {

@@ -31,6 +31,7 @@ export default function InquiryForm() {
   const [indexingStatus, setIndexingStatus] = useState<InquiryIndexingStatus | null>(null);
   const [analysisQuestion, setAnalysisQuestion] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null);
+  const [answerTone, setAnswerTone] = useState<"professional" | "technical" | "brief">("professional");
   const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -152,7 +153,7 @@ export default function InquiryForm() {
     setStatus(null);
 
     try {
-      const draft = await draftInquiryAnswer(inquiryId, analysisQuestion.trim());
+      const draft = await draftInquiryAnswer(inquiryId, analysisQuestion.trim(), answerTone);
       setAnswerDraft(draft);
       setStatus(`답변 초안 생성 완료: verdict=${draft.verdict}`);
     } catch (error) {
@@ -271,8 +272,16 @@ export default function InquiryForm() {
             style={{ resize: "vertical", border: "1px solid #dcded6", borderRadius: "8px", padding: "0.6rem" }}
           />
         </label>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" onClick={onAnalyze} disabled={lookupLoading}>근거검색+판정 실행</button>
+          <label style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+            톤
+            <select value={answerTone} onChange={(e) => setAnswerTone(e.target.value as "professional" | "technical" | "brief")}>
+              <option value="professional">정중</option>
+              <option value="technical">기술</option>
+              <option value="brief">요약</option>
+            </select>
+          </label>
           <button type="button" onClick={onDraftAnswer} disabled={lookupLoading}>CS 답변 초안 생성</button>
         </div>
 

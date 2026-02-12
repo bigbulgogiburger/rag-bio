@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record AnswerDraftRequest(
         @NotBlank(message = "question is required")
-        String question
+        String question,
+        String tone
 ) {
 }

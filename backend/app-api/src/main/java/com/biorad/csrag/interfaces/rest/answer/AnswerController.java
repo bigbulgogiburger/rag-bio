@@ -36,7 +36,7 @@ public class AnswerController {
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
 
-        return answerComposerService.compose(inquiryUuid, request.question());
+        return answerComposerService.compose(inquiryUuid, request.question(), request.tone());
     }
 
     private UUID parseInquiryId(String inquiryId) {
