@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Bio-Rad CS Copilot API
-  version: 0.1.0
-  description: Sprint 1 API contract (Inquiry + Document Upload/Status)
+  version: 0.2.0
+  description: Sprint 2 API contract (Ingestion/Indexing/OCR/Chunk/Mock Vector)
 servers:
   - url: http://localhost:8080
 
@@ -22,11 +22,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateInquiryRequest'
-            examples:
-              basic:
-                value:
-                  question: "qPCR 결과 Ct 값 해석이 맞는지 확인 부탁드립니다."
-                  customerChannel: "email"
       responses:
         '201':
           description: 문의 생성 성공
@@ -108,6 +103,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/documents/indexing-status:
+    get:
+      tags: [Document]
+      summary: 문의 인덱싱 상태 요약 조회
+      operationId: getInquiryIndexingStatus
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      responses:
+        '200':
+          description: 인덱싱 상태 요약 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InquiryIndexingStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/inquiries/{inquiryId}/documents/indexing/run:
+    post:
+      tags: [Document]
+      summary: 문의 문서 인덱싱 실행/재실행
+      operationId: runInquiryIndexing
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+        - in: query
+          name: failedOnly
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: true이면 FAILED_PARSING 상태 문서만 재처리
+      responses:
+        '200':
+          description: 인덱싱 실행 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexingRunResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   parameters:
     InquiryIdPath:
@@ -127,10 +169,8 @@ components:
         question:
           type: string
           minLength: 1
-          description: 고객 기술 문의 내용
         customerChannel:
           type: string
-          description: 문의 유입 채널 (email/messenger/portal)
 
     AskQuestionResult:
       type: object
@@ -141,7 +181,6 @@ components:
           format: uuid
         status:
           type: string
-          example: RECEIVED
         message:
           type: string
 
@@ -158,7 +197,6 @@ components:
           type: string
         status:
           type: string
-          example: RECEIVED
         createdAt:
           type: string
           format: date-time
@@ -177,11 +215,10 @@ components:
           type: string
         status:
           type: string
-          example: UPLOADED
 
     DocumentStatusResponse:
       type: object
-      required: [documentId, inquiryId, fileName, contentType, fileSize, status, createdAt]
+      required: [documentId, inquiryId, fileName, contentType, fileSize, status, createdAt, updatedAt]
       properties:
         documentId:
           type: string
@@ -198,10 +235,66 @@ components:
           format: int64
         status:
           type: string
-          example: UPLOADED
+          description: UPLOADED | PARSING | PARSED | PARSED_OCR | CHUNKED | INDEXED | FAILED_PARSING
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+          nullable: true
+        ocrConfidence:
+          type: number
+          format: double
+          nullable: true
+        chunkCount:
+          type: integer
+          nullable: true
+        vectorCount:
+          type: integer
+          nullable: true
+
+    InquiryIndexingStatusResponse:
+      type: object
+      required: [inquiryId, total, uploaded, parsing, parsed, chunked, indexed, failed, documents]
+      properties:
+        inquiryId:
+          type: string
+          format: uuid
+        total:
+          type: integer
+        uploaded:
+          type: integer
+        parsing:
+          type: integer
+        parsed:
+          type: integer
+        chunked:
+          type: integer
+        indexed:
+          type: integer
+        failed:
+          type: integer
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentStatusResponse'
+
+    IndexingRunResponse:
+      type: object
+      required: [inquiryId, processed, succeeded, failed]
+      properties:
+        inquiryId:
+          type: string
+          format: uuid
+        processed:
+          type: integer
+        succeeded:
+          type: integer
+        failed:
+          type: integer
 
     ErrorResponse:
       type: object

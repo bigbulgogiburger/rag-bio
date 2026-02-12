@@ -120,10 +120,13 @@ export async function getInquiryIndexingStatus(inquiryId: string): Promise<Inqui
   return (await response.json()) as InquiryIndexingStatus;
 }
 
-export async function runInquiryIndexing(inquiryId: string): Promise<IndexingRunResult> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing/run`, {
-    method: "POST"
-  });
+export async function runInquiryIndexing(inquiryId: string, failedOnly = false): Promise<IndexingRunResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing/run?failedOnly=${failedOnly}`,
+    {
+      method: "POST"
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to run indexing: ${response.status}`);

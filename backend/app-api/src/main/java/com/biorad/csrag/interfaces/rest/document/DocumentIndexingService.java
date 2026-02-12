@@ -41,7 +41,7 @@ public class DocumentIndexingService {
     }
 
     @Transactional
-    public IndexingRunResponse run(UUID inquiryId) {
+    public IndexingRunResponse run(UUID inquiryId, boolean failedOnly) {
         List<DocumentMetadataJpaEntity> docs = documentRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
 
         int processed = 0;
@@ -49,8 +49,14 @@ public class DocumentIndexingService {
         int failed = 0;
 
         for (DocumentMetadataJpaEntity doc : docs) {
-            if (!("UPLOADED".equals(doc.getStatus()) || "FAILED_PARSING".equals(doc.getStatus()))) {
-                continue;
+            if (failedOnly) {
+                if (!"FAILED_PARSING".equals(doc.getStatus())) {
+                    continue;
+                }
+            } else {
+                if (!("UPLOADED".equals(doc.getStatus()) || "FAILED_PARSING".equals(doc.getStatus()))) {
+                    continue;
+                }
             }
 
             processed++;

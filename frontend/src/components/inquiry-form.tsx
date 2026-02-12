@@ -84,7 +84,7 @@ export default function InquiryForm() {
     }
   };
 
-  const onRunIndexing = async () => {
+  const onRunIndexing = async (failedOnly = false) => {
     if (!inquiryId) {
       setStatus("인덱싱 실행할 inquiryId를 입력해줘.");
       return;
@@ -94,7 +94,7 @@ export default function InquiryForm() {
     setStatus(null);
 
     try {
-      const run = await runInquiryIndexing(inquiryId);
+      const run = await runInquiryIndexing(inquiryId, failedOnly);
       const idxStatus = await getInquiryIndexingStatus(inquiryId);
       setIndexingStatus(idxStatus);
       setLookupDocuments(idxStatus.documents);
@@ -168,7 +168,8 @@ export default function InquiryForm() {
             style={{ minWidth: "340px", border: "1px solid #dcded6", borderRadius: "8px", padding: "0.55rem" }}
           />
           <button type="button" onClick={onLookup} disabled={lookupLoading}>조회</button>
-          <button type="button" onClick={onRunIndexing} disabled={lookupLoading}>인덱싱 실행</button>
+          <button type="button" onClick={() => onRunIndexing(false)} disabled={lookupLoading}>인덱싱 실행</button>
+          <button type="button" onClick={() => onRunIndexing(true)} disabled={lookupLoading}>실패건만 재처리</button>
         </div>
 
         {lookupInquiry && (

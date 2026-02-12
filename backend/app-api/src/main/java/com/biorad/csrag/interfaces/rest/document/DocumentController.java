@@ -148,13 +148,16 @@ public class DocumentController {
     }
 
     @PostMapping("/indexing/run")
-    public IndexingRunResponse runIndexing(@PathVariable String inquiryId) {
-        log.info("document.indexing.run.request inquiryId={}", inquiryId);
+    public IndexingRunResponse runIndexing(
+            @PathVariable String inquiryId,
+            @RequestParam(name = "failedOnly", defaultValue = "false") boolean failedOnly
+    ) {
+        log.info("document.indexing.run.request inquiryId={} failedOnly={}", inquiryId, failedOnly);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
 
-        IndexingRunResponse response = documentIndexingService.run(inquiryUuid);
+        IndexingRunResponse response = documentIndexingService.run(inquiryUuid, failedOnly);
         log.info("document.indexing.run.success inquiryId={} processed={} succeeded={} failed={}",
                 response.inquiryId(), response.processed(), response.succeeded(), response.failed());
         return response;
