@@ -24,6 +24,7 @@ public class AnswerComposerService {
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
         String draft = createDraftByTone(analysis, normalizedTone);
+        draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
         draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags());
 
         List<String> citations = new ArrayList<>();
@@ -65,6 +66,24 @@ public class AnswerComposerService {
                         "아래 확인 항목을 점검한 뒤 재판정을 권장드립니다.";
             };
         };
+    }
+
+    private String applyGuardrails(String draft, double confidence, List<String> riskFlags) {
+        List<String> notices = new ArrayList<>();
+
+        if (confidence < 0.75) {
+            notices.add("현재 근거 신뢰도가 충분히 높지 않아 추가 확인이 필요합니다.");
+        }
+
+        if (!riskFlags.isEmpty()) {
+            notices.add("위험 신호가 감지되어 단정적 결론 대신 보수적 안내가 필요합니다.");
+        }
+
+        if (notices.isEmpty()) {
+            return draft;
+        }
+
+        return String.join(" ", notices) + " " + draft;
     }
 
     private String formatByChannel(String draft, String channel, List<String> riskFlags) {
