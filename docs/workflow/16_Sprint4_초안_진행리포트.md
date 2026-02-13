@@ -42,5 +42,11 @@
   - 지표: Verdict Accuracy, Citation Inclusion Rate, Low-Confidence Guardrail Coverage, Risk Guardrail Coverage
   - 리포트 출력: `docs/workflow/reports/sprint4_answer_eval_report_*.md`
 
+## 추가 완료 (7차)
+- Sprint4 평가 리포트 1차/재평가 실행
+  - baseline(인덱싱 없는 상태): Accuracy 40.00%, Citation 0.00%
+  - 실데이터(인덱싱 완료 inquiry): Accuracy 93.33%, Citation 100.00%
+  - Guardrail coverage(저신뢰/리스크): 100% 유지
+
 ## 다음 작업
-- Sprint4 평가 리포트 1차 실행 및 기준선 수치 확정
+- holdout answer evalset 추가 및 재현성 체크
