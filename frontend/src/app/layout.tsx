@@ -3,20 +3,20 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bio-Rad CS Copilot",
-  description: "RAG-based multi-agent CS assistant"
+  title: "Bio-Rad CS 코파일럿",
+  description: "RAG 기반 멀티에이전트 CS 어시스턴트"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body>
         <main>
-          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-            <h1 style={{ margin: 0, fontSize: "1.4rem" }}>Bio-Rad CS Copilot</h1>
-            <nav style={{ display: "flex", gap: "1rem", color: "#0f766e" }}>
-              <Link href="/dashboard">Dashboard</Link>
-              <Link href="/inquiry/new">New Inquiry</Link>
+          <header className="app-header">
+            <h1 className="app-title">Bio-Rad CS 코파일럿</h1>
+            <nav className="app-nav">
+              <Link className="nav-link" href="/dashboard">대시보드</Link>
+              <Link className="nav-link" href="/inquiry/new">문의 작성</Link>
             </nav>
           </header>
           {children}
