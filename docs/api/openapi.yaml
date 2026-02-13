@@ -333,6 +333,26 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/ops/metrics:
+    get:
+      tags: [Inquiry]
+      summary: 운영 지표 조회
+      operationId: getOpsMetrics
+      parameters:
+        - name: topFailures
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: 운영 지표
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsMetricsResponse'
+
   /api/v1/inquiries/{inquiryId}/answers/audit-logs:
     get:
       tags: [Inquiry]
@@ -797,6 +817,43 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    OpsFailureReason:
+      type: object
+      required: [reason, count]
+      properties:
+        reason:
+          type: string
+        count:
+          type: integer
+          format: int64
+
+    OpsMetricsResponse:
+      type: object
+      required: [approvedOrSentCount, sentCount, sendSuccessRate, fallbackDraftCount, totalDraftCount, fallbackDraftRate, topFailureReasons]
+      properties:
+        approvedOrSentCount:
+          type: integer
+          format: int64
+        sentCount:
+          type: integer
+          format: int64
+        sendSuccessRate:
+          type: number
+          format: double
+        fallbackDraftCount:
+          type: integer
+          format: int64
+        totalDraftCount:
+          type: integer
+          format: int64
+        fallbackDraftRate:
+          type: number
+          format: double
+        topFailureReasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsFailureReason'
 
     ErrorResponse:
       type: object

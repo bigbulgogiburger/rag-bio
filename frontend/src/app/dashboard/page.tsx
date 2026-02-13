@@ -1,24 +1,48 @@
-const metrics = [
-  { label: "진행 중 문의", value: "12" },
-  { label: "응답 시간 P95", value: "7.4초" },
-  { label: "근거 커버리지", value: "91%" },
-  { label: "승인 대기", value: "4" }
-];
+"use client";
+
+import { useEffect, useState } from "react";
+import { getOpsMetrics, type OpsMetrics } from "@/lib/api/client";
 
 export default function DashboardPage() {
+  const [metrics, setMetrics] = useState<OpsMetrics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getOpsMetrics()
+      .then(setMetrics)
+      .catch((e) => setError(e instanceof Error ? e.message : "지표를 불러오지 못했습니다."));
+  }, []);
+
+  const cards = [
+    { label: "발송 성공률", value: metrics ? `${metrics.sendSuccessRate}%` : "-" },
+    { label: "발송 완료 건", value: metrics ? `${metrics.sentCount}/${metrics.approvedOrSentCount}` : "-" },
+    { label: "Fallback 비율", value: metrics ? `${metrics.fallbackDraftRate}%` : "-" },
+    { label: "Fallback 건", value: metrics ? `${metrics.fallbackDraftCount}/${metrics.totalDraftCount}` : "-" }
+  ];
+
   return (
     <section className="metrics-grid cols-2">
-      {metrics.map((metric) => (
+      {cards.map((metric) => (
         <article className="card" key={metric.label}>
           <p className="muted" style={{ margin: 0, fontSize: ".88rem" }}>{metric.label}</p>
           <p style={{ margin: ".45rem 0 0", fontSize: "1.9rem", fontWeight: 800 }}>{metric.value}</p>
         </article>
       ))}
+
       <article className="card" style={{ gridColumn: "1 / -1" }}>
-        <h2 className="section-title">오늘의 워크플로우 요약</h2>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          문의 접수 → 상태 확인 → 분석 → 답변 생성/승인/발송 흐름을 이 화면에서 빠르게 점검할 수 있습니다.
-        </p>
+        <h2 className="section-title">최근 실패 사유 Top</h2>
+        {error && <p className="muted">{error}</p>}
+        {!error && (
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            {(metrics?.topFailureReasons ?? []).length === 0 ? (
+              <li>실패 사유 데이터 없음</li>
+            ) : (
+              metrics?.topFailureReasons.map((item, idx) => (
+                <li key={`${item.reason}-${idx}`}>{item.reason} · {item.count}건</li>
+              ))
+            )}
+          </ul>
+        )}
       </article>
     </section>
   );

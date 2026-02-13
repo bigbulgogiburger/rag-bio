@@ -9,6 +9,21 @@ export interface AskQuestionResult {
   message: string;
 }
 
+export interface OpsFailureReason {
+  reason: string;
+  count: number;
+}
+
+export interface OpsMetrics {
+  approvedOrSentCount: number;
+  sentCount: number;
+  sendSuccessRate: number;
+  fallbackDraftCount: number;
+  totalDraftCount: number;
+  fallbackDraftRate: number;
+  topFailureReasons: OpsFailureReason[];
+}
+
 export interface InquiryDetail {
   inquiryId: string;
   question: string;
@@ -282,4 +297,12 @@ export async function sendAnswerDraft(
     throw new Error(`Failed to send draft: ${response.status}`);
   }
   return (await response.json()) as AnswerDraftResult;
+}
+
+export async function getOpsMetrics(): Promise<OpsMetrics> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/ops/metrics`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ops metrics: ${response.status}`);
+  }
+  return (await response.json()) as OpsMetrics;
 }

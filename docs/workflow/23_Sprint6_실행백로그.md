@@ -30,10 +30,10 @@
 - [x] 운영 조회 시나리오 샘플 쿼리 문서화 (`25_Sprint6_감사로그_조회_예시.md`)
 
 ### S6-A3 운영 대시보드 지표 확장 (P1)
-- [ ] send success rate
+- [x] send success rate
 - [ ] duplicate block rate
-- [ ] fallback draft rate
-- [ ] 최근 실패 사유 top-N
+- [x] fallback draft rate
+- [x] 최근 실패 사유 top-N
 
 ### S6-A4 E2E/회귀 테스트 강화 (P0)
 - [x] 등록→조회→분석→초안→리뷰→승인→발송 E2E 자동화 (`AnswerWorkflowIntegrationTest`)

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,4 +38,10 @@ public interface AnswerDraftJpaRepository extends JpaRepository<AnswerDraftJpaEn
             @Param("toTs") Instant toTs,
             Pageable pageable
     );
+
+    long countByStatus(String status);
+
+    long countByStatusIn(Collection<String> statuses);
+
+    long countByRiskFlagsContaining(String token);
 }
