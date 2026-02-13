@@ -23,6 +23,8 @@ let lowConfidenceCases = 0;
 let lowConfidenceGuardrail = 0;
 let riskFlagCases = 0;
 let riskGuardrail = 0;
+let channelFormatChecks = 0;
+let channelFormatPassed = 0;
 
 const rows = [];
 
@@ -66,6 +68,10 @@ for (const item of evalset) {
     if (hasRiskNotice) riskGuardrail += 1;
   }
 
+  const formatCheck = checkChannelFormat(draft, channel);
+  channelFormatChecks += 1;
+  if (formatCheck.ok) channelFormatPassed += 1;
+
   rows.push({
     id: item.id,
     expected: item.expectedVerdict,
@@ -76,10 +82,35 @@ for (const item of evalset) {
     riskFlags,
     lowConfidenceGuardrail: hasLowConfCase ? hasLowConfNotice : null,
     riskGuardrail: hasRiskCase ? hasRiskNotice : null,
+    channelFormatOk: formatCheck.ok,
+    channelFormatReason: formatCheck.reason,
     answerId: data.answerId,
     version: data.version,
     status: data.status
   });
+}
+
+function checkChannelFormat(draft, channel) {
+  const text = String(draft ?? '');
+  if (channel === 'email') {
+    const hasGreeting = text.includes('안녕하세요');
+    const hasClosing = text.includes('감사합니다');
+    return {
+      ok: hasGreeting && hasClosing,
+      reason: hasGreeting && hasClosing ? 'ok' : 'email requires greeting+closing'
+    };
+  }
+
+  if (channel === 'messenger') {
+    const hasSummaryTag = text.includes('[요약]');
+    const maxLengthOk = text.length <= 260;
+    return {
+      ok: hasSummaryTag && maxLengthOk,
+      reason: hasSummaryTag && maxLengthOk ? 'ok' : 'messenger requires [요약] and <=260 chars'
+    };
+  }
+
+  return { ok: true, reason: 'channel not checked' };
 }
 
 const pct = (n, d) => (d ? ((n / d) * 100).toFixed(2) : '0.00');
@@ -102,6 +133,7 @@ lines.push(`- Verdict Accuracy: ${verdictCorrect}/${total} (${pct(verdictCorrect
 lines.push(`- Citation Inclusion Rate: ${citationIncluded}/${total} (${pct(citationIncluded, total)}%)`);
 lines.push(`- Low-Confidence Guardrail Coverage: ${lowConfidenceGuardrail}/${lowConfidenceCases} (${pct(lowConfidenceGuardrail, lowConfidenceCases)}%)`);
 lines.push(`- Risk Guardrail Coverage: ${riskGuardrail}/${riskFlagCases} (${pct(riskGuardrail, riskFlagCases)}%)`);
+lines.push(`- Channel Format Pass Rate: ${channelFormatPassed}/${channelFormatChecks} (${pct(channelFormatPassed, channelFormatChecks)}%)`);
 lines.push('');
 lines.push('## Case Results');
 for (const r of rows) {
@@ -109,7 +141,7 @@ for (const r of rows) {
     lines.push(`- ❌ ${r.id} ${r.status}`);
     continue;
   }
-  lines.push(`- ${r.verdictOk ? '✅' : '❌'} ${r.id} expected=${r.expected}, actual=${r.actual}, conf=${r.confidence}, citations=${r.citationCount}, status=${r.status}, v=${r.version}`);
+  lines.push(`- ${r.verdictOk ? '✅' : '❌'} ${r.id} expected=${r.expected}, actual=${r.actual}, conf=${r.confidence}, citations=${r.citationCount}, format=${r.channelFormatOk ? 'OK' : 'FAIL'}(${r.channelFormatReason}), status=${r.status}, v=${r.version}`);
 }
 
 await fs.writeFile(reportPath, lines.join('\n'), 'utf-8');
@@ -119,4 +151,5 @@ console.log(`Verdict Accuracy: ${verdictCorrect}/${total} (${pct(verdictCorrect,
 console.log(`Citation Inclusion Rate: ${citationIncluded}/${total} (${pct(citationIncluded, total)}%)`);
 console.log(`Low-Confidence Guardrail Coverage: ${lowConfidenceGuardrail}/${lowConfidenceCases} (${pct(lowConfidenceGuardrail, lowConfidenceCases)}%)`);
 console.log(`Risk Guardrail Coverage: ${riskGuardrail}/${riskFlagCases} (${pct(riskGuardrail, riskFlagCases)}%)`);
+console.log(`Channel Format Pass Rate: ${channelFormatPassed}/${channelFormatChecks} (${pct(channelFormatPassed, channelFormatChecks)}%)`);
 console.log(`Report saved: ${reportPath}`);

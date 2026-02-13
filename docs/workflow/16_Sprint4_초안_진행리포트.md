@@ -60,5 +60,11 @@
   - messenger: `docs/workflow/reports/sprint4_answer_eval_report_2026-02-13T01-01-39-884Z.md`
   - 두 채널 모두 Accuracy 91.67%, Citation 100.00%, Guardrail 100%
 
+## 추가 완료 (10차)
+- 채널별 포맷 품질 지표 자동 점검 추가 (`scripts/evaluate_sprint4_answers.mjs`)
+  - email: 인사(`안녕하세요`) + 마무리(`감사합니다`) 포함 여부
+  - messenger: `[요약]` 태그 포함 + 길이 260자 이하 여부
+  - 신규 메트릭: `Channel Format Pass Rate`
+
 ## 다음 작업
-- 채널별 포맷 품질 지표(인사/마무리/요약 길이) 자동 점검 항목 추가
+- 채널별 포맷 실패 케이스 자동 분류(인사 누락/마무리 누락/길이 초과) 리포트 확장
