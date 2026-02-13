@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
 import jakarta.validation.Valid;
@@ -24,10 +25,16 @@ public class AnswerController {
 
     private final InquiryRepository inquiryRepository;
     private final AnswerComposerService answerComposerService;
+    private final AnswerDraftJpaRepository answerDraftRepository;
 
-    public AnswerController(InquiryRepository inquiryRepository, AnswerComposerService answerComposerService) {
+    public AnswerController(
+            InquiryRepository inquiryRepository,
+            AnswerComposerService answerComposerService,
+            AnswerDraftJpaRepository answerDraftRepository
+    ) {
         this.inquiryRepository = inquiryRepository;
         this.answerComposerService = answerComposerService;
+        this.answerDraftRepository = answerDraftRepository;
     }
 
     @PostMapping("/draft")
@@ -102,6 +109,31 @@ public class AnswerController {
         String channel = request == null ? null : request.channel();
         String sendRequestId = request == null ? null : request.sendRequestId();
         return answerComposerService.send(inquiryUuid, parseAnswerId(answerId), actor, channel, sendRequestId);
+    }
+
+    @GetMapping("/audit-logs")
+    @ResponseStatus(HttpStatus.OK)
+    public List<AnswerAuditLogResponse> auditLogs(@PathVariable String inquiryId) {
+        UUID inquiryUuid = parseInquiryId(inquiryId);
+        ensureInquiryExists(inquiryUuid);
+
+        return answerDraftRepository.findByInquiryIdOrderByVersionDesc(inquiryUuid)
+                .stream()
+                .map(a -> new AnswerAuditLogResponse(
+                        a.getId().toString(),
+                        a.getVersion(),
+                        a.getStatus(),
+                        a.getReviewedBy(),
+                        a.getReviewComment(),
+                        a.getApprovedBy(),
+                        a.getApproveComment(),
+                        a.getSentBy(),
+                        a.getSendChannel(),
+                        a.getSendMessageId(),
+                        a.getCreatedAt(),
+                        a.getUpdatedAt()
+                ))
+                .toList();
     }
 
     private void ensureInquiryExists(UUID inquiryUuid) {

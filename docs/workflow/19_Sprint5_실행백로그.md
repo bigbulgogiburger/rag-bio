@@ -27,3 +27,6 @@
 ### S5-QA-1 통합 테스트 (P0)
 - [x] Draft→Review→Approve→Send
 - [x] 승인 없는 approve 실패(403, mock RBAC)
+
+### S5-06-1 감사로그 조회 API (P1)
+- [x] inquiry 기준 감사 히스토리 조회 가능 (`GET /api/v1/inquiries/{inquiryId}/answers/audit-logs`)

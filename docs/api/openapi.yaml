@@ -329,6 +329,25 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/answers/audit-logs:
+    get:
+      tags: [Inquiry]
+      summary: 답변 승인/발송 감사로그 조회
+      operationId: listAnswerAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      responses:
+        '200':
+          description: 답변 감사로그 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnswerAuditLogResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     InquiryIdPath:
@@ -673,6 +692,46 @@ components:
           type: string
           nullable: true
         createdAt:
+          type: string
+          format: date-time
+
+    AnswerAuditLogResponse:
+      type: object
+      required: [answerId, version, status, createdAt, updatedAt]
+      properties:
+        answerId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, REVIEWED, APPROVED, SENT]
+        reviewedBy:
+          type: string
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        approvedBy:
+          type: string
+          nullable: true
+        approveComment:
+          type: string
+          nullable: true
+        sentBy:
+          type: string
+          nullable: true
+        sendChannel:
+          type: string
+          nullable: true
+        sendMessageId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
 
