@@ -2,10 +2,12 @@ version: '3.9'
 services:
   postgres:
     image: postgres:16
+    env_file:
+      - ../.env
     environment:
-      POSTGRES_DB: csrag
-      POSTGRES_USER: csrag
-      POSTGRES_PASSWORD: csrag
+      POSTGRES_DB: ${POSTGRES_DB:-csrag}
+      POSTGRES_USER: ${POSTGRES_USER:-csrag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-csrag}
     ports:
       - "5432:5432"
     volumes:

@@ -30,6 +30,25 @@ app:
     cors:
       allowed-origins: http://localhost:3000,http://localhost:3001
 
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model:
+    chat: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+    embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+
+vector:
+  provider: ${VECTOR_DB_PROVIDER:mock}
+  qdrant:
+    url: ${QDRANT_URL:}
+    api-key: ${QDRANT_API_KEY:}
+  pinecone:
+    api-key: ${PINECONE_API_KEY:}
+    index: ${PINECONE_INDEX:}
+    environment: ${PINECONE_ENV:}
+  weaviate:
+    url: ${WEAVIATE_URL:}
+    api-key: ${WEAVIATE_API_KEY:}
+
 logging:
   pattern:
     level: "%5p [req:%X{requestId:-none}]"

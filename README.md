@@ -90,6 +90,28 @@ This scaffold includes:
 - Add CI/CD and deployment manifests in `infra/`
 - Add auth/RBAC, audit enrichment, and observability
 
+## Environment Setup (.env)
+
+```bash
+cp .env.example .env
+```
+
+Then fill values in `.env` (do not commit real secrets):
+
+- `OPENAI_API_KEY`
+- optional vector DB keys (`QDRANT_*`, `PINECONE_*`, `WEAVIATE_*`)
+
+Backend reads these via `application.yml` placeholders.
+
+## Docker Compose
+
+Postgres compose file is at `infra/docker-compose.yml` and reads `../.env`.
+
+```bash
+cd infra
+docker compose up -d
+```
+
 ## Notes
 
 - No secrets are committed.
