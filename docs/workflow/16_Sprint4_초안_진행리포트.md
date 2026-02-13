@@ -36,5 +36,11 @@
   - 응답/히스토리에 `reviewedBy`, `reviewComment`, `approvedBy`, `approveComment` 포함
   - DB 마이그레이션 `V8__answer_draft_reviewer_metadata.sql` 추가
 
+## 추가 완료 (6차)
+- 답변 품질 평가 스크립트 추가
+  - 파일: `scripts/evaluate_sprint4_answers.mjs`
+  - 지표: Verdict Accuracy, Citation Inclusion Rate, Low-Confidence Guardrail Coverage, Risk Guardrail Coverage
+  - 리포트 출력: `docs/workflow/reports/sprint4_answer_eval_report_*.md`
+
 ## 다음 작업
-- 품질 평가 스크립트에 답변 품질 메트릭 추가
+- Sprint4 평가 리포트 1차 실행 및 기준선 수치 확정
