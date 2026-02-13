@@ -98,6 +98,7 @@ cp .env.example .env
 
 Then fill values in `.env` (do not commit real secrets):
 
+- `OPENAI_ENABLED=true` (실사용 연동 시)
 - `OPENAI_API_KEY`
 - optional vector DB keys (`QDRANT_*`, `PINECONE_*`, `WEAVIATE_*`)
 
