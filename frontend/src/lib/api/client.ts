@@ -254,7 +254,7 @@ export async function approveAnswerDraft(
 ): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Role": "APPROVER" },
     body: JSON.stringify({ actor, comment })
   });
   if (!response.ok) {
@@ -272,7 +272,7 @@ export async function sendAnswerDraft(
 ): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/send`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Role": "SENDER" },
     body: JSON.stringify({ actor, channel, sendRequestId })
   });
   if (!response.ok) {

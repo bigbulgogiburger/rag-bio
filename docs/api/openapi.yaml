@@ -268,6 +268,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
+        - $ref: '#/components/parameters/RoleHeaderApprover'
       requestBody:
         required: false
         content:
@@ -292,6 +293,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
+        - $ref: '#/components/parameters/RoleHeaderSender'
       requestBody:
         required: false
         content:
@@ -345,6 +347,22 @@ components:
         type: string
         format: uuid
       description: 답변 초안 식별자(UUID)
+    RoleHeaderApprover:
+      name: X-Role
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [APPROVER]
+      description: approve 권한 역할 헤더
+    RoleHeaderSender:
+      name: X-Role
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [SENDER]
+      description: send 권한 역할 헤더
 
   schemas:
     CreateInquiryRequest:

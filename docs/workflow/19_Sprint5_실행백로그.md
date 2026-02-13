@@ -21,7 +21,7 @@
 - [x] sendRequestId 기반 중복 발송 차단
 
 ### S5-04-1 RBAC 최소 적용 (P1)
-- [ ] approve/send 권한 분리(초기 mock role)
+- [x] approve/send 권한 분리(초기 mock role, `X-Role` 헤더)
 
 ### S5-QA-1 통합 테스트 (P0)
 - [ ] Draft→Review→Approve→Send

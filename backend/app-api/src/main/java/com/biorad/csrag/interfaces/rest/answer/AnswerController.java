@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -75,8 +76,10 @@ public class AnswerController {
     public AnswerDraftResponse approve(
             @PathVariable String inquiryId,
             @PathVariable String answerId,
-            @RequestBody(required = false) AnswerActionRequest request
+            @RequestBody(required = false) AnswerActionRequest request,
+            @RequestHeader(name = "X-Role", required = false) String role
     ) {
+        requireRole(role, "APPROVER");
         UUID inquiryUuid = parseInquiryId(inquiryId);
         ensureInquiryExists(inquiryUuid);
         String actor = request == null ? null : request.actor();
@@ -89,8 +92,10 @@ public class AnswerController {
     public AnswerDraftResponse send(
             @PathVariable String inquiryId,
             @PathVariable String answerId,
-            @RequestBody(required = false) SendAnswerRequest request
+            @RequestBody(required = false) SendAnswerRequest request,
+            @RequestHeader(name = "X-Role", required = false) String role
     ) {
+        requireRole(role, "SENDER");
         UUID inquiryUuid = parseInquiryId(inquiryId);
         ensureInquiryExists(inquiryUuid);
         String actor = request == null ? null : request.actor();
@@ -102,6 +107,13 @@ public class AnswerController {
     private void ensureInquiryExists(UUID inquiryUuid) {
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+    }
+
+    private void requireRole(String role, String requiredRole) {
+        String normalized = role == null ? "" : role.trim().toUpperCase();
+        if (!requiredRole.equals(normalized)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Missing required role: " + requiredRole);
+        }
     }
 
     private UUID parseAnswerId(String answerId) {
