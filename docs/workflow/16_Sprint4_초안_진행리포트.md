@@ -78,5 +78,10 @@
   - report: `docs/workflow/reports/sprint4_answer_eval_report_2026-02-13T01-11-53-478Z.md`
   - Channel Format Failure Breakdown 확인값: `none`
 
+## 추가 완료 (13차)
+- S4-05 1차: 단계별 오케스트레이션 실행 로그 저장 추가
+  - migration: `V9__orchestration_runs.sql`
+  - step(RETRIEVE/VERIFY/COMPOSE), status, latencyMs, errorMessage 저장
+
 ## 다음 작업
-- 포맷 실패 유도 샘플(규칙 위반 템플릿) 별도 생성해 breakdown 강제 검증
+- 오케스트레이션 실행 로그 조회 API(`GET /api/v1/inquiries/{inquiryId}/orchestration-runs`) 추가
