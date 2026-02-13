@@ -123,8 +123,11 @@ main {
   margin: 0 auto;
   padding: 1rem;
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
 }
 
 .footer-inner strong {
@@ -136,7 +139,7 @@ main {
 }
 
 .footer-meta {
-  text-align: right;
+  text-align: center;
 }
 
 .stack {
