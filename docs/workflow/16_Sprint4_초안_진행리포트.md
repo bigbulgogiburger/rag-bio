@@ -98,5 +98,10 @@
   - `AnswerFallbackIntegrationTest`
   - 오케스트레이션 강제 실패(MockBean) 시 `/answers/draft`가 200 + 안전 폴백 응답 반환 검증
 
+## 추가 완료 (17차)
+- S4-06 폴백 + orchestration-runs FAILED step 가시성 점검 완료
+  - `OrchestrationRunVisibilityIntegrationTest`
+  - RETRIEVE step 강제 실패 시 `/orchestration-runs`에서 `status=FAILED` 조회 검증
+
 ## 다음 작업
-- S4-06 폴백 경로를 orchestration-runs 조회 API와 연동해 FAILED step 가시성 점검
+- Sprint4 종료 정리(DoD 체크리스트/남은 리스크/다음 스프린트 인계) 문서화
