@@ -44,4 +44,12 @@ public class SendAttemptJpaEntity {
         this.detail = detail;
         this.createdAt = createdAt;
     }
+
+    public UUID getId() { return id; }
+    public UUID getInquiryId() { return inquiryId; }
+    public UUID getAnswerId() { return answerId; }
+    public String getSendRequestId() { return sendRequestId; }
+    public String getOutcome() { return outcome; }
+    public String getDetail() { return detail; }
+    public Instant getCreatedAt() { return createdAt; }
 }
