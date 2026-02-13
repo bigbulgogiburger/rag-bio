@@ -30,6 +30,11 @@
   - `GET /api/v1/inquiries/{inquiryId}/answers/history`
 - 답변 초안 생성 시 버전 자동 증가 및 DB 저장
 
+## 추가 완료 (5차)
+- 승인자/검토자 메타데이터 추가
+  - review/approve 요청에 `actor`, `comment` 전달 가능
+  - 응답/히스토리에 `reviewedBy`, `reviewComment`, `approvedBy`, `approveComment` 포함
+  - DB 마이그레이션 `V8__answer_draft_reviewer_metadata.sql` 추가
+
 ## 다음 작업
-- 승인자/검토자 메타데이터(작성자, 코멘트) 추가
 - 품질 평가 스크립트에 답변 품질 메트릭 추가

@@ -64,7 +64,7 @@ public class AnswerComposerService {
         return toResponse(saved);
     }
 
-    public AnswerDraftResponse review(UUID inquiryId, UUID answerId) {
+    public AnswerDraftResponse review(UUID inquiryId, UUID answerId, String actor, String comment) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
 
@@ -72,11 +72,11 @@ public class AnswerComposerService {
             throw new ResponseStatusException(CONFLICT, "Already approved answer cannot be reviewed");
         }
 
-        entity.markReviewed();
+        entity.markReviewed(actor, comment);
         return toResponse(answerDraftRepository.save(entity));
     }
 
-    public AnswerDraftResponse approve(UUID inquiryId, UUID answerId) {
+    public AnswerDraftResponse approve(UUID inquiryId, UUID answerId, String actor, String comment) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
 
@@ -84,7 +84,7 @@ public class AnswerComposerService {
             throw new ResponseStatusException(CONFLICT, "Only draft/reviewed answer can be approved");
         }
 
-        entity.markApproved();
+        entity.markApproved(actor, comment);
         return toResponse(answerDraftRepository.save(entity));
     }
 
@@ -120,7 +120,11 @@ public class AnswerComposerService {
                 citations,
                 riskFlags,
                 entity.getTone(),
-                entity.getChannel()
+                entity.getChannel(),
+                entity.getReviewedBy(),
+                entity.getReviewComment(),
+                entity.getApprovedBy(),
+                entity.getApproveComment()
         );
     }
 

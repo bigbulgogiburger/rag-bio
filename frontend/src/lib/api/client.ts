@@ -89,6 +89,10 @@ export interface AnswerDraftResult {
   riskFlags: string[];
   tone: AnswerTone;
   channel: AnswerChannel;
+  reviewedBy: string | null;
+  reviewComment: string | null;
+  approvedBy: string | null;
+  approveComment: string | null;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -221,9 +225,16 @@ export async function listAnswerDraftHistory(inquiryId: string): Promise<AnswerD
   return (await response.json()) as AnswerDraftResult[];
 }
 
-export async function reviewAnswerDraft(inquiryId: string, answerId: string): Promise<AnswerDraftResult> {
+export async function reviewAnswerDraft(
+  inquiryId: string,
+  answerId: string,
+  actor?: string,
+  comment?: string
+): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/review`, {
-    method: "POST"
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor, comment })
   });
   if (!response.ok) {
     throw new Error(`Failed to review draft: ${response.status}`);
@@ -231,9 +242,16 @@ export async function reviewAnswerDraft(inquiryId: string, answerId: string): Pr
   return (await response.json()) as AnswerDraftResult;
 }
 
-export async function approveAnswerDraft(inquiryId: string, answerId: string): Promise<AnswerDraftResult> {
+export async function approveAnswerDraft(
+  inquiryId: string,
+  answerId: string,
+  actor?: string,
+  comment?: string
+): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/approve`, {
-    method: "POST"
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor, comment })
   });
   if (!response.ok) {
     throw new Error(`Failed to approve draft: ${response.status}`);

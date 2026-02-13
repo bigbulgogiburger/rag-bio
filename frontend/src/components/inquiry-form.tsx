@@ -38,6 +38,10 @@ export default function InquiryForm() {
   const [answerChannel, setAnswerChannel] = useState<"email" | "messenger">("email");
   const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
   const [answerHistory, setAnswerHistory] = useState<AnswerDraftResult[]>([]);
+  const [reviewActor, setReviewActor] = useState("cs-agent");
+  const [reviewComment, setReviewComment] = useState("");
+  const [approveActor, setApproveActor] = useState("cs-lead");
+  const [approveComment, setApproveComment] = useState("");
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -176,7 +180,7 @@ export default function InquiryForm() {
     setLookupLoading(true);
     setStatus(null);
     try {
-      const reviewed = await reviewAnswerDraft(inquiryId, answerDraft.answerId);
+      const reviewed = await reviewAnswerDraft(inquiryId, answerDraft.answerId, reviewActor.trim() || undefined, reviewComment.trim() || undefined);
       const history = await listAnswerDraftHistory(inquiryId);
       setAnswerDraft(reviewed);
       setAnswerHistory(history);
@@ -193,7 +197,7 @@ export default function InquiryForm() {
     setLookupLoading(true);
     setStatus(null);
     try {
-      const approved = await approveAnswerDraft(inquiryId, answerDraft.answerId);
+      const approved = await approveAnswerDraft(inquiryId, answerDraft.answerId, approveActor.trim() || undefined, approveComment.trim() || undefined);
       const history = await listAnswerDraftHistory(inquiryId);
       setAnswerDraft(approved);
       setAnswerHistory(history);
@@ -359,9 +363,19 @@ export default function InquiryForm() {
             <div><b>Draft:</b> {answerDraft.draft}</div>
             {answerDraft.citations.length > 0 && <div><b>Citations:</b> {answerDraft.citations.join(" | ")}</div>}
             {answerDraft.riskFlags.length > 0 && <div><b>Risk:</b> {answerDraft.riskFlags.join(", ")}</div>}
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button type="button" onClick={onReviewDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Review</button>
-              <button type="button" onClick={onApproveDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Approve</button>
+            {answerDraft.reviewedBy && <div><b>Reviewed:</b> {answerDraft.reviewedBy} / {answerDraft.reviewComment ?? ""}</div>}
+            {answerDraft.approvedBy && <div><b>Approved:</b> {answerDraft.approvedBy} / {answerDraft.approveComment ?? ""}</div>}
+            <div style={{ display: "grid", gap: "0.4rem" }}>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                <input value={reviewActor} onChange={(e) => setReviewActor(e.target.value)} placeholder="review actor" />
+                <input value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="review comment" style={{ minWidth: "260px" }} />
+                <button type="button" onClick={onReviewDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Review</button>
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                <input value={approveActor} onChange={(e) => setApproveActor(e.target.value)} placeholder="approve actor" />
+                <input value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="approve comment" style={{ minWidth: "260px" }} />
+                <button type="button" onClick={onApproveDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Approve</button>
+              </div>
             </div>
             {answerHistory.length > 0 && (
               <div>

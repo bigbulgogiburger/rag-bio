@@ -244,6 +244,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerActionRequest'
       responses:
         '200':
           description: 리뷰 완료
@@ -262,6 +268,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerActionRequest'
       responses:
         '200':
           description: 승인 완료
@@ -495,6 +507,14 @@ components:
           enum: [email, messenger]
           default: email
 
+    AnswerActionRequest:
+      type: object
+      properties:
+        actor:
+          type: string
+        comment:
+          type: string
+
     AnswerDraftResponse:
       type: object
       required: [answerId, inquiryId, version, status, verdict, confidence, draft, citations, riskFlags, tone, channel]
@@ -532,6 +552,18 @@ components:
         channel:
           type: string
           enum: [email, messenger]
+        reviewedBy:
+          type: string
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        approvedBy:
+          type: string
+          nullable: true
+        approveComment:
+          type: string
+          nullable: true
 
     ErrorResponse:
       type: object

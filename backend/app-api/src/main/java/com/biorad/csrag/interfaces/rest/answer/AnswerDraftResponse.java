@@ -13,6 +13,10 @@ public record AnswerDraftResponse(
         List<String> citations,
         List<String> riskFlags,
         String tone,
-        String channel
+        String channel,
+        String reviewedBy,
+        String reviewComment,
+        String approvedBy,
+        String approveComment
 ) {
 }

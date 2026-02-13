@@ -58,18 +58,30 @@ public class AnswerController {
 
     @PostMapping("/{answerId}/review")
     @ResponseStatus(HttpStatus.OK)
-    public AnswerDraftResponse review(@PathVariable String inquiryId, @PathVariable String answerId) {
+    public AnswerDraftResponse review(
+            @PathVariable String inquiryId,
+            @PathVariable String answerId,
+            @RequestBody(required = false) AnswerActionRequest request
+    ) {
         UUID inquiryUuid = parseInquiryId(inquiryId);
         ensureInquiryExists(inquiryUuid);
-        return answerComposerService.review(inquiryUuid, parseAnswerId(answerId));
+        String actor = request == null ? null : request.actor();
+        String comment = request == null ? null : request.comment();
+        return answerComposerService.review(inquiryUuid, parseAnswerId(answerId), actor, comment);
     }
 
     @PostMapping("/{answerId}/approve")
     @ResponseStatus(HttpStatus.OK)
-    public AnswerDraftResponse approve(@PathVariable String inquiryId, @PathVariable String answerId) {
+    public AnswerDraftResponse approve(
+            @PathVariable String inquiryId,
+            @PathVariable String answerId,
+            @RequestBody(required = false) AnswerActionRequest request
+    ) {
         UUID inquiryUuid = parseInquiryId(inquiryId);
         ensureInquiryExists(inquiryUuid);
-        return answerComposerService.approve(inquiryUuid, parseAnswerId(answerId));
+        String actor = request == null ? null : request.actor();
+        String comment = request == null ? null : request.comment();
+        return answerComposerService.approve(inquiryUuid, parseAnswerId(answerId), actor, comment);
     }
 
     private void ensureInquiryExists(UUID inquiryUuid) {

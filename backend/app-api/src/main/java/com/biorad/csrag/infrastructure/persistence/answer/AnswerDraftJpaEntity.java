@@ -45,6 +45,24 @@ public class AnswerDraftJpaEntity {
     @Column(name = "risk_flags", nullable = false, length = 1000)
     private String riskFlags;
 
+    @Column(name = "reviewed_by", length = 120)
+    private String reviewedBy;
+
+    @Column(name = "review_comment", length = 2000)
+    private String reviewComment;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
+    @Column(name = "approved_by", length = 120)
+    private String approvedBy;
+
+    @Column(name = "approve_comment", length = 2000)
+    private String approveComment;
+
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -80,16 +98,28 @@ public class AnswerDraftJpaEntity {
     public String getDraft() { return draft; }
     public String getCitations() { return citations; }
     public String getRiskFlags() { return riskFlags; }
+    public String getReviewedBy() { return reviewedBy; }
+    public String getReviewComment() { return reviewComment; }
+    public Instant getReviewedAt() { return reviewedAt; }
+    public String getApprovedBy() { return approvedBy; }
+    public String getApproveComment() { return approveComment; }
+    public Instant getApprovedAt() { return approvedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
-    public void markReviewed() {
+    public void markReviewed(String reviewer, String comment) {
         this.status = "REVIEWED";
+        this.reviewedBy = reviewer;
+        this.reviewComment = comment;
+        this.reviewedAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 
-    public void markApproved() {
+    public void markApproved(String approver, String comment) {
         this.status = "APPROVED";
+        this.approvedBy = approver;
+        this.approveComment = comment;
+        this.approvedAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 }
