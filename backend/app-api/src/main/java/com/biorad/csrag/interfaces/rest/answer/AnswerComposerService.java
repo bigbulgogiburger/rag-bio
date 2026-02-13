@@ -112,6 +112,20 @@ public class AnswerComposerService {
                 .toList();
     }
 
+    public AnswerDraftResponse send(UUID inquiryId, UUID answerId, String actor, String channel) {
+        AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+
+        if (!"APPROVED".equals(entity.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Only approved answer can be sent");
+        }
+
+        String normalizedChannel = (channel == null || channel.isBlank()) ? entity.getChannel() : channel.trim().toLowerCase();
+        String messageId = "mock-" + UUID.randomUUID();
+        entity.markSent(actor, normalizedChannel, messageId);
+        return toResponse(answerDraftRepository.save(entity), List.of());
+    }
+
     public AnswerDraftResponse latest(UUID inquiryId) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No answer draft found"));
@@ -153,6 +167,9 @@ public class AnswerComposerService {
                 entity.getReviewComment(),
                 entity.getApprovedBy(),
                 entity.getApproveComment(),
+                entity.getSentBy(),
+                entity.getSendChannel(),
+                entity.getSendMessageId(),
                 formatWarnings
         );
     }

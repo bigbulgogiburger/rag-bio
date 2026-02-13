@@ -284,6 +284,30 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/answers/{answerId}/send:
+    post:
+      tags: [Inquiry]
+      summary: 승인된 답변 발송 처리 (mock)
+      operationId: sendAnswerDraft
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+        - $ref: '#/components/parameters/AnswerIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendAnswerRequest'
+      responses:
+        '200':
+          description: 발송 처리 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerDraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/inquiries/{inquiryId}/orchestration-runs:
     get:
       tags: [Inquiry]
@@ -534,6 +558,15 @@ components:
         comment:
           type: string
 
+    SendAnswerRequest:
+      type: object
+      properties:
+        actor:
+          type: string
+        channel:
+          type: string
+          enum: [email, messenger]
+
     AnswerDraftResponse:
       type: object
       required: [answerId, inquiryId, version, status, verdict, confidence, draft, citations, riskFlags, tone, channel, formatWarnings]
@@ -548,7 +581,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [DRAFT, REVIEWED, APPROVED]
+          enum: [DRAFT, REVIEWED, APPROVED, SENT]
         verdict:
           type: string
           enum: [SUPPORTED, REFUTED, CONDITIONAL]
@@ -581,6 +614,15 @@ components:
           type: string
           nullable: true
         approveComment:
+          type: string
+          nullable: true
+        sentBy:
+          type: string
+          nullable: true
+        sendChannel:
+          type: string
+          nullable: true
+        sendMessageId:
           type: string
           nullable: true
         formatWarnings:

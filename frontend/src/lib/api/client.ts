@@ -81,7 +81,7 @@ export interface AnswerDraftResult {
   answerId: string;
   inquiryId: string;
   version: number;
-  status: "DRAFT" | "REVIEWED" | "APPROVED";
+  status: "DRAFT" | "REVIEWED" | "APPROVED" | "SENT";
   verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
   confidence: number;
   draft: string;
@@ -93,6 +93,9 @@ export interface AnswerDraftResult {
   reviewComment: string | null;
   approvedBy: string | null;
   approveComment: string | null;
+  sentBy: string | null;
+  sendChannel: string | null;
+  sendMessageId: string | null;
   formatWarnings: string[];
 }
 
@@ -256,6 +259,23 @@ export async function approveAnswerDraft(
   });
   if (!response.ok) {
     throw new Error(`Failed to approve draft: ${response.status}`);
+  }
+  return (await response.json()) as AnswerDraftResult;
+}
+
+export async function sendAnswerDraft(
+  inquiryId: string,
+  answerId: string,
+  actor?: string,
+  channel?: AnswerChannel
+): Promise<AnswerDraftResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor, channel })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to send draft: ${response.status}`);
   }
   return (await response.json()) as AnswerDraftResult;
 }

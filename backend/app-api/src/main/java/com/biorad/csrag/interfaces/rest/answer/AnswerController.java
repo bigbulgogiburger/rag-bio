@@ -84,6 +84,20 @@ public class AnswerController {
         return answerComposerService.approve(inquiryUuid, parseAnswerId(answerId), actor, comment);
     }
 
+    @PostMapping("/{answerId}/send")
+    @ResponseStatus(HttpStatus.OK)
+    public AnswerDraftResponse send(
+            @PathVariable String inquiryId,
+            @PathVariable String answerId,
+            @RequestBody(required = false) SendAnswerRequest request
+    ) {
+        UUID inquiryUuid = parseInquiryId(inquiryId);
+        ensureInquiryExists(inquiryUuid);
+        String actor = request == null ? null : request.actor();
+        String channel = request == null ? null : request.channel();
+        return answerComposerService.send(inquiryUuid, parseAnswerId(answerId), actor, channel);
+    }
+
     private void ensureInquiryExists(UUID inquiryUuid) {
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));

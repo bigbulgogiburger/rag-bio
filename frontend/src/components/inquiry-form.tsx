@@ -12,6 +12,7 @@ import {
   listInquiryDocuments,
   reviewAnswerDraft,
   runInquiryIndexing,
+  sendAnswerDraft,
   uploadInquiryDocument,
   type AnalyzeResult,
   type AnswerDraftResult,
@@ -53,6 +54,7 @@ export default function InquiryForm() {
   const [reviewComment, setReviewComment] = useState("");
   const [approveActor, setApproveActor] = useState("cs-lead");
   const [approveComment, setApproveComment] = useState("");
+  const [sendActor, setSendActor] = useState("cs-sender");
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -213,6 +215,23 @@ export default function InquiryForm() {
       setAnswerDraft(approved);
       setAnswerHistory(history);
       setStatus(`승인 완료: v${approved.version} (${approved.status})`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onSendDraft = async () => {
+    if (!inquiryId || !answerDraft) return;
+    setLookupLoading(true);
+    setStatus(null);
+    try {
+      const sent = await sendAnswerDraft(inquiryId, answerDraft.answerId, sendActor.trim() || undefined, answerChannel);
+      const history = await listAnswerDraftHistory(inquiryId);
+      setAnswerDraft(sent);
+      setAnswerHistory(history);
+      setStatus(`발송 처리 완료: v${sent.version} (${sent.status})`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
@@ -392,6 +411,7 @@ export default function InquiryForm() {
             {answerDraft.formatWarnings.length > 0 && <div style={{ color: "#b45309" }}><b>Format Warnings:</b> {answerDraft.formatWarnings.join(", ")}</div>}
             {answerDraft.reviewedBy && <div><b>Reviewed:</b> {answerDraft.reviewedBy} / {answerDraft.reviewComment ?? ""}</div>}
             {answerDraft.approvedBy && <div><b>Approved:</b> {answerDraft.approvedBy} / {answerDraft.approveComment ?? ""}</div>}
+            {answerDraft.sentBy && <div><b>Sent:</b> {answerDraft.sentBy} / {answerDraft.sendChannel} / {answerDraft.sendMessageId}</div>}
             <div style={{ display: "grid", gap: "0.4rem" }}>
               <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                 <input value={reviewActor} onChange={(e) => setReviewActor(e.target.value)} placeholder="review actor" />
@@ -401,7 +421,11 @@ export default function InquiryForm() {
               <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                 <input value={approveActor} onChange={(e) => setApproveActor(e.target.value)} placeholder="approve actor" />
                 <input value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="approve comment" style={{ minWidth: "260px" }} />
-                <button type="button" onClick={onApproveDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Approve</button>
+                <button type="button" onClick={onApproveDraft} disabled={lookupLoading || answerDraft.status === "APPROVED" || answerDraft.status === "SENT"}>Approve</button>
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                <input value={sendActor} onChange={(e) => setSendActor(e.target.value)} placeholder="send actor" />
+                <button type="button" onClick={onSendDraft} disabled={lookupLoading || answerDraft.status !== "APPROVED"}>Send</button>
               </div>
             </div>
             {answerHistory.length > 0 && (

@@ -18,6 +18,9 @@ public record AnswerDraftResponse(
         String reviewComment,
         String approvedBy,
         String approveComment,
+        String sentBy,
+        String sendChannel,
+        String sendMessageId,
         List<String> formatWarnings
 ) {
 }

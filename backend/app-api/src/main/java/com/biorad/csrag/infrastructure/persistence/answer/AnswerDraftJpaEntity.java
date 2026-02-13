@@ -63,6 +63,18 @@ public class AnswerDraftJpaEntity {
     @Column(name = "approved_at")
     private Instant approvedAt;
 
+    @Column(name = "sent_by", length = 120)
+    private String sentBy;
+
+    @Column(name = "sent_at")
+    private Instant sentAt;
+
+    @Column(name = "send_channel", length = 32)
+    private String sendChannel;
+
+    @Column(name = "send_message_id", length = 255)
+    private String sendMessageId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -104,6 +116,10 @@ public class AnswerDraftJpaEntity {
     public String getApprovedBy() { return approvedBy; }
     public String getApproveComment() { return approveComment; }
     public Instant getApprovedAt() { return approvedAt; }
+    public String getSentBy() { return sentBy; }
+    public Instant getSentAt() { return sentAt; }
+    public String getSendChannel() { return sendChannel; }
+    public String getSendMessageId() { return sendMessageId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -120,6 +136,15 @@ public class AnswerDraftJpaEntity {
         this.approvedBy = approver;
         this.approveComment = comment;
         this.approvedAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    public void markSent(String sender, String channel, String messageId) {
+        this.status = "SENT";
+        this.sentBy = sender;
+        this.sendChannel = channel;
+        this.sendMessageId = messageId;
+        this.sentAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 }
