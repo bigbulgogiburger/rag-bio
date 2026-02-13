@@ -64,7 +64,8 @@ class AnswerWorkflowIntegrationTest {
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/{answerId}/approve", inquiryId, answerId)
-                        .header("X-Role", "APPROVER")
+                        .header("X-User-Id", "approver-1")
+                        .header("X-User-Roles", "APPROVER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"actor":"approver-1","comment":"approved"}
@@ -73,7 +74,8 @@ class AnswerWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
         String sendResponse1 = mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/{answerId}/send", inquiryId, answerId)
-                        .header("X-Role", "SENDER")
+                        .header("X-User-Id", "sender-1")
+                        .header("X-User-Roles", "SENDER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"actor":"sender-1","channel":"email","sendRequestId":"req-123"}
@@ -85,7 +87,8 @@ class AnswerWorkflowIntegrationTest {
                 .getContentAsString();
 
         String sendResponse2 = mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/{answerId}/send", inquiryId, answerId)
-                        .header("X-Role", "SENDER")
+                        .header("X-User-Id", "sender-1")
+                        .header("X-User-Roles", "SENDER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"actor":"sender-1","channel":"email","sendRequestId":"req-123"}

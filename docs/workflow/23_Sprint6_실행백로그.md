@@ -36,9 +36,9 @@
 - [ ] 최근 실패 사유 top-N
 
 ### S6-A4 E2E/회귀 테스트 강화 (P0)
-- [ ] 등록→조회→분석→초안→리뷰→승인→발송 E2E 자동화
-- [ ] RBAC 실패 경로 E2E 추가
-- [ ] 중복발송(idempotency) 회귀 테스트 고정
+- [x] 등록→조회→분석→초안→리뷰→승인→발송 E2E 자동화 (`AnswerWorkflowIntegrationTest`)
+- [x] RBAC 실패 경로 E2E 추가 (`AnswerRbacIntegrationTest`)
+- [x] 중복발송(idempotency) 회귀 테스트 고정 (`AnswerWorkflowIntegrationTest`)
 
 ### S6-A5 UI/UX 폴리싱 마감 (P1)
 - [ ] 상태 배지/토스트 문구 표준화
