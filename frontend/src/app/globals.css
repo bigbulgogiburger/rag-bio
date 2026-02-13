@@ -106,6 +106,12 @@ main {
   background: #dbeafe;
 }
 
+.menu-item.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .app-footer {
   border-top: 1px solid var(--line);
   background: #f8fbff;

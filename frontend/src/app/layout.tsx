@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AppShellNav from "@/components/app-shell-nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,10 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <p className="brand-subtitle">고객문의 자동화 워크스페이스</p>
               </div>
             </div>
-            <nav className="menu-nav" aria-label="주 메뉴">
-              <Link className="menu-item" href="/dashboard">대시보드</Link>
-              <Link className="menu-item" href="/inquiry/new">문의 작성</Link>
-            </nav>
+            <AppShellNav />
           </div>
         </header>
 
