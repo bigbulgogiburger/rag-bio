@@ -29,13 +29,35 @@ public class AnswerComposerService {
         String normalizedTone = (tone == null || tone.isBlank()) ? "professional" : tone.trim().toLowerCase();
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
-        AnswerOrchestrationService.OrchestrationResult orchestration =
-                orchestrationService.run(inquiryId, question, normalizedTone, normalizedChannel);
-        AnalyzeResponse analysis = orchestration.analysis();
+        AnswerOrchestrationService.OrchestrationResult orchestration;
+        AnalyzeResponse analysis;
+        List<String> citations;
+        List<String> formatWarnings;
 
-        List<String> citations = analysis.evidences().stream()
-                .map(ev -> "chunk=" + ev.chunkId() + " score=" + String.format("%.3f", ev.score()))
-                .toList();
+        try {
+            orchestration = orchestrationService.run(inquiryId, question, normalizedTone, normalizedChannel);
+            analysis = orchestration.analysis();
+            citations = analysis.evidences().stream()
+                    .map(ev -> "chunk=" + ev.chunkId() + " score=" + String.format("%.3f", ev.score()))
+                    .toList();
+            formatWarnings = orchestration.formatWarnings();
+        } catch (RuntimeException ex) {
+            analysis = new AnalyzeResponse(
+                    inquiryId.toString(),
+                    "CONDITIONAL",
+                    0.0,
+                    "일부 단계 실행에 실패해 보수적 초안으로 대체되었습니다.",
+                    List.of("ORCHESTRATION_FALLBACK"),
+                    List.of()
+            );
+            citations = List.of();
+            formatWarnings = List.of("FALLBACK_DRAFT_USED");
+            orchestration = new AnswerOrchestrationService.OrchestrationResult(
+                    analysis,
+                    fallbackDraftByChannel(normalizedChannel),
+                    formatWarnings
+            );
+        }
 
         int nextVersion = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
                 .map(x -> x.getVersion() + 1)
@@ -94,6 +116,12 @@ public class AnswerComposerService {
         AnswerDraftJpaEntity entity = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No answer draft found"));
         return toResponse(entity, List.of());
+    }
+
+    private String fallbackDraftByChannel(String channel) {
+        return "messenger".equals(channel)
+                ? "[요약]\n현재 자동 판정 단계 일부가 실패하여 보수적 안내를 제공합니다. 추가 자료 확인 후 재생성을 권장드립니다."
+                : "안녕하세요. Bio-Rad CS팀입니다.\n\n현재 자동 판정 단계 일부가 실패하여 보수적 안내를 우선 제공합니다. \n추가 자료(샘플 조건/장비 설정)를 확인한 뒤 답변을 재생성해 주세요.\n감사합니다.";
     }
 
     private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride) {
