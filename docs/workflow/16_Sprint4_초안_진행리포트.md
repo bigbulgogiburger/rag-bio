@@ -83,5 +83,10 @@
   - migration: `V9__orchestration_runs.sql`
   - step(RETRIEVE/VERIFY/COMPOSE), status, latencyMs, errorMessage 저장
 
+## 추가 완료 (14차)
+- 오케스트레이션 실행 로그 조회 API 추가
+  - `GET /api/v1/inquiries/{inquiryId}/orchestration-runs`
+  - step/status/latency/error/createdAt 반환
+
 ## 다음 작업
-- 오케스트레이션 실행 로그 조회 API(`GET /api/v1/inquiries/{inquiryId}/orchestration-runs`) 추가
+- S4-06 실패 폴백 정책(단계 실패시 안전초안) 구현

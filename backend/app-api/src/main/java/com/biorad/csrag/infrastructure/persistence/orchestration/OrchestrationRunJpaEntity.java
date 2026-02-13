@@ -44,4 +44,12 @@ public class OrchestrationRunJpaEntity {
         this.errorMessage = errorMessage;
         this.createdAt = createdAt;
     }
+
+    public UUID getId() { return id; }
+    public UUID getInquiryId() { return inquiryId; }
+    public String getStep() { return step; }
+    public String getStatus() { return status; }
+    public long getLatencyMs() { return latencyMs; }
+    public String getErrorMessage() { return errorMessage; }
+    public Instant getCreatedAt() { return createdAt; }
 }

@@ -284,6 +284,25 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/orchestration-runs:
+    get:
+      tags: [Inquiry]
+      summary: 오케스트레이션 단계 실행 로그 조회
+      operationId: listOrchestrationRuns
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      responses:
+        '200':
+          description: 단계 실행 로그 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrchestrationRunResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     InquiryIdPath:
@@ -568,6 +587,32 @@ components:
           type: array
           items:
             type: string
+
+    OrchestrationRunResponse:
+      type: object
+      required: [runId, inquiryId, step, status, latencyMs, createdAt]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        inquiryId:
+          type: string
+          format: uuid
+        step:
+          type: string
+          enum: [RETRIEVE, VERIFY, COMPOSE]
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        latencyMs:
+          type: integer
+          format: int64
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 
     ErrorResponse:
       type: object
