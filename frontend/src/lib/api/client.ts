@@ -78,12 +78,17 @@ export type AnswerTone = "professional" | "technical" | "brief";
 export type AnswerChannel = "email" | "messenger";
 
 export interface AnswerDraftResult {
+  answerId: string;
   inquiryId: string;
+  version: number;
+  status: "DRAFT" | "REVIEWED" | "APPROVED";
   verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
   confidence: number;
   draft: string;
   citations: string[];
   riskFlags: string[];
+  tone: AnswerTone;
+  channel: AnswerChannel;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -197,5 +202,41 @@ export async function draftInquiryAnswer(
     throw new Error(`Failed to draft answer: ${response.status}`);
   }
 
+  return (await response.json()) as AnswerDraftResult;
+}
+
+export async function getLatestAnswerDraft(inquiryId: string): Promise<AnswerDraftResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/latest`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch latest draft: ${response.status}`);
+  }
+  return (await response.json()) as AnswerDraftResult;
+}
+
+export async function listAnswerDraftHistory(inquiryId: string): Promise<AnswerDraftResult[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/history`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch answer history: ${response.status}`);
+  }
+  return (await response.json()) as AnswerDraftResult[];
+}
+
+export async function reviewAnswerDraft(inquiryId: string, answerId: string): Promise<AnswerDraftResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/review`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to review draft: ${response.status}`);
+  }
+  return (await response.json()) as AnswerDraftResult;
+}
+
+export async function approveAnswerDraft(inquiryId: string, answerId: string): Promise<AnswerDraftResult> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/approve`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to approve draft: ${response.status}`);
+  }
   return (await response.json()) as AnswerDraftResult;
 }

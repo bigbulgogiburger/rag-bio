@@ -3,11 +3,14 @@
 import { FormEvent, useState } from "react";
 import {
   analyzeInquiry,
+  approveAnswerDraft,
   createInquiry,
   draftInquiryAnswer,
   getInquiry,
   getInquiryIndexingStatus,
+  listAnswerDraftHistory,
   listInquiryDocuments,
+  reviewAnswerDraft,
   runInquiryIndexing,
   uploadInquiryDocument,
   type AnalyzeResult,
@@ -34,6 +37,7 @@ export default function InquiryForm() {
   const [answerTone, setAnswerTone] = useState<"professional" | "technical" | "brief">("professional");
   const [answerChannel, setAnswerChannel] = useState<"email" | "messenger">("email");
   const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
+  const [answerHistory, setAnswerHistory] = useState<AnswerDraftResult[]>([]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -155,10 +159,46 @@ export default function InquiryForm() {
 
     try {
       const draft = await draftInquiryAnswer(inquiryId, analysisQuestion.trim(), answerTone, answerChannel);
+      const history = await listAnswerDraftHistory(inquiryId);
       setAnswerDraft(draft);
-      setStatus(`답변 초안 생성 완료: verdict=${draft.verdict}`);
+      setAnswerHistory(history);
+      setStatus(`답변 초안 생성 완료: v${draft.version}, verdict=${draft.verdict}`);
     } catch (error) {
       setAnswerDraft(null);
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onReviewDraft = async () => {
+    if (!inquiryId || !answerDraft) return;
+    setLookupLoading(true);
+    setStatus(null);
+    try {
+      const reviewed = await reviewAnswerDraft(inquiryId, answerDraft.answerId);
+      const history = await listAnswerDraftHistory(inquiryId);
+      setAnswerDraft(reviewed);
+      setAnswerHistory(history);
+      setStatus(`리뷰 완료: v${reviewed.version} (${reviewed.status})`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const onApproveDraft = async () => {
+    if (!inquiryId || !answerDraft) return;
+    setLookupLoading(true);
+    setStatus(null);
+    try {
+      const approved = await approveAnswerDraft(inquiryId, answerDraft.answerId);
+      const history = await listAnswerDraftHistory(inquiryId);
+      setAnswerDraft(approved);
+      setAnswerHistory(history);
+      setStatus(`승인 완료: v${approved.version} (${approved.status})`);
+    } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setLookupLoading(false);
@@ -314,10 +354,25 @@ export default function InquiryForm() {
 
         {answerDraft && (
           <div style={{ fontSize: "0.95rem", display: "grid", gap: "0.35rem", background: "#f7faf9", padding: "0.7rem", borderRadius: "8px" }}>
+            <div><b>Draft:</b> v{answerDraft.version} / {answerDraft.status} / {answerDraft.channel} / {answerDraft.tone}</div>
             <div><b>Draft Verdict:</b> {answerDraft.verdict} (confidence {answerDraft.confidence})</div>
             <div><b>Draft:</b> {answerDraft.draft}</div>
             {answerDraft.citations.length > 0 && <div><b>Citations:</b> {answerDraft.citations.join(" | ")}</div>}
             {answerDraft.riskFlags.length > 0 && <div><b>Risk:</b> {answerDraft.riskFlags.join(", ")}</div>}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button type="button" onClick={onReviewDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Review</button>
+              <button type="button" onClick={onApproveDraft} disabled={lookupLoading || answerDraft.status === "APPROVED"}>Approve</button>
+            </div>
+            {answerHistory.length > 0 && (
+              <div>
+                <b>History:</b>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                  {answerHistory.map((item) => (
+                    <li key={item.answerId}>v{item.version} / {item.status} / {item.verdict} / {item.channel} / {item.tone}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </section>

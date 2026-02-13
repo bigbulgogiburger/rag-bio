@@ -1,21 +1,30 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.AnalysisService;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class AnswerComposerService {
 
     private final AnalysisService analysisService;
+    private final AnswerDraftJpaRepository answerDraftRepository;
 
-    public AnswerComposerService(AnalysisService analysisService) {
+    public AnswerComposerService(AnalysisService analysisService, AnswerDraftJpaRepository answerDraftRepository) {
         this.analysisService = analysisService;
+        this.answerDraftRepository = answerDraftRepository;
     }
 
     public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel) {
@@ -32,13 +41,86 @@ public class AnswerComposerService {
             citations.add("chunk=" + ev.chunkId() + " score=" + String.format("%.3f", ev.score()));
         }
 
-        return new AnswerDraftResponse(
-                inquiryId.toString(),
+        int nextVersion = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
+                .map(x -> x.getVersion() + 1)
+                .orElse(1);
+
+        AnswerDraftJpaEntity saved = answerDraftRepository.save(new AnswerDraftJpaEntity(
+                UUID.randomUUID(),
+                inquiryId,
+                nextVersion,
                 analysis.verdict(),
                 analysis.confidence(),
+                normalizedTone,
+                normalizedChannel,
+                "DRAFT",
                 draft,
+                String.join(" | ", citations),
+                String.join(",", analysis.riskFlags()),
+                Instant.now(),
+                Instant.now()
+        ));
+
+        return toResponse(saved);
+    }
+
+    public AnswerDraftResponse review(UUID inquiryId, UUID answerId) {
+        AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+
+        if ("APPROVED".equals(entity.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Already approved answer cannot be reviewed");
+        }
+
+        entity.markReviewed();
+        return toResponse(answerDraftRepository.save(entity));
+    }
+
+    public AnswerDraftResponse approve(UUID inquiryId, UUID answerId) {
+        AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+
+        if (!"REVIEWED".equals(entity.getStatus()) && !"DRAFT".equals(entity.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Only draft/reviewed answer can be approved");
+        }
+
+        entity.markApproved();
+        return toResponse(answerDraftRepository.save(entity));
+    }
+
+    public List<AnswerDraftResponse> history(UUID inquiryId) {
+        return answerDraftRepository.findByInquiryIdOrderByVersionDesc(inquiryId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public AnswerDraftResponse latest(UUID inquiryId) {
+        AnswerDraftJpaEntity entity = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No answer draft found"));
+        return toResponse(entity);
+    }
+
+    private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity) {
+        List<String> citations = entity.getCitations() == null || entity.getCitations().isBlank()
+                ? List.of()
+                : List.of(entity.getCitations().split("\\s*\\|\\s*"));
+
+        List<String> riskFlags = entity.getRiskFlags() == null || entity.getRiskFlags().isBlank()
+                ? List.of()
+                : List.of(entity.getRiskFlags().split("\\s*,\\s*"));
+
+        return new AnswerDraftResponse(
+                entity.getId().toString(),
+                entity.getInquiryId().toString(),
+                entity.getVersion(),
+                entity.getStatus(),
+                entity.getVerdict(),
+                entity.getConfidence(),
+                entity.getDraft(),
                 citations,
-                analysis.riskFlags()
+                riskFlags,
+                entity.getTone(),
+                entity.getChannel()
         );
     }
 

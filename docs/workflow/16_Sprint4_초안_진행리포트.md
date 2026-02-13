@@ -22,6 +22,14 @@
   - confidence < 0.75 인 경우 `추가 확인 필요` 안내 문구 자동 삽입
   - riskFlags 존재 시 단정적 결론 지양 경고 문구 자동 삽입
 
+## 추가 완료 (4차)
+- 승인 플로우 + 버전 히스토리 구현
+  - `POST /api/v1/inquiries/{inquiryId}/answers/{answerId}/review`
+  - `POST /api/v1/inquiries/{inquiryId}/answers/{answerId}/approve`
+  - `GET /api/v1/inquiries/{inquiryId}/answers/latest`
+  - `GET /api/v1/inquiries/{inquiryId}/answers/history`
+- 답변 초안 생성 시 버전 자동 증가 및 DB 저장
+
 ## 다음 작업
-- 승인 플로우(Draft→Review→Approved)와 연결
-- 답변 버전 히스토리 조회 API 추가
+- 승인자/검토자 메타데이터(작성자, 코멘트) 추가
+- 품질 평가 스크립트에 답변 품질 메트릭 추가

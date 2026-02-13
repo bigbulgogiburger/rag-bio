@@ -200,6 +200,78 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/inquiries/{inquiryId}/answers/latest:
+    get:
+      tags: [Inquiry]
+      summary: 최신 답변 초안 조회
+      operationId: getLatestAnswerDraft
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      responses:
+        '200':
+          description: 최신 답변 초안
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerDraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/inquiries/{inquiryId}/answers/history:
+    get:
+      tags: [Inquiry]
+      summary: 답변 초안 히스토리 조회
+      operationId: getAnswerDraftHistory
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+      responses:
+        '200':
+          description: 답변 초안 히스토리
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnswerDraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/inquiries/{inquiryId}/answers/{answerId}/review:
+    post:
+      tags: [Inquiry]
+      summary: 답변 초안 리뷰 상태 전환
+      operationId: reviewAnswerDraft
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+        - $ref: '#/components/parameters/AnswerIdPath'
+      responses:
+        '200':
+          description: 리뷰 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerDraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/inquiries/{inquiryId}/answers/{answerId}/approve:
+    post:
+      tags: [Inquiry]
+      summary: 답변 초안 승인 상태 전환
+      operationId: approveAnswerDraft
+      parameters:
+        - $ref: '#/components/parameters/InquiryIdPath'
+        - $ref: '#/components/parameters/AnswerIdPath'
+      responses:
+        '200':
+          description: 승인 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerDraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     InquiryIdPath:
@@ -210,6 +282,14 @@ components:
         type: string
         format: uuid
       description: 문의 식별자(UUID)
+    AnswerIdPath:
+      name: answerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 답변 초안 식별자(UUID)
 
   schemas:
     CreateInquiryRequest:
@@ -417,11 +497,19 @@ components:
 
     AnswerDraftResponse:
       type: object
-      required: [inquiryId, verdict, confidence, draft, citations, riskFlags]
+      required: [answerId, inquiryId, version, status, verdict, confidence, draft, citations, riskFlags, tone, channel]
       properties:
+        answerId:
+          type: string
+          format: uuid
         inquiryId:
           type: string
           format: uuid
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, REVIEWED, APPROVED]
         verdict:
           type: string
           enum: [SUPPORTED, REFUTED, CONDITIONAL]
@@ -438,6 +526,12 @@ components:
           type: array
           items:
             type: string
+        tone:
+          type: string
+          enum: [professional, technical, brief]
+        channel:
+          type: string
+          enum: [email, messenger]
 
     ErrorResponse:
       type: object
