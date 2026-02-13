@@ -58,6 +58,19 @@ function mapVerdictLabel(verdict: string): string {
   return table[verdict] ?? verdict;
 }
 
+function statusToneClass(message: string): string {
+  if (message.includes("오류") || message.includes("실패") || message.includes("Forbidden") || message.includes("Unknown")) {
+    return "status-danger";
+  }
+  if (message.includes("주의") || message.includes("경고")) {
+    return "status-warn";
+  }
+  if (message.includes("완료") || message.includes("성공")) {
+    return "status-success";
+  }
+  return "status-info";
+}
+
 export default function InquiryForm() {
   const [question, setQuestion] = useState("");
   const [customerChannel, setCustomerChannel] = useState("email");
@@ -486,7 +499,7 @@ export default function InquiryForm() {
         )}
       </section>
 
-      {status && <p className="status-banner">{status}</p>}
+      {status && <p className={`status-banner ${statusToneClass(status)}`} role="status" aria-live="polite">{status}</p>}
     </div>
   );
 }

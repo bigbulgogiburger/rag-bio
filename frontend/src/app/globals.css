@@ -166,6 +166,26 @@ main {
   padding: 0.8rem 0.9rem;
 }
 
+.status-info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.status-success {
+  background: #ecfdf3;
+  border-color: #bbf7d0;
+}
+
+.status-warn {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.status-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
 .kv {
   display: grid;
   gap: 0.25rem;
@@ -250,5 +270,24 @@ main {
 @media (min-width: 768px) {
   .metrics-grid.cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn,
+  .btn-primary {
+    width: 100%;
+    justify-content: center;
   }
 }
