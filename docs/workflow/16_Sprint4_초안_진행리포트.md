@@ -88,5 +88,10 @@
   - `GET /api/v1/inquiries/{inquiryId}/orchestration-runs`
   - step/status/latency/error/createdAt 반환
 
+## 추가 완료 (15차)
+- S4-06 폴백 검증 테스트 추가
+  - `AnswerComposerServiceFallbackTest`
+  - 오케스트레이션 강제 실패 시 CONDITIONAL + `ORCHESTRATION_FALLBACK` + `FALLBACK_DRAFT_USED` 검증
+
 ## 다음 작업
-- S4-06 실패 폴백 정책(단계 실패시 안전초안) 구현
+- S4-06 폴백 경로 통합 테스트(API 레벨) 추가
