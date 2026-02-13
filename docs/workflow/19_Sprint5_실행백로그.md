@@ -15,7 +15,7 @@
 - [x] sentBy / sentAt / sendChannel / sendMessageId 저장
 
 ### S5-05-1 발송 어댑터 인터페이스 (P0)
-- [ ] Mock sender(email/messenger) 구현
+- [x] Mock sender(email/messenger) 구현
 
 ### S5-05-2 idempotency (P1)
 - [ ] sendRequestId 기반 중복 발송 차단

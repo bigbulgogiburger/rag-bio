@@ -4,6 +4,9 @@ import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.AnswerOrchestrationService;
+import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
+import com.biorad.csrag.interfaces.rest.answer.sender.SendCommand;
+import com.biorad.csrag.interfaces.rest.answer.sender.SendResult;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -19,10 +22,16 @@ public class AnswerComposerService {
 
     private final AnswerOrchestrationService orchestrationService;
     private final AnswerDraftJpaRepository answerDraftRepository;
+    private final List<MessageSender> messageSenders;
 
-    public AnswerComposerService(AnswerOrchestrationService orchestrationService, AnswerDraftJpaRepository answerDraftRepository) {
+    public AnswerComposerService(
+            AnswerOrchestrationService orchestrationService,
+            AnswerDraftJpaRepository answerDraftRepository,
+            List<MessageSender> messageSenders
+    ) {
         this.orchestrationService = orchestrationService;
         this.answerDraftRepository = answerDraftRepository;
+        this.messageSenders = messageSenders;
     }
 
     public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel) {
@@ -121,8 +130,21 @@ public class AnswerComposerService {
         }
 
         String normalizedChannel = (channel == null || channel.isBlank()) ? entity.getChannel() : channel.trim().toLowerCase();
-        String messageId = "mock-" + UUID.randomUUID();
-        entity.markSent(actor, normalizedChannel, messageId);
+
+        MessageSender sender = messageSenders.stream()
+                .filter(s -> s.supports(normalizedChannel))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Unsupported send channel: " + normalizedChannel));
+
+        SendResult result = sender.send(new SendCommand(
+                inquiryId,
+                answerId,
+                normalizedChannel,
+                actor,
+                entity.getDraft()
+        ));
+
+        entity.markSent(actor, normalizedChannel, result.messageId());
         return toResponse(answerDraftRepository.save(entity), List.of());
     }
 

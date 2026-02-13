@@ -26,7 +26,7 @@ class AnswerComposerServiceFallbackTest {
         when(repository.findTopByInquiryIdOrderByVersionDesc(inquiryId)).thenReturn(Optional.empty());
         when(repository.save(any(AnswerDraftJpaEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AnswerComposerService service = new AnswerComposerService(orchestrationService, repository);
+        AnswerComposerService service = new AnswerComposerService(orchestrationService, repository, java.util.List.of());
 
         AnswerDraftResponse response = service.compose(inquiryId, "test question", "professional", "email");
 
