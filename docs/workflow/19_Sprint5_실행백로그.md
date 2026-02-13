@@ -19,10 +19,11 @@
 
 ### S5-05-2 idempotency (P1)
 - [x] sendRequestId 기반 중복 발송 차단
+- [x] 동일 sendRequestId 재요청 시 동일 sendMessageId 재사용 검증
 
 ### S5-04-1 RBAC 최소 적용 (P1)
 - [x] approve/send 권한 분리(초기 mock role, `X-Role` 헤더)
 
 ### S5-QA-1 통합 테스트 (P0)
-- [ ] Draft→Review→Approve→Send
-- [ ] 승인 없는 send 실패
+- [x] Draft→Review→Approve→Send
+- [x] 승인 없는 approve 실패(403, mock RBAC)
