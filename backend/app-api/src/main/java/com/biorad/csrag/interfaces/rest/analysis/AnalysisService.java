@@ -30,6 +30,11 @@ public class AnalysisService {
     }
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
+        List<EvidenceItem> evidences = retrieve(inquiryId, question, topK);
+        return verify(inquiryId, question, evidences);
+    }
+
+    public List<EvidenceItem> retrieve(UUID inquiryId, String question, int topK) {
         List<Double> queryVector = embeddingService.embed(question);
         List<VectorSearchResult> searchResults = vectorStore.search(queryVector, topK);
 
@@ -54,7 +59,10 @@ public class AnalysisService {
             ));
             rank++;
         }
+        return evidences;
+    }
 
+    public AnalyzeResponse verify(UUID inquiryId, String question, List<EvidenceItem> evidences) {
         return buildVerdict(inquiryId, question, evidences);
     }
 
