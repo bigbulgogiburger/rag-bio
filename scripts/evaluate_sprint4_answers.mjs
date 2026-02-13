@@ -25,6 +25,7 @@ let riskFlagCases = 0;
 let riskGuardrail = 0;
 let channelFormatChecks = 0;
 let channelFormatPassed = 0;
+const channelFormatFailureReasons = new Map();
 
 const rows = [];
 
@@ -70,7 +71,14 @@ for (const item of evalset) {
 
   const formatCheck = checkChannelFormat(draft, channel);
   channelFormatChecks += 1;
-  if (formatCheck.ok) channelFormatPassed += 1;
+  if (formatCheck.ok) {
+    channelFormatPassed += 1;
+  } else {
+    channelFormatFailureReasons.set(
+      formatCheck.reason,
+      (channelFormatFailureReasons.get(formatCheck.reason) ?? 0) + 1
+    );
+  }
 
   rows.push({
     id: item.id,
@@ -95,19 +103,31 @@ function checkChannelFormat(draft, channel) {
   if (channel === 'email') {
     const hasGreeting = text.includes('안녕하세요');
     const hasClosing = text.includes('감사합니다');
-    return {
-      ok: hasGreeting && hasClosing,
-      reason: hasGreeting && hasClosing ? 'ok' : 'email requires greeting+closing'
-    };
+    if (hasGreeting && hasClosing) {
+      return { ok: true, reason: 'ok' };
+    }
+    if (!hasGreeting && !hasClosing) {
+      return { ok: false, reason: 'email: greeting+closing missing' };
+    }
+    if (!hasGreeting) {
+      return { ok: false, reason: 'email: greeting missing' };
+    }
+    return { ok: false, reason: 'email: closing missing' };
   }
 
   if (channel === 'messenger') {
     const hasSummaryTag = text.includes('[요약]');
     const maxLengthOk = text.length <= 260;
-    return {
-      ok: hasSummaryTag && maxLengthOk,
-      reason: hasSummaryTag && maxLengthOk ? 'ok' : 'messenger requires [요약] and <=260 chars'
-    };
+    if (hasSummaryTag && maxLengthOk) {
+      return { ok: true, reason: 'ok' };
+    }
+    if (!hasSummaryTag && !maxLengthOk) {
+      return { ok: false, reason: 'messenger: summary tag missing + length overflow' };
+    }
+    if (!hasSummaryTag) {
+      return { ok: false, reason: 'messenger: summary tag missing' };
+    }
+    return { ok: false, reason: 'messenger: length overflow' };
   }
 
   return { ok: true, reason: 'channel not checked' };
@@ -135,6 +155,15 @@ lines.push(`- Low-Confidence Guardrail Coverage: ${lowConfidenceGuardrail}/${low
 lines.push(`- Risk Guardrail Coverage: ${riskGuardrail}/${riskFlagCases} (${pct(riskGuardrail, riskFlagCases)}%)`);
 lines.push(`- Channel Format Pass Rate: ${channelFormatPassed}/${channelFormatChecks} (${pct(channelFormatPassed, channelFormatChecks)}%)`);
 lines.push('');
+lines.push('## Channel Format Failure Breakdown');
+if (channelFormatFailureReasons.size === 0) {
+  lines.push('- none');
+} else {
+  for (const [reason, count] of [...channelFormatFailureReasons.entries()].sort((a, b) => b[1] - a[1])) {
+    lines.push(`- ${reason}: ${count}`);
+  }
+}
+lines.push('');
 lines.push('## Case Results');
 for (const r of rows) {
   if (!r.expected) {
@@ -152,4 +181,13 @@ console.log(`Citation Inclusion Rate: ${citationIncluded}/${total} (${pct(citati
 console.log(`Low-Confidence Guardrail Coverage: ${lowConfidenceGuardrail}/${lowConfidenceCases} (${pct(lowConfidenceGuardrail, lowConfidenceCases)}%)`);
 console.log(`Risk Guardrail Coverage: ${riskGuardrail}/${riskFlagCases} (${pct(riskGuardrail, riskFlagCases)}%)`);
 console.log(`Channel Format Pass Rate: ${channelFormatPassed}/${channelFormatChecks} (${pct(channelFormatPassed, channelFormatChecks)}%)`);
+if (channelFormatFailureReasons.size === 0) {
+  console.log('Channel Format Failure Breakdown: none');
+} else {
+  const summary = [...channelFormatFailureReasons.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+  console.log(`Channel Format Failure Breakdown: ${summary}`);
+}
 console.log(`Report saved: ${reportPath}`);
