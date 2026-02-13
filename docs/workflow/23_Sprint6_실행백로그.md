@@ -16,10 +16,10 @@
 ## Sprint6-A (토큰 없이 진행)
 
 ### S6-A1 RBAC 실전화 (P0)
-- [ ] `X-Role` mock에서 사용자-권한 모델 기반으로 전환
-- [ ] 역할 정의: `reviewer`, `approver`, `sender`, `admin`
-- [ ] 엔드포인트별 권한 매핑 정책 문서화
-- [ ] 권한 실패 응답 표준화(403 + 에러 코드)
+- [x] `X-Role` mock에서 사용자-권한 모델 기반으로 전환 (`X-User-Id`, `X-User-Roles`)
+- [x] 역할 정의: `reviewer`, `approver`, `sender`, `admin`
+- [x] 엔드포인트별 권한 매핑 정책 문서화 (`24_Sprint6_RBAC_정책.md`)
+- [x] 권한 실패 응답 표준화(403 + 에러 코드: `AUTH_USER_ID_REQUIRED`, `AUTH_ROLE_FORBIDDEN`)
 
 ### S6-A2 감사로그 고도화 (P0)
 - [ ] `GET /answers/audit-logs` 필터 추가

@@ -235,10 +235,11 @@ export async function reviewAnswerDraft(
   actor?: string,
   comment?: string
 ): Promise<AnswerDraftResult> {
+  const principal = actor?.trim() || "reviewer-user";
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/review`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ actor, comment })
+    headers: { "Content-Type": "application/json", "X-User-Id": principal, "X-User-Roles": "REVIEWER" },
+    body: JSON.stringify({ actor: principal, comment })
   });
   if (!response.ok) {
     throw new Error(`Failed to review draft: ${response.status}`);
@@ -252,10 +253,11 @@ export async function approveAnswerDraft(
   actor?: string,
   comment?: string
 ): Promise<AnswerDraftResult> {
+  const principal = actor?.trim() || "approver-user";
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Role": "APPROVER" },
-    body: JSON.stringify({ actor, comment })
+    headers: { "Content-Type": "application/json", "X-User-Id": principal, "X-User-Roles": "APPROVER" },
+    body: JSON.stringify({ actor: principal, comment })
   });
   if (!response.ok) {
     throw new Error(`Failed to approve draft: ${response.status}`);
@@ -270,10 +272,11 @@ export async function sendAnswerDraft(
   channel?: AnswerChannel,
   sendRequestId?: string
 ): Promise<AnswerDraftResult> {
+  const principal = actor?.trim() || "sender-user";
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/send`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Role": "SENDER" },
-    body: JSON.stringify({ actor, channel, sendRequestId })
+    headers: { "Content-Type": "application/json", "X-User-Id": principal, "X-User-Roles": "SENDER" },
+    body: JSON.stringify({ actor: principal, channel, sendRequestId })
   });
   if (!response.ok) {
     throw new Error(`Failed to send draft: ${response.status}`);

@@ -244,6 +244,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/UserRolesHeaderReviewer'
       requestBody:
         required: false
         content:
@@ -268,7 +270,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
-        - $ref: '#/components/parameters/RoleHeaderApprover'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/UserRolesHeaderApprover'
       requestBody:
         required: false
         content:
@@ -293,7 +296,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/InquiryIdPath'
         - $ref: '#/components/parameters/AnswerIdPath'
-        - $ref: '#/components/parameters/RoleHeaderSender'
+        - $ref: '#/components/parameters/UserIdHeader'
+        - $ref: '#/components/parameters/UserRolesHeaderSender'
       requestBody:
         required: false
         content:
@@ -366,22 +370,37 @@ components:
         type: string
         format: uuid
       description: 답변 초안 식별자(UUID)
-    RoleHeaderApprover:
-      name: X-Role
+    UserIdHeader:
+      name: X-User-Id
       in: header
       required: true
       schema:
         type: string
-        enum: [APPROVER]
-      description: approve 권한 역할 헤더
-    RoleHeaderSender:
-      name: X-Role
+      description: 요청 사용자 식별자
+    UserRolesHeaderReviewer:
+      name: X-User-Roles
       in: header
       required: true
       schema:
         type: string
-        enum: [SENDER]
-      description: send 권한 역할 헤더
+        example: REVIEWER
+      description: review 권한 역할 헤더(csv 지원)
+    UserRolesHeaderApprover:
+      name: X-User-Roles
+      in: header
+      required: true
+      schema:
+        type: string
+        example: APPROVER
+      description: approve 권한 역할 헤더(csv 지원)
+    UserRolesHeaderSender:
+      name: X-User-Roles
+      in: header
+      required: true
+      schema:
+        type: string
+        example: SENDER
+      description: send 권한 역할 헤더(csv 지원)
 
   schemas:
     CreateInquiryRequest:

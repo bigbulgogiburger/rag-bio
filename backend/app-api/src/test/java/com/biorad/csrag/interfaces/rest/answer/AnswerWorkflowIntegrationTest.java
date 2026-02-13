@@ -47,6 +47,8 @@ class AnswerWorkflowIntegrationTest {
         String answerId = objectMapper.readTree(draftResponse).path("answerId").asText();
 
         mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/{answerId}/review", inquiryId, answerId)
+                        .header("X-User-Id", "reviewer-1")
+                        .header("X-User-Roles", "REVIEWER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"actor":"reviewer-1","comment":"looks fine"}
