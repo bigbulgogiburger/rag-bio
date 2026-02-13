@@ -30,3 +30,7 @@
 
 ### S5-06-1 감사로그 조회 API (P1)
 - [x] inquiry 기준 감사 히스토리 조회 가능 (`GET /api/v1/inquiries/{inquiryId}/answers/audit-logs`)
+
+### S5-QA-2 평가 리포트 확장 (P1)
+- [x] send-ready rate / duplicate-block rate 산출 스크립트 추가
+- [x] Sprint5 평가 실행가이드 문서화
