@@ -54,5 +54,11 @@
   - holdout 재평가 결과: Accuracy 91.67%, Citation 100.00%
   - Guardrail coverage(저신뢰/리스크): 100% 유지
 
-## 다음 작업
+## 추가 완료 (9차)
 - 채널별(email/messenger) holdout 분리 리포트 추가
+  - email: `docs/workflow/reports/sprint4_answer_eval_report_2026-02-13T01-01-39-783Z.md`
+  - messenger: `docs/workflow/reports/sprint4_answer_eval_report_2026-02-13T01-01-39-884Z.md`
+  - 두 채널 모두 Accuracy 91.67%, Citation 100.00%, Guardrail 100%
+
+## 다음 작업
+- 채널별 포맷 품질 지표(인사/마무리/요약 길이) 자동 점검 항목 추가
