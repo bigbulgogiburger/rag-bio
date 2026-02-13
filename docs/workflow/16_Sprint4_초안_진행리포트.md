@@ -93,5 +93,10 @@
   - `AnswerComposerServiceFallbackTest`
   - 오케스트레이션 강제 실패 시 CONDITIONAL + `ORCHESTRATION_FALLBACK` + `FALLBACK_DRAFT_USED` 검증
 
-## 다음 작업
+## 추가 완료 (16차)
 - S4-06 폴백 경로 통합 테스트(API 레벨) 추가
+  - `AnswerFallbackIntegrationTest`
+  - 오케스트레이션 강제 실패(MockBean) 시 `/answers/draft`가 200 + 안전 폴백 응답 반환 검증
+
+## 다음 작업
+- S4-06 폴백 경로를 orchestration-runs 조회 API와 연동해 FAILED step 가시성 점검
