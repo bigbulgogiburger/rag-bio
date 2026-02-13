@@ -2,6 +2,8 @@ package com.biorad.csrag.interfaces.rest.vector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -11,6 +13,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
+@Primary
+@ConditionalOnProperty(prefix = "vector", name = "provider", havingValue = "mock", matchIfMissing = true)
 public class MockVectorStore implements VectorStore {
 
     private static final Logger log = LoggerFactory.getLogger(MockVectorStore.class);

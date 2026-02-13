@@ -43,6 +43,7 @@ vector:
   qdrant:
     url: ${QDRANT_URL:}
     api-key: ${QDRANT_API_KEY:}
+    collection: ${QDRANT_COLLECTION:csrag_chunks}
   pinecone:
     api-key: ${PINECONE_API_KEY:}
     index: ${PINECONE_INDEX:}
