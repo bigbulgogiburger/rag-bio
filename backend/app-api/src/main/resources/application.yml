@@ -26,6 +26,9 @@ spring:
 app:
   storage:
     upload-dir: uploads
+  web:
+    cors:
+      allowed-origins: http://localhost:3000,http://localhost:3001
 
 logging:
   pattern:
