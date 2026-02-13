@@ -402,8 +402,31 @@ export default function InquiryForm() {
         )}
 
         {answerDraft && (
-          <div className="status-banner" style={{ display: "grid", gap: ".4rem" }}>
+          <div className="status-banner" style={{ display: "grid", gap: ".55rem" }}>
             <div><b>초안:</b> v{answerDraft.version} · {mapStatusLabel(answerDraft.status)} · {answerDraft.channel} · {answerDraft.tone}</div>
+
+            <div className="timeline">
+              {[
+                { key: "DRAFT", label: "초안 생성" },
+                { key: "REVIEWED", label: "리뷰 완료" },
+                { key: "APPROVED", label: "승인 완료" },
+                { key: "SENT", label: "발송 완료" }
+              ].map((step) => {
+                const order: Record<string, number> = { DRAFT: 0, REVIEWED: 1, APPROVED: 2, SENT: 3 };
+                const current = order[answerDraft.status] ?? 0;
+                const idx = order[step.key] ?? 0;
+                const done = idx <= current;
+                const active = idx === current;
+                return (
+                  <div key={step.key} className={`timeline-row${done ? " done" : ""}${active ? " active" : ""}`}>
+                    <span className="timeline-dot" />
+                    <span className="timeline-title">{step.label}</span>
+                    <span className="muted">{done ? "완료" : "대기"}</span>
+                  </div>
+                );
+              })}
+            </div>
+
             <div><b>판정:</b> {mapVerdictLabel(answerDraft.verdict)} (신뢰도 {answerDraft.confidence})</div>
             <div><b>답변:</b> {answerDraft.draft}</div>
 

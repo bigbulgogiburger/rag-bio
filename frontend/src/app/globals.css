@@ -211,6 +211,42 @@ main {
   gap: 0.9rem;
 }
 
+.timeline {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.timeline-row.done .timeline-dot {
+  background: var(--success);
+}
+
+.timeline-row.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.timeline-title {
+  font-weight: 700;
+  min-width: 84px;
+}
+
 @media (min-width: 768px) {
   .metrics-grid.cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
