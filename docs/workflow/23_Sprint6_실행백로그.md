@@ -22,12 +22,12 @@
 - [x] 권한 실패 응답 표준화(403 + 에러 코드: `AUTH_USER_ID_REQUIRED`, `AUTH_ROLE_FORBIDDEN`)
 
 ### S6-A2 감사로그 고도화 (P0)
-- [ ] `GET /answers/audit-logs` 필터 추가
-  - [ ] 기간(from/to)
-  - [ ] 상태(status)
-  - [ ] 행위자(actor)
-- [ ] 페이지네이션/정렬 추가
-- [ ] 운영 조회 시나리오 샘플 쿼리 문서화
+- [x] `GET /answers/audit-logs` 필터 추가
+  - [x] 기간(from/to)
+  - [x] 상태(status)
+  - [x] 행위자(actor)
+- [x] 페이지네이션/정렬 추가
+- [x] 운영 조회 시나리오 샘플 쿼리 문서화 (`25_Sprint6_감사로그_조회_예시.md`)
 
 ### S6-A3 운영 대시보드 지표 확장 (P1)
 - [ ] send success rate

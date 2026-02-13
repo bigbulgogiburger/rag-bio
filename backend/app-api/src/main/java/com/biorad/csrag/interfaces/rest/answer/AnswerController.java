@@ -4,6 +4,9 @@ import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaReposito
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,9 +14,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -129,11 +134,26 @@ public class AnswerController {
 
     @GetMapping("/audit-logs")
     @ResponseStatus(HttpStatus.OK)
-    public List<AnswerAuditLogResponse> auditLogs(@PathVariable String inquiryId) {
+    public List<AnswerAuditLogResponse> auditLogs(
+            @PathVariable String inquiryId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String actor,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort
+    ) {
         UUID inquiryUuid = parseInquiryId(inquiryId);
         ensureInquiryExists(inquiryUuid);
 
-        return answerDraftRepository.findByInquiryIdOrderByVersionDesc(inquiryUuid)
+        Instant fromTs = parseInstant(from, "from");
+        Instant toTs = parseInstant(to, "to");
+        String normalizedStatus = normalizeNullable(status);
+        String normalizedActor = normalizeNullable(actor);
+        Pageable pageable = buildPageable(page, size, sort);
+
+        return answerDraftRepository.searchAuditLogs(inquiryUuid, normalizedStatus, normalizedActor, fromTs, toTs, pageable)
                 .stream()
                 .map(a -> new AnswerAuditLogResponse(
                         a.getId().toString(),
@@ -184,6 +204,36 @@ public class AnswerController {
                     "AUTH_ROLE_FORBIDDEN principal=" + principalId + " required=" + String.join("|", requiredRoles)
             );
         }
+    }
+
+    private Pageable buildPageable(int page, int size, String sort) {
+        int normalizedPage = Math.max(page, 0);
+        int normalizedSize = Math.min(Math.max(size, 1), 200);
+
+        String[] parts = (sort == null ? "" : sort).split(",");
+        String property = parts.length > 0 && !parts[0].isBlank() ? parts[0].trim() : "createdAt";
+        String direction = parts.length > 1 ? parts[1].trim().toLowerCase() : "desc";
+        Sort.Direction dir = "asc".equals(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+        return PageRequest.of(normalizedPage, normalizedSize, Sort.by(dir, property));
+    }
+
+    private Instant parseInstant(String value, String field) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value.trim());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid " + field + " datetime format (ISO-8601 expected)");
+        }
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private UUID parseAnswerId(String answerId) {
