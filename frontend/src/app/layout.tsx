@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import AppShellNav from "@/components/app-shell-nav";
 import "./globals.css";
 
@@ -30,12 +29,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="app-footer">
           <div className="footer-inner">
             <div>
-              <strong>Bio-Rad CS 대응 허브</strong>
-              <p>문의 접수 · 분석 · 답변 생성/승인/발송을 한 화면에서 관리합니다.</p>
+              <strong>운영 안내</strong>
+              <p>고객 문의 데이터는 내부 검토/응대 목적으로 처리됩니다.</p>
+              <p>권한 없는 승인·발송 요청은 자동으로 차단됩니다.</p>
             </div>
-            <div className="footer-links">
-              <Link href="/dashboard">대시보드</Link>
-              <Link href="/inquiry/new">문의 작성</Link>
+            <div className="footer-meta">
+              <p><b>지원 채널</b> 이메일 · 메신저 · 포털</p>
+              <p><b>운영 시간</b> 평일 09:00 ~ 18:00 (KST)</p>
+              <p><b>버전</b> Sprint5 UI Rev</p>
             </div>
           </div>
         </footer>
