@@ -41,5 +41,18 @@ EVALSET_PATH=backend/app-api/src/main/resources/evaluation/sprint4_answer_evalse
 ANSWER_CHANNEL=messenger node scripts/evaluate_sprint4_answers.mjs
 ```
 
+## 통합 실행 (권장)
+```bash
+INQUIRY_ID=<indexed_uuid> API_BASE_URL=http://localhost:18080 \
+scripts/run_sprint4_eval_suite.sh
+```
+
+## 권장 기준선 (Gate)
+- Verdict Accuracy >= 90%
+- Citation Inclusion Rate >= 95%
+- Guardrail Coverage >= 95%
+- Channel Format Pass Rate >= 95%
+
 ## 리포트 위치
 - `docs/workflow/reports/sprint4_answer_eval_report_*.md`
+- `docs/workflow/reports/sprint4_format_breakdown_report_*.md`
