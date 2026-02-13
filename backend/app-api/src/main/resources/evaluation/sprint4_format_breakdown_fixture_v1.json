@@ -1,0 +1,38 @@
+[
+  {
+    "id": "FMT-EMAIL-001",
+    "channel": "email",
+    "draft": "문의하신 내용은 근거상 타당합니다. 감사합니다.",
+    "expectedReason": "email: greeting missing"
+  },
+  {
+    "id": "FMT-EMAIL-002",
+    "channel": "email",
+    "draft": "안녕하세요. 문의하신 내용은 근거상 타당합니다.",
+    "expectedReason": "email: closing missing"
+  },
+  {
+    "id": "FMT-EMAIL-003",
+    "channel": "email",
+    "draft": "문의하신 내용은 검토가 필요합니다.",
+    "expectedReason": "email: greeting+closing missing"
+  },
+  {
+    "id": "FMT-MSG-001",
+    "channel": "messenger",
+    "draft": "문의하신 내용은 타당합니다. 확인 부탁드립니다.",
+    "expectedReason": "messenger: summary tag missing"
+  },
+  {
+    "id": "FMT-MSG-002",
+    "channel": "messenger",
+    "draft": "[요약] LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST LENGTH_OVERFLOW_TEST",
+    "expectedReason": "messenger: length overflow"
+  },
+  {
+    "id": "FMT-MSG-003",
+    "channel": "messenger",
+    "draft": "NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW NO_SUMMARY_TAG_OVERFLOW",
+    "expectedReason": "messenger: summary tag missing + length overflow"
+  }
+]
