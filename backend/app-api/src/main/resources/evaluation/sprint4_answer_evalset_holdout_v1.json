@@ -1,0 +1,14 @@
+[
+  {"id":"S4H-001","domain":"protocol","difficulty":"medium","question":"The protocol is validated for this workflow and aligns with baseline guidance.","expectedVerdict":"SUPPORTED"},
+  {"id":"S4H-002","domain":"instrument","difficulty":"medium","question":"This operation mode is prohibited by the safety section.","expectedVerdict":"REFUTED"},
+  {"id":"S4H-003","domain":"reagent","difficulty":"hard","question":"The ratio may work but depends on concentration and handling conditions.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4H-004","domain":"protocol","difficulty":"hard","question":"Evidence appears mixed with both supportive and conflicting excerpts.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4H-005","domain":"instrument","difficulty":"easy","question":"The setup is consistent with approved baseline settings.","expectedVerdict":"SUPPORTED"},
+  {"id":"S4H-006","domain":"reagent","difficulty":"easy","question":"This claim is not recommended and conflicts with standard notes.","expectedVerdict":"REFUTED"},
+  {"id":"S4H-007","domain":"protocol","difficulty":"medium","question":"Guidance is partially relevant but an essential prerequisite is missing.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4H-008","domain":"instrument","difficulty":"easy","question":"Calibration and checklist steps were followed correctly and documented.","expectedVerdict":"SUPPORTED"},
+  {"id":"S4H-009","domain":"reagent","difficulty":"medium","question":"Storage history is missing, so a definitive acceptance is risky.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4H-010","domain":"protocol","difficulty":"easy","question":"The interpretation contradicts acceptance criteria and should be rejected.","expectedVerdict":"REFUTED"},
+  {"id":"S4H-011","domain":"instrument","difficulty":"hard","question":"Supportive result exists but another appendix section warns against direct use.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4H-012","domain":"protocol","difficulty":"easy","question":"This execution path is strongly supported by validation notes.","expectedVerdict":"SUPPORTED"}
+]

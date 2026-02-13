@@ -48,5 +48,11 @@
   - 실데이터(인덱싱 완료 inquiry): Accuracy 93.33%, Citation 100.00%
   - Guardrail coverage(저신뢰/리스크): 100% 유지
 
+## 추가 완료 (8차)
+- holdout answer evalset 추가 및 재현성 체크 완료
+  - evalset: `backend/app-api/src/main/resources/evaluation/sprint4_answer_evalset_holdout_v1.json` (12 cases)
+  - holdout 재평가 결과: Accuracy 91.67%, Citation 100.00%
+  - Guardrail coverage(저신뢰/리스크): 100% 유지
+
 ## 다음 작업
-- holdout answer evalset 추가 및 재현성 체크
+- 채널별(email/messenger) holdout 분리 리포트 추가
