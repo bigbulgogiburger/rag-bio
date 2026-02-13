@@ -95,7 +95,8 @@ public class AnswerController {
         ensureInquiryExists(inquiryUuid);
         String actor = request == null ? null : request.actor();
         String channel = request == null ? null : request.channel();
-        return answerComposerService.send(inquiryUuid, parseAnswerId(answerId), actor, channel);
+        String sendRequestId = request == null ? null : request.sendRequestId();
+        return answerComposerService.send(inquiryUuid, parseAnswerId(answerId), actor, channel, sendRequestId);
     }
 
     private void ensureInquiryExists(UUID inquiryUuid) {

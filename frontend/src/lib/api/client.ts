@@ -267,12 +267,13 @@ export async function sendAnswerDraft(
   inquiryId: string,
   answerId: string,
   actor?: string,
-  channel?: AnswerChannel
+  channel?: AnswerChannel,
+  sendRequestId?: string
 ): Promise<AnswerDraftResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ actor, channel })
+    body: JSON.stringify({ actor, channel, sendRequestId })
   });
   if (!response.ok) {
     throw new Error(`Failed to send draft: ${response.status}`);

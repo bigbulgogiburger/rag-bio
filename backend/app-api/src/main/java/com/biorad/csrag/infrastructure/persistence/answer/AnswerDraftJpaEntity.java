@@ -75,6 +75,9 @@ public class AnswerDraftJpaEntity {
     @Column(name = "send_message_id", length = 255)
     private String sendMessageId;
 
+    @Column(name = "send_request_id", length = 120)
+    private String sendRequestId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -120,6 +123,7 @@ public class AnswerDraftJpaEntity {
     public Instant getSentAt() { return sentAt; }
     public String getSendChannel() { return sendChannel; }
     public String getSendMessageId() { return sendMessageId; }
+    public String getSendRequestId() { return sendRequestId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -139,11 +143,12 @@ public class AnswerDraftJpaEntity {
         this.updatedAt = Instant.now();
     }
 
-    public void markSent(String sender, String channel, String messageId) {
+    public void markSent(String sender, String channel, String messageId, String requestId) {
         this.status = "SENT";
         this.sentBy = sender;
         this.sendChannel = channel;
         this.sendMessageId = messageId;
+        this.sendRequestId = requestId;
         this.sentAt = Instant.now();
         this.updatedAt = Instant.now();
     }

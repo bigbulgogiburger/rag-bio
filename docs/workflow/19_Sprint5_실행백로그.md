@@ -18,7 +18,7 @@
 - [x] Mock sender(email/messenger) 구현
 
 ### S5-05-2 idempotency (P1)
-- [ ] sendRequestId 기반 중복 발송 차단
+- [x] sendRequestId 기반 중복 발송 차단
 
 ### S5-04-1 RBAC 최소 적용 (P1)
 - [ ] approve/send 권한 분리(초기 mock role)

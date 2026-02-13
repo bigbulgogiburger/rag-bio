@@ -121,9 +121,15 @@ public class AnswerComposerService {
                 .toList();
     }
 
-    public AnswerDraftResponse send(UUID inquiryId, UUID answerId, String actor, String channel) {
+    public AnswerDraftResponse send(UUID inquiryId, UUID answerId, String actor, String channel, String sendRequestId) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+
+        String requestId = (sendRequestId == null || sendRequestId.isBlank()) ? null : sendRequestId.trim();
+
+        if (requestId != null && "SENT".equals(entity.getStatus()) && requestId.equals(entity.getSendRequestId())) {
+            return toResponse(entity, List.of());
+        }
 
         if (!"APPROVED".equals(entity.getStatus())) {
             throw new ResponseStatusException(CONFLICT, "Only approved answer can be sent");
@@ -144,7 +150,7 @@ public class AnswerComposerService {
                 entity.getDraft()
         ));
 
-        entity.markSent(actor, normalizedChannel, result.messageId());
+        entity.markSent(actor, normalizedChannel, result.messageId(), requestId);
         return toResponse(answerDraftRepository.save(entity), List.of());
     }
 

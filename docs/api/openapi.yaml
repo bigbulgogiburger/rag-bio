@@ -566,6 +566,8 @@ components:
         channel:
           type: string
           enum: [email, messenger]
+        sendRequestId:
+          type: string
 
     AnswerDraftResponse:
       type: object

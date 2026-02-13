@@ -227,7 +227,8 @@ export default function InquiryForm() {
     setLookupLoading(true);
     setStatus(null);
     try {
-      const sent = await sendAnswerDraft(inquiryId, answerDraft.answerId, sendActor.trim() || undefined, answerChannel);
+      const sendRequestId = `${answerDraft.answerId}-send-v1`;
+      const sent = await sendAnswerDraft(inquiryId, answerDraft.answerId, sendActor.trim() || undefined, answerChannel, sendRequestId);
       const history = await listAnswerDraftHistory(inquiryId);
       setAnswerDraft(sent);
       setAnswerHistory(history);
