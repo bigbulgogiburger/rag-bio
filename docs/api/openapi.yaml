@@ -830,7 +830,7 @@ components:
 
     OpsMetricsResponse:
       type: object
-      required: [approvedOrSentCount, sentCount, sendSuccessRate, fallbackDraftCount, totalDraftCount, fallbackDraftRate, topFailureReasons]
+      required: [approvedOrSentCount, sentCount, sendSuccessRate, duplicateBlockedCount, totalSendAttemptCount, duplicateBlockRate, fallbackDraftCount, totalDraftCount, fallbackDraftRate, topFailureReasons]
       properties:
         approvedOrSentCount:
           type: integer
@@ -839,6 +839,15 @@ components:
           type: integer
           format: int64
         sendSuccessRate:
+          type: number
+          format: double
+        duplicateBlockedCount:
+          type: integer
+          format: int64
+        totalSendAttemptCount:
+          type: integer
+          format: int64
+        duplicateBlockRate:
           type: number
           format: double
         fallbackDraftCount:

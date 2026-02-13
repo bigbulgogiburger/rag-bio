@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const cards = [
     { label: "발송 성공률", value: metrics ? `${metrics.sendSuccessRate}%` : "-" },
     { label: "발송 완료 건", value: metrics ? `${metrics.sentCount}/${metrics.approvedOrSentCount}` : "-" },
+    { label: "중복 차단률", value: metrics ? `${metrics.duplicateBlockRate}%` : "-" },
+    { label: "중복 차단 건", value: metrics ? `${metrics.duplicateBlockedCount}/${metrics.totalSendAttemptCount}` : "-" },
     { label: "Fallback 비율", value: metrics ? `${metrics.fallbackDraftRate}%` : "-" },
     { label: "Fallback 건", value: metrics ? `${metrics.fallbackDraftCount}/${metrics.totalDraftCount}` : "-" }
   ];

@@ -2,6 +2,8 @@ package com.biorad.csrag.interfaces.rest.answer;
 
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.AnswerOrchestrationService;
 import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
@@ -22,15 +24,18 @@ public class AnswerComposerService {
 
     private final AnswerOrchestrationService orchestrationService;
     private final AnswerDraftJpaRepository answerDraftRepository;
+    private final SendAttemptJpaRepository sendAttemptRepository;
     private final List<MessageSender> messageSenders;
 
     public AnswerComposerService(
             AnswerOrchestrationService orchestrationService,
             AnswerDraftJpaRepository answerDraftRepository,
+            SendAttemptJpaRepository sendAttemptRepository,
             List<MessageSender> messageSenders
     ) {
         this.orchestrationService = orchestrationService;
         this.answerDraftRepository = answerDraftRepository;
+        this.sendAttemptRepository = sendAttemptRepository;
         this.messageSenders = messageSenders;
     }
 
@@ -128,10 +133,12 @@ public class AnswerComposerService {
         String requestId = (sendRequestId == null || sendRequestId.isBlank()) ? null : sendRequestId.trim();
 
         if (requestId != null && "SENT".equals(entity.getStatus()) && requestId.equals(entity.getSendRequestId())) {
+            logSendAttempt(inquiryId, answerId, requestId, "DUPLICATE_BLOCKED", "already sent by same request id");
             return toResponse(entity, List.of());
         }
 
         if (!"APPROVED".equals(entity.getStatus())) {
+            logSendAttempt(inquiryId, answerId, requestId, "REJECTED_NOT_APPROVED", "status=" + entity.getStatus());
             throw new ResponseStatusException(CONFLICT, "Only approved answer can be sent");
         }
 
@@ -151,6 +158,7 @@ public class AnswerComposerService {
         ));
 
         entity.markSent(actor, normalizedChannel, result.messageId(), requestId);
+        logSendAttempt(inquiryId, answerId, requestId, "SENT", result.messageId());
         return toResponse(answerDraftRepository.save(entity), List.of());
     }
 
@@ -158,6 +166,18 @@ public class AnswerComposerService {
         AnswerDraftJpaEntity entity = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No answer draft found"));
         return toResponse(entity, List.of());
+    }
+
+    private void logSendAttempt(UUID inquiryId, UUID answerId, String requestId, String outcome, String detail) {
+        sendAttemptRepository.save(new SendAttemptJpaEntity(
+                UUID.randomUUID(),
+                inquiryId,
+                answerId,
+                requestId,
+                outcome,
+                detail,
+                Instant.now()
+        ));
     }
 
     private String fallbackDraftByChannel(String channel) {

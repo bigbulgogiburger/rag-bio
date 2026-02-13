@@ -2,6 +2,7 @@ package com.biorad.csrag.interfaces.rest.ops;
 
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,13 +21,16 @@ public class OpsMetricsController {
 
     private final AnswerDraftJpaRepository answerDraftRepository;
     private final OrchestrationRunJpaRepository orchestrationRunRepository;
+    private final SendAttemptJpaRepository sendAttemptRepository;
 
     public OpsMetricsController(
             AnswerDraftJpaRepository answerDraftRepository,
-            OrchestrationRunJpaRepository orchestrationRunRepository
+            OrchestrationRunJpaRepository orchestrationRunRepository,
+            SendAttemptJpaRepository sendAttemptRepository
     ) {
         this.answerDraftRepository = answerDraftRepository;
         this.orchestrationRunRepository = orchestrationRunRepository;
+        this.sendAttemptRepository = sendAttemptRepository;
     }
 
     @GetMapping
@@ -36,9 +40,12 @@ public class OpsMetricsController {
         long sent = answerDraftRepository.countByStatus("SENT");
         long totalDraft = answerDraftRepository.count();
         long fallbackDraft = answerDraftRepository.countByRiskFlagsContaining("FALLBACK_DRAFT_USED");
+        long totalSendAttempts = sendAttemptRepository.count();
+        long duplicateBlockedCount = sendAttemptRepository.countByOutcome("DUPLICATE_BLOCKED");
 
         double sendSuccessRate = approvedOrSent == 0 ? 0.0 : round2((sent * 100.0) / approvedOrSent);
         double fallbackDraftRate = totalDraft == 0 ? 0.0 : round2((fallbackDraft * 100.0) / totalDraft);
+        double duplicateBlockRate = totalSendAttempts == 0 ? 0.0 : round2((duplicateBlockedCount * 100.0) / totalSendAttempts);
 
         List<OpsMetricsResponse.FailureReasonCount> topReasons = orchestrationRunRepository.findAll().stream()
                 .filter(r -> "FAILED".equalsIgnoreCase(r.getStatus()))
@@ -61,6 +68,9 @@ public class OpsMetricsController {
                 approvedOrSent,
                 sent,
                 sendSuccessRate,
+                duplicateBlockedCount,
+                totalSendAttempts,
+                duplicateBlockRate,
                 fallbackDraft,
                 totalDraft,
                 fallbackDraftRate,

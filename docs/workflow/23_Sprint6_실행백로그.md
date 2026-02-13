@@ -31,7 +31,7 @@
 
 ### S6-A3 운영 대시보드 지표 확장 (P1)
 - [x] send success rate
-- [ ] duplicate block rate
+- [x] duplicate block rate
 - [x] fallback draft rate
 - [x] 최근 실패 사유 top-N
 

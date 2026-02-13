@@ -57,13 +57,25 @@ class OpsMetricsIntegrationTest {
                                 """))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/{answerId}/send", inquiryId, answerId)
+                        .header("X-User-Id", "sender-1")
+                        .header("X-User-Roles", "SENDER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"channel":"email","sendRequestId":"ops-1"}
+                                """))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/api/v1/ops/metrics").param("topFailures", "3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sentCount").isNumber())
                 .andExpect(jsonPath("$.sentCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.approvedOrSentCount").isNumber())
                 .andExpect(jsonPath("$.approvedOrSentCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
-                .andExpect(jsonPath("$.sendSuccessRate").isNumber());
+                .andExpect(jsonPath("$.sendSuccessRate").isNumber())
+                .andExpect(jsonPath("$.duplicateBlockedCount").isNumber())
+                .andExpect(jsonPath("$.duplicateBlockedCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.duplicateBlockRate").isNumber());
     }
 
     private String createInquiry() throws Exception {

@@ -18,6 +18,9 @@ export interface OpsMetrics {
   approvedOrSentCount: number;
   sentCount: number;
   sendSuccessRate: number;
+  duplicateBlockedCount: number;
+  totalSendAttemptCount: number;
+  duplicateBlockRate: number;
   fallbackDraftCount: number;
   totalDraftCount: number;
   fallbackDraftRate: number;
