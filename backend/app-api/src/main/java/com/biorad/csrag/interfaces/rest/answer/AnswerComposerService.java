@@ -109,6 +109,8 @@ public class AnswerComposerService {
                 ? List.of()
                 : List.of(entity.getRiskFlags().split("\\s*,\\s*"));
 
+        List<String> formatWarnings = validateFormatWarnings(entity.getDraft(), entity.getChannel());
+
         return new AnswerDraftResponse(
                 entity.getId().toString(),
                 entity.getInquiryId().toString(),
@@ -124,8 +126,32 @@ public class AnswerComposerService {
                 entity.getReviewedBy(),
                 entity.getReviewComment(),
                 entity.getApprovedBy(),
-                entity.getApproveComment()
+                entity.getApproveComment(),
+                formatWarnings
         );
+    }
+
+    private List<String> validateFormatWarnings(String draft, String channel) {
+        String text = draft == null ? "" : draft;
+        List<String> warnings = new ArrayList<>();
+
+        if ("email".equals(channel)) {
+            if (!text.contains("안녕하세요")) {
+                warnings.add("EMAIL_GREETING_MISSING");
+            }
+            if (!text.contains("감사합니다")) {
+                warnings.add("EMAIL_CLOSING_MISSING");
+            }
+        } else if ("messenger".equals(channel)) {
+            if (!text.contains("[요약]")) {
+                warnings.add("MESSENGER_SUMMARY_TAG_MISSING");
+            }
+            if (text.length() > 260) {
+                warnings.add("MESSENGER_LENGTH_OVERFLOW");
+            }
+        }
+
+        return warnings;
     }
 
     private String createDraftByTone(AnalyzeResponse analysis, String tone) {

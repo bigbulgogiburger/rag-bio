@@ -20,6 +20,17 @@ import {
   type InquiryIndexingStatus
 } from "@/lib/api/client";
 
+type CitationView = { chunkId: string; score: number | null };
+
+function parseCitation(raw: string): CitationView {
+  const chunkMatch = raw.match(/chunk=([^\s]+)/);
+  const scoreMatch = raw.match(/score=([0-9.]+)/);
+  return {
+    chunkId: chunkMatch?.[1] ?? raw,
+    score: scoreMatch ? Number(scoreMatch[1]) : null
+  };
+}
+
 export default function InquiryForm() {
   const [question, setQuestion] = useState("");
   const [customerChannel, setCustomerChannel] = useState("email");
@@ -361,8 +372,24 @@ export default function InquiryForm() {
             <div><b>Draft:</b> v{answerDraft.version} / {answerDraft.status} / {answerDraft.channel} / {answerDraft.tone}</div>
             <div><b>Draft Verdict:</b> {answerDraft.verdict} (confidence {answerDraft.confidence})</div>
             <div><b>Draft:</b> {answerDraft.draft}</div>
-            {answerDraft.citations.length > 0 && <div><b>Citations:</b> {answerDraft.citations.join(" | ")}</div>}
+            {answerDraft.citations.length > 0 && (
+              <div>
+                <b>Citations:</b>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                  {answerDraft.citations.map((c, idx) => {
+                    const parsed = parseCitation(c);
+                    return (
+                      <li key={`${parsed.chunkId}-${idx}`}>
+                        chunk={parsed.chunkId.slice(0, 8)}
+                        {parsed.score != null ? ` / score=${parsed.score.toFixed(3)}` : ""}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             {answerDraft.riskFlags.length > 0 && <div><b>Risk:</b> {answerDraft.riskFlags.join(", ")}</div>}
+            {answerDraft.formatWarnings.length > 0 && <div style={{ color: "#b45309" }}><b>Format Warnings:</b> {answerDraft.formatWarnings.join(", ")}</div>}
             {answerDraft.reviewedBy && <div><b>Reviewed:</b> {answerDraft.reviewedBy} / {answerDraft.reviewComment ?? ""}</div>}
             {answerDraft.approvedBy && <div><b>Approved:</b> {answerDraft.approvedBy} / {answerDraft.approveComment ?? ""}</div>}
             <div style={{ display: "grid", gap: "0.4rem" }}>

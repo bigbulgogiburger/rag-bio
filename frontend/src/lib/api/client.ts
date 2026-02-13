@@ -93,6 +93,7 @@ export interface AnswerDraftResult {
   reviewComment: string | null;
   approvedBy: string | null;
   approveComment: string | null;
+  formatWarnings: string[];
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";

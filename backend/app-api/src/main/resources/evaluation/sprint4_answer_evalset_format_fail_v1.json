@@ -1,0 +1,7 @@
+[
+  {"id":"S4F-001","domain":"protocol","difficulty":"easy","question":"The execution path is strongly supported by validation notes.","expectedVerdict":"SUPPORTED"},
+  {"id":"S4F-002","domain":"instrument","difficulty":"easy","question":"This operation mode is explicitly prohibited.","expectedVerdict":"REFUTED"},
+  {"id":"S4F-003","domain":"reagent","difficulty":"medium","question":"It may work depending on concentration and storage history.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4F-004","domain":"protocol","difficulty":"hard","question":"Evidence is mixed and a single conclusion is risky.","expectedVerdict":"CONDITIONAL"},
+  {"id":"S4F-005","domain":"instrument","difficulty":"easy","question":"The setup is aligned with approved baseline settings.","expectedVerdict":"SUPPORTED"}
+]

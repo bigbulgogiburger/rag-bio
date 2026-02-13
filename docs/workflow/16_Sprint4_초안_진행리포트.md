@@ -66,5 +66,17 @@
   - messenger: `[요약]` 태그 포함 + 길이 260자 이하 여부
   - 신규 메트릭: `Channel Format Pass Rate`
 
+## 추가 완료 (11차)
+- 포맷 경고/구조화 출처/평가 가이드 반영
+  - 답변 API 응답에 `formatWarnings` 추가
+  - FE에서 citation을 `chunk/score` 구조로 표시
+  - 포맷 실패 점검용 evalset 추가: `sprint4_answer_evalset_format_fail_v1.json`
+  - 평가 실행 가이드 문서 추가: `docs/workflow/17_Sprint4_평가_실행가이드.md`
+
+## 추가 완료 (12차)
+- format-fail evalset 실행 리포트 추가
+  - report: `docs/workflow/reports/sprint4_answer_eval_report_2026-02-13T01-11-53-478Z.md`
+  - Channel Format Failure Breakdown 확인값: `none`
+
 ## 다음 작업
-- 채널별 포맷 실패 케이스 자동 분류(인사 누락/마무리 누락/길이 초과) 리포트 확장
+- 포맷 실패 유도 샘플(규칙 위반 템플릿) 별도 생성해 breakdown 강제 검증

@@ -517,7 +517,7 @@ components:
 
     AnswerDraftResponse:
       type: object
-      required: [answerId, inquiryId, version, status, verdict, confidence, draft, citations, riskFlags, tone, channel]
+      required: [answerId, inquiryId, version, status, verdict, confidence, draft, citations, riskFlags, tone, channel, formatWarnings]
       properties:
         answerId:
           type: string
@@ -564,6 +564,10 @@ components:
         approveComment:
           type: string
           nullable: true
+        formatWarnings:
+          type: array
+          items:
+            type: string
 
     ErrorResponse:
       type: object

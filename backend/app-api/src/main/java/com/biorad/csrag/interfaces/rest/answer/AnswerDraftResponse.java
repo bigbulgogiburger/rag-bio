@@ -17,6 +17,7 @@ public record AnswerDraftResponse(
         String reviewedBy,
         String reviewComment,
         String approvedBy,
-        String approveComment
+        String approveComment,
+        List<String> formatWarnings
 ) {
 }
