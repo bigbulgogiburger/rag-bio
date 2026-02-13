@@ -71,6 +71,13 @@ function statusToneClass(message: string): string {
   return "status-info";
 }
 
+function badgeClassByStatus(status: string): string {
+  if (["SENT", "APPROVED", "INDEXED", "PARSED", "CHUNKED"].includes(status)) return "badge badge-success";
+  if (["FAILED"].includes(status)) return "badge badge-danger";
+  if (["PARSING", "REVIEWED"].includes(status)) return "badge badge-warn";
+  return "badge badge-info";
+}
+
 export default function InquiryForm() {
   const [question, setQuestion] = useState("");
   const [customerChannel, setCustomerChannel] = useState("email");
@@ -334,7 +341,7 @@ export default function InquiryForm() {
 
         {lookupInquiry && (
           <div className="kv">
-            <div>상태: <span className="badge badge-info">{mapStatusLabel(lookupInquiry.status)}</span></div>
+            <div>상태: <span className={badgeClassByStatus(lookupInquiry.status)}>{mapStatusLabel(lookupInquiry.status)}</span></div>
             <div>채널: {lookupInquiry.customerChannel}</div>
             <div>생성 시각: {new Date(lookupInquiry.createdAt).toLocaleString()}</div>
           </div>
@@ -355,7 +362,7 @@ export default function InquiryForm() {
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             {lookupDocuments.map((doc) => (
               <li key={doc.documentId}>
-                {doc.fileName} · {mapStatusLabel(doc.status)} · {(doc.fileSize / 1024).toFixed(1)}KB
+                {doc.fileName} · <span className={badgeClassByStatus(doc.status)}>{mapStatusLabel(doc.status)}</span> · {(doc.fileSize / 1024).toFixed(1)}KB
                 {doc.ocrConfidence != null ? ` · OCR ${doc.ocrConfidence.toFixed(2)}` : ""}
                 {doc.chunkCount != null ? ` · 청크 ${doc.chunkCount}` : ""}
                 {doc.vectorCount != null ? ` · 벡터 ${doc.vectorCount}` : ""}
@@ -363,6 +370,10 @@ export default function InquiryForm() {
               </li>
             ))}
           </ul>
+        )}
+
+        {!lookupInquiry && !lookupLoading && inquiryId && (
+          <p className="muted" style={{ margin: 0 }}>조회 결과가 없습니다. 문의 ID를 다시 확인해 주세요.</p>
         )}
       </section>
 
@@ -416,7 +427,7 @@ export default function InquiryForm() {
 
         {answerDraft && (
           <div className="status-banner" style={{ display: "grid", gap: ".55rem" }}>
-            <div><b>초안:</b> v{answerDraft.version} · {mapStatusLabel(answerDraft.status)} · {answerDraft.channel} · {answerDraft.tone}</div>
+            <div><b>초안:</b> v{answerDraft.version} · <span className={badgeClassByStatus(answerDraft.status)}>{mapStatusLabel(answerDraft.status)}</span> · {answerDraft.channel} · {answerDraft.tone}</div>
 
             <div className="timeline">
               {[
