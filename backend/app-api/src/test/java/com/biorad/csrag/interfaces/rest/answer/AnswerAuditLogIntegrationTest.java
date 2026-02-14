@@ -76,6 +76,20 @@ class AnswerAuditLogIntegrationTest {
                 .andExpect(jsonPath("$.size").value(1));
     }
 
+    @Test
+    void auditLogs_rejects_invalid_sort_and_invalid_date_range() throws Exception {
+        String inquiryId = createInquiry();
+
+        mockMvc.perform(get("/api/v1/inquiries/{inquiryId}/answers/audit-logs", inquiryId)
+                        .param("sort", "unknown,desc"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/v1/inquiries/{inquiryId}/answers/audit-logs", inquiryId)
+                        .param("from", "2026-02-14T23:59:59Z")
+                        .param("to", "2026-02-14T00:00:00Z"))
+                .andExpect(status().isBadRequest());
+    }
+
     private String createInquiry() throws Exception {
         String createResponse = mockMvc.perform(post("/api/v1/inquiries")
                         .contentType(MediaType.APPLICATION_JSON)

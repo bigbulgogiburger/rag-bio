@@ -6,9 +6,21 @@
 ## 파라미터
 - `status`: DRAFT | REVIEWED | APPROVED | SENT
 - `actor`: reviewedBy/approvedBy/sentBy 중 일치 사용자
-- `from`, `to`: ISO-8601 UTC 시간
+- `from`, `to`: ISO-8601 UTC 시간 (`from <= to` 필수)
 - `page`, `size`: 페이지네이션
-- `sort`: 예) `createdAt,desc`
+- `sort`: `createdAt|updatedAt|status|version` + `asc|desc` (예: `createdAt,desc`)
+
+## 응답 구조(페이지)
+```json
+{
+  "items": [ /* AnswerAuditLogResponse */ ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 42,
+  "totalPages": 3,
+  "hasNext": true
+}
+```
 
 ## 예시
 ### 1) 최근 승인 로그 20건
