@@ -81,6 +81,7 @@ export interface AnalyzeEvidenceItem {
   documentId: string;
   score: number;
   excerpt: string;
+  sourceType?: "INQUIRY" | "KNOWLEDGE_BASE";
 }
 
 export interface AnalyzeResult {
@@ -308,4 +309,189 @@ export async function getOpsMetrics(): Promise<OpsMetrics> {
     throw new Error(`Failed to fetch ops metrics: ${response.status}`);
   }
   return (await response.json()) as OpsMetrics;
+}
+
+// ===== Inquiry List =====
+
+export interface InquiryListItem {
+  inquiryId: string;
+  question: string;
+  customerChannel: string;
+  status: string;
+  documentCount: number;
+  latestAnswerStatus: string | null;
+  createdAt: string;
+}
+
+export interface InquiryListResponse {
+  content: InquiryListItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface InquiryListParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  status?: string[];
+  channel?: string;
+  keyword?: string;
+  from?: string;
+  to?: string;
+}
+
+export async function listInquiries(params: InquiryListParams = {}): Promise<InquiryListResponse> {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set("page", String(params.page));
+  if (params.size !== undefined) query.set("size", String(params.size));
+  if (params.sort) query.set("sort", params.sort);
+  if (params.status?.length) params.status.forEach(s => query.append("status", s));
+  if (params.channel) query.set("channel", params.channel);
+  if (params.keyword) query.set("keyword", params.keyword);
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/inquiries?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error(`목록 조회 실패: ${response.status}`);
+  }
+  return (await response.json()) as InquiryListResponse;
+}
+
+// ===== Knowledge Base =====
+
+export interface KbDocument {
+  documentId: string;
+  title: string;
+  category: string;
+  productFamily: string | null;
+  fileName: string;
+  fileSize: number;
+  status: string;
+  chunkCount: number | null;
+  vectorCount: number | null;
+  uploadedBy: string | null;
+  tags: string | null;
+  description: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface KbDocumentListResponse {
+  content: KbDocument[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface KbStats {
+  totalDocuments: number;
+  indexedDocuments: number;
+  totalChunks: number;
+  byCategory: Record<string, number>;
+  byProductFamily: Record<string, number>;
+}
+
+export interface KbDocumentListParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  category?: string;
+  productFamily?: string;
+  status?: string;
+  keyword?: string;
+}
+
+export interface UploadKbDocumentParams {
+  file: File;
+  title: string;
+  category: string;
+  productFamily?: string;
+  description?: string;
+  tags?: string;
+}
+
+export async function listKbDocuments(params: KbDocumentListParams = {}): Promise<KbDocumentListResponse> {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set("page", String(params.page));
+  if (params.size !== undefined) query.set("size", String(params.size));
+  if (params.sort) query.set("sort", params.sort);
+  if (params.category) query.set("category", params.category);
+  if (params.productFamily) query.set("productFamily", params.productFamily);
+  if (params.status) query.set("status", params.status);
+  if (params.keyword) query.set("keyword", params.keyword);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error(`KB 문서 목록 조회 실패: ${response.status}`);
+  }
+  return (await response.json()) as KbDocumentListResponse;
+}
+
+export async function uploadKbDocument(params: UploadKbDocumentParams): Promise<KbDocument> {
+  const formData = new FormData();
+  formData.append("file", params.file);
+  formData.append("title", params.title);
+  formData.append("category", params.category);
+  if (params.productFamily) formData.append("productFamily", params.productFamily);
+  if (params.description) formData.append("description", params.description);
+  if (params.tags) formData.append("tags", params.tags);
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`KB 문서 업로드 실패: ${response.status}`);
+  }
+  return (await response.json()) as KbDocument;
+}
+
+export async function getKbDocument(docId: string): Promise<KbDocument> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents/${docId}`);
+  if (!response.ok) {
+    throw new Error(`KB 문서 조회 실패: ${response.status}`);
+  }
+  return (await response.json()) as KbDocument;
+}
+
+export async function deleteKbDocument(docId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents/${docId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`KB 문서 삭제 실패: ${response.status}`);
+  }
+}
+
+export async function indexKbDocument(docId: string): Promise<KbDocument> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents/${docId}/indexing/run`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`KB 문서 인덱싱 실패: ${response.status}`);
+  }
+  return (await response.json()) as KbDocument;
+}
+
+export async function indexAllKbDocuments(): Promise<{ processed: number; succeeded: number; failed: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/indexing/run`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`KB 일괄 인덱싱 실패: ${response.status}`);
+  }
+  return (await response.json()) as { processed: number; succeeded: number; failed: number };
+}
+
+export async function getKbStats(): Promise<KbStats> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/stats`);
+  if (!response.ok) {
+    throw new Error(`KB 통계 조회 실패: ${response.status}`);
+  }
+  return (await response.json()) as KbStats;
 }

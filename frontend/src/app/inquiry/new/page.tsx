@@ -1,5 +1,5 @@
-import InquiryForm from "@/components/inquiry-form";
+import { redirect } from "next/navigation";
 
 export default function InquiryFormPage() {
-  return <InquiryForm />;
+  redirect("/inquiries/new");
 }
