@@ -70,8 +70,10 @@ class AnswerAuditLogIntegrationTest {
                         .param("size", "1")
                         .param("sort", "createdAt,desc"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("APPROVED"))
-                .andExpect(jsonPath("$[0].approvedBy").value("approver-1"));
+                .andExpect(jsonPath("$.items[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.items[0].approvedBy").value("approver-1"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1));
     }
 
     private String createInquiry() throws Exception {

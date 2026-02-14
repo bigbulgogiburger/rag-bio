@@ -134,7 +134,7 @@ public class AnswerController {
 
     @GetMapping("/audit-logs")
     @ResponseStatus(HttpStatus.OK)
-    public List<AnswerAuditLogResponse> auditLogs(
+    public AnswerAuditLogPageResponse auditLogs(
             @PathVariable String inquiryId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String actor,
@@ -149,12 +149,16 @@ public class AnswerController {
 
         Instant fromTs = parseInstant(from, "from");
         Instant toTs = parseInstant(to, "to");
+        if (fromTs != null && toTs != null && fromTs.isAfter(toTs)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date range: from must be <= to");
+        }
+
         String normalizedStatus = normalizeNullable(status);
         String normalizedActor = normalizeNullable(actor);
         Pageable pageable = buildPageable(page, size, sort);
 
-        return answerDraftRepository.searchAuditLogs(inquiryUuid, normalizedStatus, normalizedActor, fromTs, toTs, pageable)
-                .stream()
+        var result = answerDraftRepository.searchAuditLogs(inquiryUuid, normalizedStatus, normalizedActor, fromTs, toTs, pageable);
+        List<AnswerAuditLogResponse> items = result.stream()
                 .map(a -> new AnswerAuditLogResponse(
                         a.getId().toString(),
                         a.getVersion(),
@@ -170,6 +174,15 @@ public class AnswerController {
                         a.getUpdatedAt()
                 ))
                 .toList();
+
+        return new AnswerAuditLogPageResponse(
+                items,
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext()
+        );
     }
 
     private void ensureInquiryExists(UUID inquiryUuid) {
@@ -211,7 +224,12 @@ public class AnswerController {
         int normalizedSize = Math.min(Math.max(size, 1), 200);
 
         String[] parts = (sort == null ? "" : sort).split(",");
-        String property = parts.length > 0 && !parts[0].isBlank() ? parts[0].trim() : "createdAt";
+        String requestedProperty = parts.length > 0 && !parts[0].isBlank() ? parts[0].trim() : "createdAt";
+        String property = switch (requestedProperty) {
+            case "createdAt", "updatedAt", "status", "version" -> requestedProperty;
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sort field: " + requestedProperty);
+        };
+
         String direction = parts.length > 1 ? parts[1].trim().toLowerCase() : "desc";
         Sort.Direction dir = "asc".equals(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
 

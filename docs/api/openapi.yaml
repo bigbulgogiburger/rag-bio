@@ -406,13 +406,11 @@ paths:
             example: createdAt,desc
       responses:
         '200':
-          description: 답변 감사로그 목록
+          description: 답변 감사로그 목록(페이지)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AnswerAuditLogResponse'
+                $ref: '#/components/schemas/AnswerAuditLogPageResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -817,6 +815,26 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    AnswerAuditLogPageResponse:
+      type: object
+      required: [items, page, size, totalElements, totalPages, hasNext]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerAuditLogResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
 
     OpsFailureReason:
       type: object
