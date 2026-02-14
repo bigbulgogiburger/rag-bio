@@ -10,4 +10,9 @@ public interface DocumentChunkJpaRepository extends JpaRepository<DocumentChunkJ
     void deleteByDocumentId(UUID documentId);
 
     List<DocumentChunkJpaEntity> findByDocumentIdOrderByChunkIndexAsc(UUID documentId);
+
+    /**
+     * 특정 source_type의 청크 수 카운트
+     */
+    long countBySourceType(String sourceType);
 }

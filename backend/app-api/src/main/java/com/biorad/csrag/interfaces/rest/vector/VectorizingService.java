@@ -24,12 +24,19 @@ public class VectorizingService {
         this.vectorStore = vectorStore;
     }
 
+    /**
+     * 문서의 청크들을 벡터화하여 저장
+     *
+     * @param documentId 문서 ID
+     * @return 벡터화된 청크 수
+     */
     public int upsertDocumentChunks(UUID documentId) {
         List<DocumentChunkJpaEntity> chunks = chunkRepository.findByDocumentIdOrderByChunkIndexAsc(documentId);
 
         for (DocumentChunkJpaEntity chunk : chunks) {
             List<Double> vector = embeddingService.embed(chunk.getContent());
-            vectorStore.upsert(chunk.getId(), documentId, vector, chunk.getContent());
+            String sourceType = chunk.getSourceType() != null ? chunk.getSourceType() : "INQUIRY";
+            vectorStore.upsert(chunk.getId(), documentId, vector, chunk.getContent(), sourceType);
         }
 
         return chunks.size();

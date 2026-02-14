@@ -23,8 +23,13 @@ public class MockVectorStore implements VectorStore {
 
     @Override
     public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content) {
-        records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content));
-        log.info("vector.upsert.success chunkId={} documentId={} dim={}", chunkId, documentId, vector.size());
+        upsert(chunkId, documentId, vector, content, "INQUIRY");
+    }
+
+    @Override
+    public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
+        records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content, sourceType));
+        log.info("vector.upsert.success chunkId={} documentId={} sourceType={} dim={}", chunkId, documentId, sourceType, vector.size());
     }
 
     @Override
@@ -34,11 +39,21 @@ public class MockVectorStore implements VectorStore {
                         record.chunkId(),
                         record.documentId(),
                         record.content(),
-                        cosineSimilarity(queryVector, record.vector())
+                        cosineSimilarity(queryVector, record.vector()),
+                        record.sourceType()
                 ))
                 .sorted(Comparator.comparingDouble(VectorSearchResult::score).reversed())
                 .limit(topK)
                 .toList();
+    }
+
+    @Override
+    public void deleteByDocumentId(UUID documentId) {
+        int removed = (int) records.entrySet().stream()
+                .filter(e -> e.getValue().documentId().equals(documentId))
+                .peek(e -> records.remove(e.getKey()))
+                .count();
+        log.info("vector.deleteByDocumentId.success documentId={} removed={}", documentId, removed);
     }
 
     public int size() {
@@ -63,6 +78,6 @@ public class MockVectorStore implements VectorStore {
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-    private record VectorRecord(UUID chunkId, UUID documentId, List<Double> vector, String content) {
+    private record VectorRecord(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
     }
 }

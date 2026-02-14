@@ -51,12 +51,18 @@ public class QdrantVectorStore implements VectorStore {
 
     @Override
     public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content) {
+        upsert(chunkId, documentId, vector, content, "INQUIRY");
+    }
+
+    @Override
+    public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
         ensureCollection(vector.size());
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("chunkId", chunkId.toString());
         payload.put("documentId", documentId.toString());
         payload.put("content", content == null ? "" : content);
+        payload.put("sourceType", sourceType == null ? "INQUIRY" : sourceType);
 
         Map<String, Object> point = new HashMap<>();
         point.put("id", chunkId.toString());
@@ -71,7 +77,7 @@ public class QdrantVectorStore implements VectorStore {
                 .retrieve()
                 .toBodilessEntity();
 
-        log.info("qdrant.upsert.success chunkId={} documentId={} dim={}", chunkId, documentId, vector.size());
+        log.info("qdrant.upsert.success chunkId={} documentId={} sourceType={} dim={}", chunkId, documentId, sourceType, vector.size());
     }
 
     @Override
@@ -104,6 +110,7 @@ public class QdrantVectorStore implements VectorStore {
                 String chunkIdRaw = payload.path("chunkId").asText(node.path("id").asText());
                 String documentIdRaw = payload.path("documentId").asText();
                 String content = payload.path("content").asText("");
+                String sourceType = payload.path("sourceType").asText("INQUIRY");
                 double score = node.path("score").asDouble(0d);
 
                 if (chunkIdRaw == null || chunkIdRaw.isBlank() || documentIdRaw == null || documentIdRaw.isBlank()) {
@@ -114,13 +121,39 @@ public class QdrantVectorStore implements VectorStore {
                         UUID.fromString(chunkIdRaw),
                         UUID.fromString(documentIdRaw),
                         content,
-                        score
+                        score,
+                        sourceType
                 ));
             }
             return hits;
         } catch (Exception ex) {
             log.warn("qdrant.search.parse.failed: {}", ex.getMessage());
             return List.of();
+        }
+    }
+
+    @Override
+    public void deleteByDocumentId(UUID documentId) {
+        Map<String, Object> filter = Map.of(
+                "must", List.of(
+                        Map.of(
+                                "key", "documentId",
+                                "match", Map.of("value", documentId.toString())
+                        )
+                )
+        );
+
+        Map<String, Object> body = Map.of("filter", filter);
+
+        try {
+            restClient.post()
+                    .uri("/collections/{collection}/points/delete?wait=true", collection)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("qdrant.deleteByDocumentId.success documentId={}", documentId);
+        } catch (Exception ex) {
+            log.warn("qdrant.deleteByDocumentId.failed documentId={} reason={}", documentId, ex.getMessage());
         }
     }
 

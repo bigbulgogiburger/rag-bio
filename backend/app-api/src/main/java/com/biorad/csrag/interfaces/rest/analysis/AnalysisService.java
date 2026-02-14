@@ -55,7 +55,8 @@ public class AnalysisService {
                     result.chunkId().toString(),
                     result.documentId().toString(),
                     result.score(),
-                    summarize(result.content())
+                    summarize(result.content()),
+                    result.sourceType()  // VectorSearchResult에서 sourceType 전달
             ));
             rank++;
         }

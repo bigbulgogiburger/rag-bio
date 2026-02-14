@@ -3,7 +3,6 @@ package com.biorad.csrag.infrastructure.persistence.document;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -34,8 +33,7 @@ public class DocumentMetadataJpaEntity {
     @Column(name = "status", nullable = false, length = 40)
     private String status;
 
-    @Lob
-    @Column(name = "extracted_text")
+    @Column(name = "extracted_text", columnDefinition = "TEXT")
     private String extractedText;
 
     @Column(name = "last_error", length = 500)

@@ -30,6 +30,12 @@ public class DocumentChunkJpaEntity {
     @Column(name = "content", nullable = false, length = 4000)
     private String content;
 
+    @Column(name = "source_type", length = 20)
+    private String sourceType = "INQUIRY";    // INQUIRY 또는 KNOWLEDGE_BASE
+
+    @Column(name = "source_id")
+    private UUID sourceId;                     // 원본 문서 ID
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -37,12 +43,18 @@ public class DocumentChunkJpaEntity {
     }
 
     public DocumentChunkJpaEntity(UUID id, UUID documentId, int chunkIndex, int startOffset, int endOffset, String content, Instant createdAt) {
+        this(id, documentId, chunkIndex, startOffset, endOffset, content, "INQUIRY", documentId, createdAt);
+    }
+
+    public DocumentChunkJpaEntity(UUID id, UUID documentId, int chunkIndex, int startOffset, int endOffset, String content, String sourceType, UUID sourceId, Instant createdAt) {
         this.id = id;
         this.documentId = documentId;
         this.chunkIndex = chunkIndex;
         this.startOffset = startOffset;
         this.endOffset = endOffset;
         this.content = content;
+        this.sourceType = sourceType;
+        this.sourceId = sourceId;
         this.createdAt = createdAt;
     }
 
@@ -68,6 +80,14 @@ public class DocumentChunkJpaEntity {
 
     public String getContent() {
         return content;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public UUID getSourceId() {
+        return sourceId;
     }
 
     public Instant getCreatedAt() {

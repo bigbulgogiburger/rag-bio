@@ -6,6 +6,7 @@ public record VectorSearchResult(
         UUID chunkId,
         UUID documentId,
         String content,
-        double score
+        double score,
+        String sourceType    // "INQUIRY" 또는 "KNOWLEDGE_BASE"
 ) {
 }

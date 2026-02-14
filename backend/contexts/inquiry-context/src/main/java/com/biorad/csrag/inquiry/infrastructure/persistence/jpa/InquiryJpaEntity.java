@@ -57,4 +57,25 @@ public class InquiryJpaEntity {
     public Inquiry toDomain() {
         return Inquiry.reconstitute(new InquiryId(id), question, customerChannel, status, createdAt);
     }
+
+    // Getters for query projections
+    public UUID getId() {
+        return id;
+    }
+
+    public String getQuestion() {
+        return question;
+    }
+
+    public String getCustomerChannel() {
+        return customerChannel;
+    }
+
+    public InquiryStatus getStatus() {
+        return status;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

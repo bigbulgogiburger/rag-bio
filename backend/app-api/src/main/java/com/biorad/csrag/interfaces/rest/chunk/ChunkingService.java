@@ -21,7 +21,23 @@ public class ChunkingService {
         this.chunkRepository = chunkRepository;
     }
 
+    /**
+     * 기존 방식 (하위 호환) - INQUIRY 타입으로 청킹
+     */
     public int chunkAndStore(UUID documentId, String text) {
+        return chunkAndStore(documentId, text, "INQUIRY", documentId);
+    }
+
+    /**
+     * source_type과 source_id를 지정하여 청킹
+     *
+     * @param documentId chunk와 연관된 문서 ID (vector store 키로 사용)
+     * @param text       청킹할 텍스트
+     * @param sourceType "INQUIRY" 또는 "KNOWLEDGE_BASE"
+     * @param sourceId   원본 문서 ID (INQUIRY 타입이면 documents.id, KNOWLEDGE_BASE 타입이면 knowledge_documents.id)
+     * @return 생성된 청크 수
+     */
+    public int chunkAndStore(UUID documentId, String text, String sourceType, UUID sourceId) {
         chunkRepository.deleteByDocumentId(documentId);
 
         List<DocumentChunkJpaEntity> chunks = new ArrayList<>();
@@ -39,6 +55,8 @@ public class ChunkingService {
                     start,
                     end,
                     content,
+                    sourceType,
+                    sourceId,
                     Instant.now()
             ));
 
