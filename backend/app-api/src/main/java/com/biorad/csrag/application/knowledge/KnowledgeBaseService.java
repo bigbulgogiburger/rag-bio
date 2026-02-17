@@ -4,12 +4,8 @@ import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaReposit
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeBaseSpecifications;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
-import com.biorad.csrag.interfaces.rest.chunk.ChunkingService;
-import com.biorad.csrag.interfaces.rest.document.ocr.OcrResult;
-import com.biorad.csrag.interfaces.rest.document.ocr.OcrService;
 import com.biorad.csrag.interfaces.rest.dto.knowledge.*;
 import com.biorad.csrag.interfaces.rest.vector.VectorStore;
-import com.biorad.csrag.interfaces.rest.vector.VectorizingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,11 +14,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,14 +36,12 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBaseService.class);
-    private static final int MAX_TEXT_LENGTH = 500_000;
 
     private final KnowledgeDocumentJpaRepository kbDocRepository;
     private final DocumentChunkJpaRepository chunkRepository;
-    private final ChunkingService chunkingService;
-    private final VectorizingService vectorizingService;
     private final VectorStore vectorStore;
-    private final OcrService ocrService;
+    private final DocumentMetadataAnalyzer metadataAnalyzer;
+    private final KnowledgeIndexingWorker indexingWorker;
 
     @Value("${app.storage.upload-dir:uploads}")
     private String uploadDir;
@@ -54,17 +49,15 @@ public class KnowledgeBaseService {
     public KnowledgeBaseService(
             KnowledgeDocumentJpaRepository kbDocRepository,
             DocumentChunkJpaRepository chunkRepository,
-            ChunkingService chunkingService,
-            VectorizingService vectorizingService,
             VectorStore vectorStore,
-            OcrService ocrService
+            DocumentMetadataAnalyzer metadataAnalyzer,
+            KnowledgeIndexingWorker indexingWorker
     ) {
         this.kbDocRepository = kbDocRepository;
         this.chunkRepository = chunkRepository;
-        this.chunkingService = chunkingService;
-        this.vectorizingService = vectorizingService;
         this.vectorStore = vectorStore;
-        this.ocrService = ocrService;
+        this.metadataAnalyzer = metadataAnalyzer;
+        this.indexingWorker = indexingWorker;
     }
 
     /**
@@ -110,6 +103,9 @@ public class KnowledgeBaseService {
 
             kbDocRepository.save(entity);
             log.info("kb.upload.success documentId={} title={}", entity.getId(), title);
+
+            // AI 메타데이터 분석: 빈 필드가 있으면 자동 채움
+            enrichWithAi(entity, Paths.get(storagePath), file.getContentType());
 
             return toResponse(entity);
         } catch (IOException e) {
@@ -171,71 +167,67 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 개별 문서 인덱싱
+     * 개별 문서 인덱싱 (비동기)
      */
     @Transactional
     public KbIndexingResponse indexOne(UUID docId) {
         KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
 
-        try {
-            doc.markParsing();
-
-            // 텍스트 추출
-            String extracted = extractText(doc.getStoragePath());
-
-            // OCR 필요 시 처리
-            String finalText;
-            if (needsOcr(extracted)) {
-                OcrResult ocr = ocrService.extract(Path.of(doc.getStoragePath()));
-                finalText = limitText(ocr.text());
-                doc.markParsedFromOcr(finalText, ocr.confidence());
-            } else {
-                finalText = limitText(extracted);
-                doc.markParsed(finalText);
-            }
-
-            // 청킹 (KNOWLEDGE_BASE 타입으로)
-            int chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText, "KNOWLEDGE_BASE", doc.getId());
-            doc.markChunked(chunkCount);
-
-            // 벡터화
-            int vectorCount = vectorizingService.upsertDocumentChunks(doc.getId());
-            doc.markIndexed(vectorCount);
-
-            log.info("kb.indexing.success documentId={} chunkCount={} vectorCount={}", docId, chunkCount, vectorCount);
-            return new KbIndexingResponse(docId, doc.getStatus(), chunkCount, vectorCount);
-
-        } catch (Exception e) {
-            doc.markFailed(e.getMessage());
-            log.warn("kb.indexing.failed documentId={} error={}", docId, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Indexing failed: " + e.getMessage());
+        // 이미 인덱싱 진행 중이면 409 Conflict
+        if ("INDEXING".equals(doc.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 인덱싱이 진행 중입니다.");
         }
+
+        // 상태를 INDEXING으로 변경하고 저장
+        doc.markIndexing();
+        kbDocRepository.save(doc);
+
+        // 트랜잭션 커밋 후 비동기 워커 실행 (커밋 전 호출하면 DB 미반영 상태에서 워커가 시작됨)
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                indexingWorker.indexOneAsync(docId);
+                log.info("kb.indexing.queued documentId={}", docId);
+            }
+        });
+
+        return new KbIndexingResponse(docId, doc.getStatus(), 0, 0);
     }
 
     /**
-     * 미인덱싱 문서 일괄 인덱싱
+     * 미인덱싱 문서 일괄 인덱싱 (비동기)
      */
     @Transactional
     public KbBatchIndexingResponse indexAll() {
         List<KnowledgeDocumentJpaEntity> docs = kbDocRepository.findByStatusIn(List.of("UPLOADED", "FAILED"));
 
-        int processed = 0;
-        int succeeded = 0;
-        int failed = 0;
-
+        List<UUID> queuedIds = new java.util.ArrayList<>();
         for (KnowledgeDocumentJpaEntity doc : docs) {
-            processed++;
             try {
-                indexOne(doc.getId());
-                succeeded++;
+                if ("INDEXING".equals(doc.getStatus())) {
+                    continue;
+                }
+                doc.markIndexing();
+                kbDocRepository.save(doc);
+                queuedIds.add(doc.getId());
             } catch (Exception e) {
-                failed++;
+                log.warn("kb.batchIndexing.queueFailed documentId={} error={}", doc.getId(), e.getMessage());
             }
         }
 
-        log.info("kb.batchIndexing.complete processed={} succeeded={} failed={}", processed, succeeded, failed);
-        return new KbBatchIndexingResponse(processed, succeeded, failed);
+        // 트랜잭션 커밋 후 비동기 워커 일괄 실행
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                for (UUID id : queuedIds) {
+                    indexingWorker.indexOneAsync(id);
+                }
+                log.info("kb.batchIndexing.queued count={}", queuedIds.size());
+            }
+        });
+
+        return new KbBatchIndexingResponse(queuedIds.size(), 0, 0);
     }
 
     /**
@@ -288,6 +280,51 @@ public class KnowledgeBaseService {
         return new KbStatsResponse(totalDocuments, indexedDocuments, totalChunks, byCategory, byProductFamily);
     }
 
+    /**
+     * 기존 문서에 대해 AI 메타데이터 분석을 실행한다.
+     */
+    @Transactional
+    public KbDocumentResponse analyzeMetadata(UUID docId) {
+        KnowledgeDocumentJpaEntity entity = kbDocRepository.findById(docId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+
+        enrichWithAi(entity, Path.of(entity.getStoragePath()), entity.getContentType());
+        return toResponse(entity);
+    }
+
+    // ===== AI 메타데이터 자동 채움 =====
+
+    private void enrichWithAi(KnowledgeDocumentJpaEntity entity, Path filePath, String contentType) {
+        boolean needsEnrichment =
+                (entity.getProductFamily() == null || entity.getProductFamily().isBlank())
+                || (entity.getDescription() == null || entity.getDescription().isBlank())
+                || (entity.getTags() == null || entity.getTags().isBlank());
+
+        if (!needsEnrichment || !metadataAnalyzer.isAvailable()) {
+            return;
+        }
+
+        try {
+            DocumentMetadataAnalyzer.MetadataSuggestion suggestion =
+                    metadataAnalyzer.analyze(filePath, contentType);
+
+            if (suggestion != null) {
+                entity.enrichMetadata(
+                        suggestion.category(),
+                        suggestion.productFamily(),
+                        suggestion.description(),
+                        suggestion.tags()
+                );
+                kbDocRepository.save(entity);
+                log.info("kb.ai.enrich.success documentId={} category={} productFamily={}",
+                        entity.getId(), entity.getCategory(), entity.getProductFamily());
+            }
+        } catch (Exception e) {
+            log.warn("kb.ai.enrich.failed documentId={} error={}", entity.getId(), e.getMessage());
+            // AI 실패해도 업로드 자체는 성공으로 처리
+        }
+    }
+
     // ===== 헬퍼 메서드 =====
 
     private KbDocumentResponse toResponse(KnowledgeDocumentJpaEntity entity) {
@@ -308,22 +345,5 @@ public class KnowledgeBaseService {
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
-    }
-
-    private String extractText(String storagePath) throws IOException {
-        byte[] bytes = Files.readAllBytes(Path.of(storagePath));
-        return new String(bytes, StandardCharsets.UTF_8)
-                .replaceAll("\\p{Cntrl}", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private boolean needsOcr(String extracted) {
-        return extracted == null || extracted.isBlank() || extracted.length() < 50;
-    }
-
-    private String limitText(String text) {
-        if (text == null) return "";
-        return text.length() > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text;
     }
 }

@@ -5,3 +5,4 @@ export { default as Tabs } from './Tabs';
 export { default as Toast } from './Toast';
 export { default as EmptyState } from './EmptyState';
 export { default as FilterBar } from './FilterBar';
+// PdfViewer는 dynamic import로만 사용 (SSR 미지원)

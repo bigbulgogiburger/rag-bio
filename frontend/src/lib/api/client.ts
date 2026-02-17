@@ -82,6 +82,9 @@ export interface AnalyzeEvidenceItem {
   score: number;
   excerpt: string;
   sourceType?: "INQUIRY" | "KNOWLEDGE_BASE";
+  fileName?: string;
+  pageStart?: number;
+  pageEnd?: number;
 }
 
 export interface AnalyzeResult {
@@ -395,6 +398,17 @@ export interface KbStats {
   byProductFamily: Record<string, number>;
 }
 
+export interface KbIndexingAccepted {
+  documentId: string;
+  status: string;
+  message: string;
+}
+
+export interface KbBatchIndexingAccepted {
+  queued: number;
+  message: string;
+}
+
 export interface KbDocumentListParams {
   page?: number;
   size?: number;
@@ -468,24 +482,77 @@ export async function deleteKbDocument(docId: string): Promise<void> {
   }
 }
 
-export async function indexKbDocument(docId: string): Promise<KbDocument> {
+export async function indexKbDocument(docId: string): Promise<KbIndexingAccepted> {
   const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/documents/${docId}/indexing/run`, {
     method: "POST",
   });
   if (!response.ok) {
     throw new Error(`KB 문서 인덱싱 실패: ${response.status}`);
   }
-  return (await response.json()) as KbDocument;
+  return (await response.json()) as KbIndexingAccepted;
 }
 
-export async function indexAllKbDocuments(): Promise<{ processed: number; succeeded: number; failed: number }> {
+export async function indexAllKbDocuments(): Promise<KbBatchIndexingAccepted> {
   const response = await fetch(`${API_BASE_URL}/api/v1/knowledge-base/indexing/run`, {
     method: "POST",
   });
   if (!response.ok) {
     throw new Error(`KB 일괄 인덱싱 실패: ${response.status}`);
   }
-  return (await response.json()) as { processed: number; succeeded: number; failed: number };
+  return (await response.json()) as KbBatchIndexingAccepted;
+}
+
+export interface UploadQueueFile {
+  id: string;
+  file: File;
+  status: "pending" | "uploading" | "success" | "error";
+  progress: number;
+  result?: KbDocument;
+  error?: string;
+  metadata: {
+    title: string;
+    category: string;
+    productFamily: string;
+    description: string;
+    tags: string;
+  };
+}
+
+export async function uploadKbDocumentWithProgress(
+  params: UploadKbDocumentParams,
+  onProgress?: (percent: number) => void,
+): Promise<KbDocument> {
+  const formData = new FormData();
+  formData.append("file", params.file);
+  formData.append("title", params.title);
+  formData.append("category", params.category);
+  if (params.productFamily) formData.append("productFamily", params.productFamily);
+  if (params.description) formData.append("description", params.description);
+  if (params.tags) formData.append("tags", params.tags);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}/api/v1/knowledge-base/documents`);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText) as KbDocument);
+      } else {
+        reject(new Error(`KB 문서 업로드 실패: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("네트워크 오류")));
+    xhr.addEventListener("abort", () => reject(new Error("업로드 취소됨")));
+
+    xhr.send(formData);
+  });
 }
 
 export async function getKbStats(): Promise<KbStats> {
@@ -494,4 +561,14 @@ export async function getKbStats(): Promise<KbStats> {
     throw new Error(`KB 통계 조회 실패: ${response.status}`);
   }
   return (await response.json()) as KbStats;
+}
+
+// ===== Document Download =====
+
+export function getDocumentDownloadUrl(documentId: string): string {
+  return `${API_BASE_URL}/api/v1/documents/${documentId}/download`;
+}
+
+export function getDocumentPagesUrl(documentId: string, from: number, to: number): string {
+  return `${API_BASE_URL}/api/v1/documents/${documentId}/pages?from=${from}&to=${to}`;
 }

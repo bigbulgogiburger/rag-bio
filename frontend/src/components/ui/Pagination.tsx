@@ -65,7 +65,7 @@ export default function Pagination({
   return (
     <div className="pagination" role="navigation" aria-label="페이지네이션">
       <div className="pagination-info">
-        전체 {totalElements}건 중 {startItem}-{endItem}건
+        전체 <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{totalElements}</strong>건 중 {startItem}-{endItem}건
       </div>
 
       <div className="pagination-buttons">
@@ -75,7 +75,10 @@ export default function Pagination({
           disabled={page === 0}
           aria-label="이전 페이지"
         >
-          ◀ 이전
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style={{ marginRight: '2px' }}>
+            <path d="M8.5 3L4.5 7L8.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          이전
         </button>
 
         {renderPageButtons()}
@@ -86,16 +89,35 @@ export default function Pagination({
           disabled={page >= totalPages - 1}
           aria-label="다음 페이지"
         >
-          다음 ▶
+          다음
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style={{ marginLeft: '2px' }}>
+            <path d="M5.5 3L9.5 7L5.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
 
-      <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+        <label
+          htmlFor="pagination-size-select"
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-muted)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          표시:
+        </label>
         <select
+          id="pagination-size-select"
           value={size}
           onChange={(e) => onSizeChange(Number(e.target.value))}
           className="select"
-          style={{ width: 'auto', padding: '0.4rem 0.6rem' }}
+          style={{
+            width: 'auto',
+            padding: '0.3rem 0.5rem',
+            fontSize: 'var(--font-size-xs)',
+            borderRadius: 'var(--radius-sm)',
+          }}
           aria-label="페이지당 항목 수"
         >
           {sizeOptions.map((option) => (

@@ -81,21 +81,30 @@ public class KnowledgeBaseController {
     }
 
     /**
-     * 개별 문서 인덱싱
+     * AI 메타데이터 분석 (기존 문서 대상)
      */
-    @PostMapping("/documents/{docId}/indexing/run")
-    public ResponseEntity<KbIndexingResponse> indexOne(@PathVariable UUID docId) {
-        KbIndexingResponse response = knowledgeBaseService.indexOne(docId);
+    @PostMapping("/documents/{docId}/analyze-metadata")
+    public ResponseEntity<KbDocumentResponse> analyzeMetadata(@PathVariable UUID docId) {
+        KbDocumentResponse response = knowledgeBaseService.analyzeMetadata(docId);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * 미인덱싱 문서 일괄 인덱싱
+     * 개별 문서 인덱싱 (비동기)
+     */
+    @PostMapping("/documents/{docId}/indexing/run")
+    public ResponseEntity<KbIndexingResponse> indexOne(@PathVariable UUID docId) {
+        KbIndexingResponse response = knowledgeBaseService.indexOne(docId);
+        return ResponseEntity.accepted().body(response);
+    }
+
+    /**
+     * 미인덱싱 문서 일괄 인덱싱 (비동기)
      */
     @PostMapping("/indexing/run")
     public ResponseEntity<KbBatchIndexingResponse> indexAll() {
         KbBatchIndexingResponse response = knowledgeBaseService.indexAll();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.accepted().body(response);
     }
 
     /**

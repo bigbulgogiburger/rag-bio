@@ -1,5 +1,11 @@
 package com.biorad.csrag.interfaces.rest.analysis;
 
+import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaRepository;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
@@ -8,9 +14,8 @@ import com.biorad.csrag.interfaces.rest.vector.VectorStore;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AnalysisService {
@@ -18,15 +23,24 @@ public class AnalysisService {
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
     private final RetrievalEvidenceJpaRepository evidenceRepository;
+    private final DocumentChunkJpaRepository chunkRepository;
+    private final DocumentMetadataJpaRepository documentRepository;
+    private final KnowledgeDocumentJpaRepository kbDocRepository;
 
     public AnalysisService(
             EmbeddingService embeddingService,
             VectorStore vectorStore,
-            RetrievalEvidenceJpaRepository evidenceRepository
+            RetrievalEvidenceJpaRepository evidenceRepository,
+            DocumentChunkJpaRepository chunkRepository,
+            DocumentMetadataJpaRepository documentRepository,
+            KnowledgeDocumentJpaRepository kbDocRepository
     ) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.evidenceRepository = evidenceRepository;
+        this.chunkRepository = chunkRepository;
+        this.documentRepository = documentRepository;
+        this.kbDocRepository = kbDocRepository;
     }
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
@@ -37,6 +51,19 @@ public class AnalysisService {
     public List<EvidenceItem> retrieve(UUID inquiryId, String question, int topK) {
         List<Double> queryVector = embeddingService.embed(question);
         List<VectorSearchResult> searchResults = vectorStore.search(queryVector, topK);
+
+        // 배치 조회로 N+1 방지
+        Set<UUID> chunkIds = searchResults.stream().map(VectorSearchResult::chunkId).collect(Collectors.toSet());
+        Set<UUID> docIds = searchResults.stream().map(VectorSearchResult::documentId).collect(Collectors.toSet());
+
+        Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
+                .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
+
+        Map<UUID, String> fileNameMap = new HashMap<>();
+        documentRepository.findAllById(docIds)
+                .forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
+        kbDocRepository.findAllById(docIds)
+                .forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
 
         List<EvidenceItem> evidences = new ArrayList<>();
         int rank = 1;
@@ -51,12 +78,20 @@ public class AnalysisService {
                     Instant.now()
             ));
 
+            DocumentChunkJpaEntity chunk = chunkMap.get(result.chunkId());
+            String fileName = fileNameMap.getOrDefault(result.documentId(), null);
+            Integer pageStart = chunk != null ? chunk.getPageStart() : null;
+            Integer pageEnd = chunk != null ? chunk.getPageEnd() : null;
+
             evidences.add(new EvidenceItem(
                     result.chunkId().toString(),
                     result.documentId().toString(),
                     result.score(),
                     summarize(result.content()),
-                    result.sourceType()  // VectorSearchResult에서 sourceType 전달
+                    result.sourceType(),
+                    fileName,
+                    pageStart,
+                    pageEnd
             ));
             rank++;
         }

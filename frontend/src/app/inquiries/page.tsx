@@ -199,17 +199,19 @@ export default function InquiriesPage() {
 
   return (
     <div className="stack">
-      <div className="card stack">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 className="card-title">문의 대응 내역</h2>
-          <button
-            className="btn btn-primary"
-            onClick={() => router.push("/inquiries/new")}
-          >
-            문의 작성 →
-          </button>
-        </div>
+      {/* Page Header */}
+      <div className="page-header">
+        <h2 className="card-title">문의 대응 내역</h2>
+        <button
+          className="btn btn-primary"
+          onClick={() => router.push("/inquiries/new")}
+        >
+          문의 작성
+        </button>
+      </div>
 
+      {/* Main Content Card */}
+      <div className="card stack">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -217,7 +219,15 @@ export default function InquiriesPage() {
           onSearch={handleSearch}
         />
 
-        {loading && <p className="muted">로딩 중...</p>}
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="stack" style={{ gap: 'var(--space-sm)' }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton" style={{ height: '44px', width: '100%' }} />
+            ))}
+          </div>
+        )}
+
         {error && <p className="status-banner status-danger">{error}</p>}
 
         {!loading && !error && response && (

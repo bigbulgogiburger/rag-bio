@@ -21,17 +21,18 @@ export default function InquiryDetailPage() {
 
   return (
     <div className="stack">
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
-        <button
-          className="btn"
-          onClick={() => router.push("/inquiries")}
-          style={{ padding: "0.4rem 0.8rem" }}
-        >
-          ← 목록으로
-        </button>
-        <h2 style={{ margin: 0 }}>
-          문의 상세 — {inquiryId.slice(0, 8)}
-        </h2>
+      <div className="page-header">
+        <div className="row">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => router.push("/inquiries")}
+          >
+            ← 목록으로
+          </button>
+          <h2 className="card-title">
+            문의 상세 <span className="muted">#{inquiryId.slice(0, 8)}</span>
+          </h2>
+        </div>
       </div>
 
       <div className="card">

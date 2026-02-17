@@ -27,7 +27,7 @@ public class DocumentChunkJpaEntity {
     @Column(name = "end_offset", nullable = false)
     private int endOffset;
 
-    @Column(name = "content", nullable = false, length = 4000)
+    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "source_type", length = 20)
@@ -35,6 +35,12 @@ public class DocumentChunkJpaEntity {
 
     @Column(name = "source_id")
     private UUID sourceId;                     // 원본 문서 ID
+
+    @Column(name = "page_start")
+    private Integer pageStart;                 // PDF 시작 페이지 (1-based, nullable)
+
+    @Column(name = "page_end")
+    private Integer pageEnd;                   // PDF 끝 페이지 (1-based, nullable)
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -56,6 +62,12 @@ public class DocumentChunkJpaEntity {
         this.sourceType = sourceType;
         this.sourceId = sourceId;
         this.createdAt = createdAt;
+    }
+
+    public DocumentChunkJpaEntity(UUID id, UUID documentId, int chunkIndex, int startOffset, int endOffset, String content, String sourceType, UUID sourceId, Integer pageStart, Integer pageEnd, Instant createdAt) {
+        this(id, documentId, chunkIndex, startOffset, endOffset, content, sourceType, sourceId, createdAt);
+        this.pageStart = pageStart;
+        this.pageEnd = pageEnd;
     }
 
     public UUID getId() {
@@ -88,6 +100,14 @@ public class DocumentChunkJpaEntity {
 
     public UUID getSourceId() {
         return sourceId;
+    }
+
+    public Integer getPageStart() {
+        return pageStart;
+    }
+
+    public Integer getPageEnd() {
+        return pageEnd;
     }
 
     public Instant getCreatedAt() {

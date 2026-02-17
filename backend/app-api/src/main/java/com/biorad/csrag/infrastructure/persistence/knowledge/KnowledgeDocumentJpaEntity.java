@@ -138,6 +138,11 @@ public class KnowledgeDocumentJpaEntity {
 
     // ===== 상태 전환 메서드 =====
 
+    public void markIndexing() {
+        this.status = "INDEXING";
+        this.updatedAt = Instant.now();
+    }
+
     public void markParsing() {
         this.status = "PARSING";
         this.updatedAt = Instant.now();
@@ -171,6 +176,31 @@ public class KnowledgeDocumentJpaEntity {
     public void markFailed(String error) {
         this.status = "FAILED";
         this.lastError = error;
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * AI가 분석한 메타데이터로 빈 필드를 채움.
+     * 이미 사용자가 입력한 값은 덮어쓰지 않는다.
+     */
+    public void enrichMetadata(String suggestedCategory, String suggestedProductFamily,
+                               String suggestedDescription, String suggestedTags) {
+        if ((this.category == null || this.category.isBlank() || "MANUAL".equals(this.category))
+                && suggestedCategory != null && !suggestedCategory.isBlank()) {
+            this.category = suggestedCategory;
+        }
+        if ((this.productFamily == null || this.productFamily.isBlank())
+                && suggestedProductFamily != null && !suggestedProductFamily.isBlank()) {
+            this.productFamily = suggestedProductFamily;
+        }
+        if ((this.description == null || this.description.isBlank())
+                && suggestedDescription != null && !suggestedDescription.isBlank()) {
+            this.description = suggestedDescription;
+        }
+        if ((this.tags == null || this.tags.isBlank())
+                && suggestedTags != null && !suggestedTags.isBlank()) {
+            this.tags = suggestedTags;
+        }
         this.updatedAt = Instant.now();
     }
 

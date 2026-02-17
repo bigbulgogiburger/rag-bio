@@ -16,13 +16,9 @@ export const ANSWER_STATUS_LABELS: Record<string, string> = {
 // ===== 문서 처리 상태 (Document Status) =====
 export const DOC_STATUS_LABELS: Record<string, string> = {
   UPLOADED: "업로드됨",
-  PARSING: "파싱 중",
-  PARSED: "파싱 완료",
-  PARSED_OCR: "OCR 파싱 완료",
-  CHUNKED: "청크 완료",
+  INDEXING: "인덱싱 중",
   INDEXED: "인덱싱 완료",
-  FAILED_PARSING: "파싱 실패",
-  FAILED: "실패",
+  FAILED: "인덱싱 실패",
 };
 
 // ===== 문의 상태 (Inquiry Status) =====

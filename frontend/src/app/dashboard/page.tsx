@@ -94,10 +94,28 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="stack">
-        <h2>운영 대시보드</h2>
-        <p className="muted" style={{ textAlign: 'center', padding: 'var(--space-2xl)' }}>
-          데이터를 불러오는 중...
-        </p>
+        <div className="page-header">
+          <h2 className="card-title">운영 대시보드</h2>
+        </div>
+
+        {/* Skeleton metric cards */}
+        <section className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          {[1, 2, 3].map((i) => (
+            <article className="metric-card" key={i}>
+              <div className="skeleton" style={{ height: '14px', width: '80px', marginBottom: 'var(--space-sm)' }} />
+              <div className="skeleton" style={{ height: '32px', width: '100px', marginBottom: 'var(--space-xs)' }} />
+              <div className="skeleton" style={{ height: '12px', width: '60px' }} />
+            </article>
+          ))}
+        </section>
+
+        {/* Skeleton table */}
+        <article className="card">
+          <div className="skeleton" style={{ height: '18px', width: '140px', marginBottom: 'var(--space-lg)' }} />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="skeleton" style={{ height: '40px', width: '100%', marginBottom: 'var(--space-sm)' }} />
+          ))}
+        </article>
       </div>
     );
   }
@@ -105,32 +123,28 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="stack">
-        <h2>운영 대시보드</h2>
-        <div className="card">
-          <p style={{ color: 'var(--color-danger)' }}>{error}</p>
+        <div className="page-header">
+          <h2 className="card-title">운영 대시보드</h2>
         </div>
+        <div className="status-banner status-danger">{error}</div>
       </div>
     );
   }
 
   return (
     <div className="stack">
-      <h2>운영 대시보드</h2>
+      <div className="page-header">
+        <h2 className="card-title">운영 대시보드</h2>
+      </div>
 
       {/* 메트릭 카드 3열 */}
       <section className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
         {metricCards.map((metric) => (
-          <article className="card" key={metric.label}>
-            <p className="muted" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
-              {metric.label}
-            </p>
-            <p style={{ margin: 'var(--space-xs) 0 0', fontSize: '1.9rem', fontWeight: 800 }}>
-              {metric.value}
-            </p>
+          <article className="metric-card" key={metric.label}>
+            <p className="metric-label">{metric.label}</p>
+            <p className="metric-value">{metric.value}</p>
             {metric.subValue && (
-              <p className="muted" style={{ margin: 'var(--space-xs) 0 0', fontSize: 'var(--font-size-sm)' }}>
-                {metric.subValue}
-              </p>
+              <p className="metric-sub">{metric.subValue}</p>
             )}
           </article>
         ))}
@@ -138,16 +152,13 @@ export default function DashboardPage() {
 
       {/* 최근 문의 5건 */}
       <article className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-          <h2 className="section-title" style={{ margin: 0 }}>
-            최근 문의 (5건)
-          </h2>
+        <div className="page-header" style={{ marginBottom: 'var(--space-md)' }}>
+          <h2 className="section-title">최근 문의 (5건)</h2>
           <button
-            className="btn"
+            className="btn btn-sm"
             onClick={() => router.push('/inquiries')}
-            style={{ fontSize: 'var(--font-size-sm)' }}
           >
-            전체 보기 →
+            전체 보기
           </button>
         </div>
 
@@ -164,17 +175,17 @@ export default function DashboardPage() {
         <h2 className="section-title" style={{ marginBottom: 'var(--space-md)' }}>
           최근 실패 사유 Top
         </h2>
-        <ul style={{ margin: 0, paddingLeft: 'var(--space-lg)' }}>
-          {(metrics?.topFailureReasons ?? []).length === 0 ? (
-            <li className="muted">실패 사유 데이터 없음</li>
-          ) : (
-            metrics?.topFailureReasons.map((item, idx) => (
-              <li key={`${item.reason}-${idx}`}>
+        {(metrics?.topFailureReasons ?? []).length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>실패 사유 데이터 없음</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 'var(--space-lg)' }}>
+            {metrics?.topFailureReasons.map((item, idx) => (
+              <li key={`${item.reason}-${idx}`} style={{ marginBottom: 'var(--space-xs)' }}>
                 {item.reason} <span className="muted">({item.count}건)</span>
               </li>
-            ))
-          )}
-        </ul>
+            ))}
+          </ul>
+        )}
       </article>
     </div>
   );

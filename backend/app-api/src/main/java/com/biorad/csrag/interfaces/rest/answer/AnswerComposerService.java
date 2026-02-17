@@ -52,7 +52,16 @@ public class AnswerComposerService {
             orchestration = orchestrationService.run(inquiryId, question, normalizedTone, normalizedChannel);
             analysis = orchestration.analysis();
             citations = analysis.evidences().stream()
-                    .map(ev -> "chunk=" + ev.chunkId() + " score=" + String.format("%.3f", ev.score()))
+                    .map(ev -> {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("chunk=").append(ev.chunkId());
+                        sb.append(" score=").append(String.format("%.3f", ev.score()));
+                        sb.append(" documentId=").append(ev.documentId());
+                        if (ev.fileName() != null) sb.append(" fileName=").append(ev.fileName());
+                        if (ev.pageStart() != null) sb.append(" pageStart=").append(ev.pageStart());
+                        if (ev.pageEnd() != null) sb.append(" pageEnd=").append(ev.pageEnd());
+                        return sb.toString();
+                    })
                     .toList();
             formatWarnings = orchestration.formatWarnings();
         } catch (RuntimeException ex) {
@@ -182,8 +191,8 @@ public class AnswerComposerService {
 
     private String fallbackDraftByChannel(String channel) {
         return "messenger".equals(channel)
-                ? "[요약]\n현재 자동 판정 단계 일부가 실패하여 보수적 안내를 제공합니다. 추가 자료 확인 후 재생성을 권장드립니다."
-                : "안녕하세요. Bio-Rad CS팀입니다.\n\n현재 자동 판정 단계 일부가 실패하여 보수적 안내를 우선 제공합니다. \n추가 자료(샘플 조건/장비 설정)를 확인한 뒤 답변을 재생성해 주세요.\n감사합니다.";
+                ? "[요약]\n현재 자동 판정 단계 일부에 제한이 발생하여 보수적 안내를 제공드립니다.\n추가 자료 확인 후 답변 재생성을 요청하여 주시기 바랍니다."
+                : "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n현재 자동 판정 단계 일부에 제한이 발생하여, 우선 보수적 안내를 제공드립니다.\n추가 자료(샘플 조건, 장비 설정 등)를 확인하신 후 답변 재생성을 요청하여 주시기 바랍니다.\n감사합니다.";
     }
 
     private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride) {

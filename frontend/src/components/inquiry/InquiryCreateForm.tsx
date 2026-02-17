@@ -69,44 +69,63 @@ export default function InquiryCreateForm() {
 
       <form className="card stack" onSubmit={onSubmit}>
         <h2 className="card-title">새 고객 문의 등록</h2>
+        <p className="muted">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
 
-        <label className="label">
-          문의 내용
-          <textarea
-            className="textarea"
-            required
-            rows={5}
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="고객 기술 문의 내용을 입력하세요"
-          />
-        </label>
+        <hr className="divider" />
 
-        <label className="label" style={{ maxWidth: 280 }}>
-          채널
-          <select
-            className="select"
-            value={customerChannel}
-            onChange={(event) => setCustomerChannel(event.target.value)}
-          >
-            <option value="email">이메일</option>
-            <option value="messenger">메신저</option>
-            <option value="portal">포털</option>
-          </select>
-        </label>
+        <div className="stack">
+          <h3 className="section-title">문의 내용</h3>
+          <label className="label">
+            질문
+            <textarea
+              className="textarea"
+              required
+              rows={5}
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder="고객 기술 문의 내용을 입력하세요"
+            />
+          </label>
 
-        <label className="label">
-          문서 첨부 (PDF/DOC/DOCX)
-          <input
-            className="input"
-            type="file"
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          />
-        </label>
+          <label className="label">
+            채널
+            <select
+              className="select"
+              value={customerChannel}
+              onChange={(event) => setCustomerChannel(event.target.value)}
+            >
+              <option value="email">이메일</option>
+              <option value="messenger">메신저</option>
+              <option value="portal">포털</option>
+            </select>
+          </label>
+        </div>
+
+        <hr className="divider" />
+
+        <div className="stack">
+          <h3 className="section-title">문서 첨부</h3>
+          <label className="label">
+            파일 (PDF/DOC/DOCX)
+            <div className="file-input-wrapper">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              />
+              {file ? (
+                <p className="muted">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
+              ) : (
+                <p className="muted">클릭하여 파일을 선택하거나 드래그하세요</p>
+              )}
+            </div>
+          </label>
+        </div>
+
+        <hr className="divider" />
 
         <button
-          className="btn btn-primary btn-pill"
+          className="btn btn-primary btn-lg btn-pill"
           type="submit"
           disabled={submitting}
         >

@@ -35,7 +35,24 @@ export default function DataTable<T>({
   if (data.length === 0) {
     return (
       <div className="empty-state">
-        <p>{emptyMessage}</p>
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 48 48"
+          fill="none"
+          aria-hidden="true"
+          style={{ marginBottom: 'var(--space-md)', opacity: 0.45 }}
+        >
+          <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" strokeWidth="2" fill="none" />
+          <path d="M6 18h36" stroke="currentColor" strokeWidth="2" />
+          <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+          <circle cx="17" cy="14" r="1.5" fill="currentColor" />
+          <circle cx="22" cy="14" r="1.5" fill="currentColor" />
+          <path d="M18 28h12M21 32h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <p style={{ margin: 0, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+          {emptyMessage}
+        </p>
       </div>
     );
   }

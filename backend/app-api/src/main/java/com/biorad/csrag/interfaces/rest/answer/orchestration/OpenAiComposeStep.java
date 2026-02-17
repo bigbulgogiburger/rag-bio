@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -54,7 +55,7 @@ public class OpenAiComposeStep implements ComposeStep {
                     .body(Map.of(
                             "model", chatModel,
                             "messages", new Object[]{
-                                    Map.of("role", "system", "content", "너는 Bio-Rad CS 한국어 답변 도우미다. 과장하지 말고 근거 기반으로 답하라."),
+                                    Map.of("role", "system", "content", "너는 Bio-Rad 고객 서비스팀의 한국어 비즈니스 이메일 작성 전문가이다.\n반드시 다음 규칙을 지켜라:\n1. 격식체 존댓말 사용 (~드립니다, ~바랍니다, ~겠습니다)\n2. email 채널: 인사(\"안녕하세요.\") → 맥락 → 본론 → 마무리(\"감사합니다.\")\n3. messenger 채널: [요약] 태그로 시작, 260자 이내, 간결하게\n4. 한 문장에 하나의 의미만 담아 짧고 명확하게 작성\n5. 마크다운 서식(##, **, -, 등) 절대 사용 금지. 순수 텍스트만 작성\n6. [1], [2] 같은 번호 인용 금지. \"사내 자료를 참고한 결과\" 등 자연스러운 표현 사용\n7. 이모지, 과도한 느낌표 사용 금지\n8. 과장/단정 금지, 근거에 없는 내용 추측 금지"),
                                     Map.of("role", "user", "content", prompt)
                             },
                             "temperature", 0.2
@@ -76,16 +77,37 @@ public class OpenAiComposeStep implements ComposeStep {
     }
 
     private String buildPrompt(AnalyzeResponse analysis, String tone, String channel) {
-        return "아래 분석 결과를 바탕으로 고객 답변 초안을 한국어로 작성해줘.\n"
-                + "- tone: " + (tone == null ? "professional" : tone) + "\n"
-                + "- channel: " + (channel == null ? "email" : channel) + "\n"
-                + "- verdict: " + analysis.verdict() + "\n"
-                + "- confidence: " + analysis.confidence() + "\n"
-                + "- riskFlags: " + analysis.riskFlags() + "\n"
-                + "- reason: " + analysis.reason() + "\n"
-                + "요구사항:\n"
-                + "1) 과장/단정 금지\n"
-                + "2) 후속 확인 항목 1~3개 포함\n"
-                + "3) channel=email이면 인사/마무리 포함, messenger면 간결하게\n";
+        StringBuilder sb = new StringBuilder();
+        sb.append("아래 분석 결과와 참고 자료를 바탕으로 고객 답변 초안을 한국어 격식체로 작성해줘.\n\n");
+        sb.append("[분석 결과]\n");
+        sb.append("- tone: ").append(tone == null ? "professional" : tone).append("\n");
+        sb.append("- channel: ").append(channel == null ? "email" : channel).append("\n");
+        sb.append("- verdict: ").append(analysis.verdict()).append("\n");
+        sb.append("- confidence: ").append(analysis.confidence()).append("\n");
+        sb.append("- riskFlags: ").append(analysis.riskFlags()).append("\n");
+        sb.append("- reason: ").append(analysis.reason()).append("\n\n");
+
+        List<com.biorad.csrag.interfaces.rest.analysis.EvidenceItem> evidences = analysis.evidences();
+        if (evidences != null && !evidences.isEmpty()) {
+            sb.append("[참고 자료] (").append(evidences.size()).append("건)\n");
+            int limit = Math.min(5, evidences.size());
+            for (int i = 0; i < limit; i++) {
+                var ev = evidences.get(i);
+                sb.append("- (유사도: ")
+                        .append(String.format("%.3f", ev.score()))
+                        .append(", 출처: ").append(ev.sourceType()).append(")\n")
+                        .append(ev.excerpt()).append("\n\n");
+            }
+        }
+
+        sb.append("[요구사항]\n");
+        sb.append("1) 번호 인용([1], [2]) 금지. \"사내 자료를 참고한 결과\" 등 자연스러운 문맥 인용 사용\n");
+        sb.append("2) 마크다운 서식(##, **, -, ```) 절대 금지. 순수 텍스트만 작성\n");
+        sb.append("3) 이모지, 과도한 느낌표 금지\n");
+        sb.append("4) 과장/단정 금지, 근거에 없는 내용 추측 금지\n");
+        sb.append("5) 후속 확인 항목 1~3개 포함\n");
+        sb.append("6) channel=email이면 인사(\"안녕하세요.\")/마무리(\"감사합니다.\") 포함, messenger면 [요약] 태그로 시작하여 간결하게\n");
+
+        return sb.toString();
     }
 }

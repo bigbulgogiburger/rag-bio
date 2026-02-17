@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS answer_drafts (
     inquiry_id UUID NOT NULL,
     version INT NOT NULL,
     verdict VARCHAR(32) NOT NULL,
-    confidence DOUBLE NOT NULL,
+    confidence DOUBLE PRECISION NOT NULL,
     tone VARCHAR(32) NOT NULL,
     channel VARCHAR(32) NOT NULL,
     status VARCHAR(32) NOT NULL,

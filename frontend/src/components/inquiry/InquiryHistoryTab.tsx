@@ -21,6 +21,7 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
   const [history, setHistory] = useState<AnswerDraftResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<AnswerDraftResult | null>(null);
 
   useEffect(() => {
     fetchHistory();
@@ -33,6 +34,7 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
     try {
       const data = await listAnswerDraftHistory(inquiryId);
       setHistory(data);
+      if (data.length > 0) setSelected(data[0]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "버전 이력 조회 중 오류가 발생했습니다.");
     } finally {
@@ -102,8 +104,9 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
 
   if (loading) {
     return (
-      <div className="card">
-        <p className="muted">버전 이력을 불러오는 중...</p>
+      <div className="stack">
+        <div className="skeleton" style={{ height: "48px" }} />
+        <div className="skeleton" style={{ height: "200px" }} />
       </div>
     );
   }
@@ -121,63 +124,123 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
   return (
     <div className="stack">
       <div className="card stack">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 className="section-title" style={{ margin: 0 }}>
+        <div className="page-header">
+          <h3 className="section-title">
             답변 버전 이력 ({history.length}건)
           </h3>
-          <button className="btn" onClick={fetchHistory} disabled={loading}>
+          <button className="btn btn-ghost btn-sm" onClick={fetchHistory} disabled={loading}>
             새로고침
           </button>
         </div>
 
+        <hr className="divider" />
+
         <DataTable
           columns={columns}
           data={history}
+          onRowClick={(item) => setSelected(item)}
           emptyMessage="생성된 답변 버전이 없습니다"
         />
       </div>
 
-      {history.length > 0 && (
+      {selected && (
         <div className="card stack">
-          <h3 className="section-title">최신 버전 상세</h3>
+          <h3 className="section-title">v{selected.version} 버전 상세</h3>
+
+          <hr className="divider" />
+
+          {/* Version summary metrics */}
+          <div className="metrics-grid cols-3">
+            <div className="metric-card">
+              <p className="metric-label">버전</p>
+              <p className="metric-value">v{selected.version}</p>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">상태</p>
+              <div className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+                <Badge variant={getAnswerStatusBadgeVariant(selected.status)}>
+                  {labelAnswerStatus(selected.status)}
+                </Badge>
+              </div>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">판정 / 신뢰도</p>
+              <div className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+                <Badge variant={getVerdictBadgeVariant(selected.verdict)}>
+                  {labelVerdict(selected.verdict)}
+                </Badge>
+                <span className="muted" style={{ marginLeft: "var(--space-sm)", fontSize: "var(--font-size-sm)" }}>
+                  ({selected.confidence})
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="kv">
             <div>
-              <b>버전:</b> v{history[0].version}
+              <b>채널:</b> {labelChannel(selected.channel)} | <b>톤:</b> {labelTone(selected.tone)}
             </div>
-            <div>
-              <b>상태:</b>{" "}
-              <Badge variant={getAnswerStatusBadgeVariant(history[0].status)}>
-                {labelAnswerStatus(history[0].status)}
-              </Badge>
-            </div>
-            <div>
-              <b>판정:</b>{" "}
-              <Badge variant={getVerdictBadgeVariant(history[0].verdict)}>
-                {labelVerdict(history[0].verdict)}
-              </Badge>{" "}
-              (신뢰도 {history[0].confidence})
-            </div>
-            <div>
-              <b>채널:</b> {labelChannel(history[0].channel)} | <b>톤:</b> {labelTone(history[0].tone)}
-            </div>
-            {history[0].reviewedBy && (
-              <div>
-                <b>리뷰:</b> {history[0].reviewedBy}
-                {history[0].reviewComment && ` - ${history[0].reviewComment}`}
-              </div>
-            )}
-            {history[0].approvedBy && (
-              <div>
-                <b>승인:</b> {history[0].approvedBy}
-                {history[0].approveComment && ` - ${history[0].approveComment}`}
-              </div>
-            )}
-            {history[0].sentBy && (
-              <div>
-                <b>발송:</b> {history[0].sentBy} | {history[0].sendChannel}
-              </div>
-            )}
           </div>
+
+          {/* Draft content */}
+          {selected.draft && (
+            <>
+              <hr className="divider" />
+              <h4 className="section-title">답변 초안</h4>
+              <div className="evidence-item" style={{ whiteSpace: "pre-wrap" }}>
+                {selected.draft}
+              </div>
+            </>
+          )}
+
+          {/* Citations */}
+          {selected.citations && selected.citations.length > 0 && (
+            <>
+              <hr className="divider" />
+              <h4 className="section-title">인용 ({selected.citations.length}건)</h4>
+              <div className="stack" style={{ gap: "var(--space-xs)" }}>
+                {selected.citations.map((cite, i) => (
+                  <div key={i} className="evidence-item" style={{ whiteSpace: "pre-wrap" }}>
+                    {cite}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Workflow trail */}
+          {(selected.reviewedBy || selected.approvedBy || selected.sentBy) && (
+            <>
+              <hr className="divider" />
+              <h4 className="section-title">워크플로우 이력</h4>
+              <div className="stack">
+                {selected.reviewedBy && (
+                  <div className="evidence-item">
+                    <Badge variant="info" style={{ marginRight: "var(--space-sm)" }}>리뷰</Badge>
+                    {selected.reviewedBy}
+                    {selected.reviewComment && (
+                      <span className="muted"> - {selected.reviewComment}</span>
+                    )}
+                  </div>
+                )}
+                {selected.approvedBy && (
+                  <div className="evidence-item">
+                    <Badge variant="success" style={{ marginRight: "var(--space-sm)" }}>승인</Badge>
+                    {selected.approvedBy}
+                    {selected.approveComment && (
+                      <span className="muted"> - {selected.approveComment}</span>
+                    )}
+                  </div>
+                )}
+                {selected.sentBy && (
+                  <div className="evidence-item">
+                    <Badge variant="success" style={{ marginRight: "var(--space-sm)" }}>발송</Badge>
+                    {selected.sentBy} | {selected.sendChannel}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

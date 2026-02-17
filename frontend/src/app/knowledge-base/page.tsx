@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   listKbDocuments,
-  uploadKbDocument,
   deleteKbDocument,
   indexKbDocument,
   indexAllKbDocuments,
@@ -12,6 +11,7 @@ import {
   type KbDocumentListResponse,
   type KbStats,
 } from "@/lib/api/client";
+import { SmartUploadModal } from "@/components/upload";
 import {
   labelKbCategory,
   labelDocStatus,
@@ -23,6 +23,7 @@ import Pagination from "@/components/ui/Pagination";
 import FilterBar from "@/components/ui/FilterBar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import Toast from "@/components/ui/Toast";
 
 export default function KnowledgeBasePage() {
   const [response, setResponse] = useState<KbDocumentListResponse | null>(null);
@@ -44,19 +45,13 @@ export default function KnowledgeBasePage() {
 
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadData, setUploadData] = useState({
-    title: "",
-    category: "MANUAL",
-    productFamily: "",
-    description: "",
-    tags: "",
-  });
-  const [uploading, setUploading] = useState(false);
 
   // Detail modal state
   const [selectedDoc, setSelectedDoc] = useState<KbDocument | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Toast state
+  const [toast, setToast] = useState<{ variant: "success" | "error" | "warn" | "info"; message: string } | null>(null);
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -94,6 +89,21 @@ export default function KnowledgeBasePage() {
     fetchStats();
   }, [page, size]);
 
+  // Polling: if any document has status INDEXING, poll every 5s
+  useEffect(() => {
+    if (!response) return;
+
+    const hasIndexing = response.content.some((doc) => doc.status === "INDEXING");
+    if (!hasIndexing) return;
+
+    const interval = setInterval(() => {
+      fetchDocuments();
+      fetchStats();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [response]);
+
   const handleSearch = () => {
     setPage(0);
     fetchDocuments();
@@ -112,39 +122,9 @@ export default function KnowledgeBasePage() {
     setPage(0);
   };
 
-  const handleUpload = async () => {
-    if (!uploadFile || !uploadData.title || !uploadData.category) {
-      setError("파일, 제목, 카테고리는 필수 입력 항목입니다.");
-      return;
-    }
-
-    setUploading(true);
-    setError(null);
-    try {
-      await uploadKbDocument({
-        file: uploadFile,
-        title: uploadData.title,
-        category: uploadData.category,
-        productFamily: uploadData.productFamily || undefined,
-        description: uploadData.description || undefined,
-        tags: uploadData.tags || undefined,
-      });
-      setShowUploadModal(false);
-      setUploadFile(null);
-      setUploadData({
-        title: "",
-        category: "MANUAL",
-        productFamily: "",
-        description: "",
-        tags: "",
-      });
-      fetchDocuments();
-      fetchStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
-    } finally {
-      setUploading(false);
-    }
+  const handleUploadComplete = () => {
+    fetchDocuments();
+    fetchStats();
   };
 
   const handleDelete = async (doc: KbDocument) => {
@@ -168,17 +148,19 @@ export default function KnowledgeBasePage() {
   };
 
   const handleIndex = async (docId: string) => {
-    setLoading(true);
     setError(null);
+    const doc = response?.content?.find((d) => d.documentId === docId);
+    const docTitle = doc?.title ?? docId;
     try {
-      const updated = await indexKbDocument(docId);
-      setSelectedDoc(updated);
+      await indexKbDocument(docId);
+      setToast({ variant: "success", message: `"${docTitle}" 인덱싱을 시작합니다.` });
       fetchDocuments();
-      fetchStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "인덱싱 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
+      if (err instanceof Error && err.message.includes("409")) {
+        setToast({ variant: "warn", message: "이미 인덱싱이 진행 중입니다" });
+      } else {
+        setToast({ variant: "error", message: err instanceof Error ? err.message : "인덱싱 중 오류가 발생했습니다." });
+      }
     }
   };
 
@@ -187,24 +169,25 @@ export default function KnowledgeBasePage() {
       return;
     }
 
-    setLoading(true);
     setError(null);
     try {
       const result = await indexAllKbDocuments();
-      alert(`인덱싱 완료\n처리: ${result.processed}건\n성공: ${result.succeeded}건\n실패: ${result.failed}건`);
+      setToast({ variant: "success", message: result.message });
       fetchDocuments();
-      fetchStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "일괄 인덱싱 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
+      if (err instanceof Error && err.message.includes("409")) {
+        setToast({ variant: "warn", message: "이미 인덱싱이 진행 중입니다" });
+      } else {
+        setToast({ variant: "error", message: err instanceof Error ? err.message : "일괄 인덱싱 중 오류가 발생했습니다." });
+      }
     }
   };
 
   const getStatusBadgeVariant = (status: string): "info" | "success" | "warn" | "danger" | "neutral" => {
-    if (["INDEXED", "PARSED", "CHUNKED"].includes(status)) return "success";
-    if (["FAILED", "FAILED_PARSING"].includes(status)) return "danger";
-    if (["PARSING"].includes(status)) return "warn";
+    if (status === "INDEXING") return "warn";
+    if (status === "INDEXED") return "success";
+    if (status === "FAILED") return "danger";
+    if (status === "UPLOADED") return "neutral";
     return "neutral";
   };
 
@@ -236,6 +219,7 @@ export default function KnowledgeBasePage() {
       width: "120px",
       render: (item: KbDocument) => (
         <Badge variant={getStatusBadgeVariant(item.status)}>
+          {item.status === "INDEXING" && <span className="badge-spinner" />}
           {labelDocStatus(item.status)}
         </Badge>
       ),
@@ -298,51 +282,54 @@ export default function KnowledgeBasePage() {
 
   return (
     <div className="stack">
+      {/* Page Header */}
+      <div className="page-header">
+        <h2 className="card-title">지식 기반 관리</h2>
+        <div className="row">
+          <button
+            className="btn"
+            onClick={handleIndexAll}
+          >
+            일괄 인덱싱
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowUploadModal(true)}
+          >
+            문서 등록
+          </button>
+        </div>
+      </div>
+
       {/* Stats Cards */}
-      {stats && (
+      {stats ? (
         <section className="metrics-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-          <article className="card">
-            <p className="muted" style={{ margin: 0, fontSize: "var(--font-size-sm)" }}>전체 문서</p>
-            <p style={{ margin: "var(--space-xs) 0 0", fontSize: "1.9rem", fontWeight: 800 }}>
-              {stats.totalDocuments}건
-            </p>
+          <article className="metric-card">
+            <p className="metric-label">전체 문서</p>
+            <p className="metric-value">{stats.totalDocuments}건</p>
           </article>
-          <article className="card">
-            <p className="muted" style={{ margin: 0, fontSize: "var(--font-size-sm)" }}>인덱싱 완료</p>
-            <p style={{ margin: "var(--space-xs) 0 0", fontSize: "1.9rem", fontWeight: 800 }}>
-              {stats.indexedDocuments}건
-            </p>
+          <article className="metric-card">
+            <p className="metric-label">인덱싱 완료</p>
+            <p className="metric-value">{stats.indexedDocuments}건</p>
           </article>
-          <article className="card">
-            <p className="muted" style={{ margin: 0, fontSize: "var(--font-size-sm)" }}>총 청크</p>
-            <p style={{ margin: "var(--space-xs) 0 0", fontSize: "1.9rem", fontWeight: 800 }}>
-              {stats.totalChunks.toLocaleString()}개
-            </p>
+          <article className="metric-card">
+            <p className="metric-label">총 청크</p>
+            <p className="metric-value">{stats.totalChunks.toLocaleString()}개</p>
           </article>
+        </section>
+      ) : (
+        <section className="metrics-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          {[1, 2, 3].map((i) => (
+            <article className="metric-card" key={i}>
+              <div className="skeleton" style={{ height: '14px', width: '80px', marginBottom: 'var(--space-sm)' }} />
+              <div className="skeleton" style={{ height: '32px', width: '100px' }} />
+            </article>
+          ))}
         </section>
       )}
 
       {/* Main Content */}
       <div className="card stack">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 className="card-title">지식 기반 관리</h2>
-          <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-            <button
-              className="btn"
-              onClick={handleIndexAll}
-              disabled={loading}
-            >
-              일괄 인덱싱
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowUploadModal(true)}
-            >
-              문서 등록
-            </button>
-          </div>
-        </div>
-
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -350,7 +337,15 @@ export default function KnowledgeBasePage() {
           onSearch={handleSearch}
         />
 
-        {loading && <p className="muted">로딩 중...</p>}
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="stack" style={{ gap: 'var(--space-sm)' }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton" style={{ height: '44px', width: '100%' }} />
+            ))}
+          </div>
+        )}
+
         {error && <p className="status-banner status-danger">{error}</p>}
 
         {!loading && !error && response && (
@@ -390,142 +385,21 @@ export default function KnowledgeBasePage() {
         )}
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setShowUploadModal(false)}
-        >
-          <div
-            className="card stack"
-            style={{ width: "90%", maxWidth: "600px", maxHeight: "90vh", overflow: "auto" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="section-title">문서 등록</h3>
-
-            <label className="label">
-              파일 선택 *
-              <input
-                type="file"
-                className="input"
-                accept=".pdf,.doc,.docx"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-              />
-              {uploadFile && (
-                <p className="muted" style={{ marginTop: "var(--space-xs)", fontSize: "var(--font-size-sm)" }}>
-                  📄 {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
-                </p>
-              )}
-            </label>
-
-            <label className="label">
-              제목 *
-              <input
-                type="text"
-                className="input"
-                value={uploadData.title}
-                onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
-                placeholder="문서 제목"
-              />
-            </label>
-
-            <label className="label">
-              카테고리 *
-              <select
-                className="select"
-                value={uploadData.category}
-                onChange={(e) => setUploadData({ ...uploadData, category: e.target.value })}
-              >
-                {Object.entries(KB_CATEGORY_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="label">
-              제품군
-              <input
-                type="text"
-                className="input"
-                value={uploadData.productFamily}
-                onChange={(e) => setUploadData({ ...uploadData, productFamily: e.target.value })}
-                placeholder="예: Reagent, Instrument"
-              />
-            </label>
-
-            <label className="label">
-              설명
-              <textarea
-                className="textarea"
-                rows={3}
-                value={uploadData.description}
-                onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })}
-                placeholder="문서 설명"
-              />
-            </label>
-
-            <label className="label">
-              태그
-              <input
-                type="text"
-                className="input"
-                value={uploadData.tags}
-                onChange={(e) => setUploadData({ ...uploadData, tags: e.target.value })}
-                placeholder="쉼표로 구분 (예: reagent, 4도, 보관)"
-              />
-            </label>
-
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button
-                className="btn"
-                onClick={() => setShowUploadModal(false)}
-                disabled={uploading}
-              >
-                취소
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleUpload}
-                disabled={uploading || !uploadFile || !uploadData.title}
-              >
-                {uploading ? "업로드 중..." : "등록"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Smart Upload Modal */}
+      <SmartUploadModal
+        open={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onComplete={handleUploadComplete}
+      />
 
       {/* Detail Modal */}
       {showDetailModal && selectedDoc && (
         <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="modal-backdrop"
           onClick={() => setShowDetailModal(false)}
         >
           <div
-            className="card stack"
-            style={{ width: "90%", maxWidth: "700px", maxHeight: "90vh", overflow: "auto" }}
+            className="modal-content modal-lg stack"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="section-title">{selectedDoc.title}</h3>
@@ -537,39 +411,40 @@ export default function KnowledgeBasePage() {
               <div>
                 <b>상태:</b>{" "}
                 <Badge variant={getStatusBadgeVariant(selectedDoc.status)}>
+                  {selectedDoc.status === "INDEXING" && <span className="badge-spinner" />}
                   {labelDocStatus(selectedDoc.status)}
                 </Badge>
               </div>
-              <div><b>청크:</b> {selectedDoc.chunkCount ?? "-"}개 · <b>벡터:</b> {selectedDoc.vectorCount ?? "-"}개</div>
+              <div><b>청크:</b> {selectedDoc.chunkCount ?? "-"}개 &middot; <b>벡터:</b> {selectedDoc.vectorCount ?? "-"}개</div>
               <div><b>등록자:</b> {selectedDoc.uploadedBy || "-"}</div>
               <div><b>등록일:</b> {new Date(selectedDoc.createdAt).toLocaleString("ko-KR")}</div>
               {selectedDoc.tags && <div><b>태그:</b> {selectedDoc.tags}</div>}
               {selectedDoc.description && <div><b>설명:</b> {selectedDoc.description}</div>}
               {selectedDoc.lastError && (
-                <div style={{ color: "var(--color-danger)" }}>
+                <div className="status-banner status-danger">
                   <b>오류:</b> {selectedDoc.lastError}
                 </div>
               )}
             </div>
 
+            <hr className="divider" />
+
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button
                 className="btn"
                 onClick={() => handleIndex(selectedDoc.documentId)}
-                disabled={loading}
               >
                 인덱싱 실행
               </button>
               <button
-                className="btn"
+                className="btn btn-danger"
                 onClick={() => handleDelete(selectedDoc)}
                 disabled={loading}
-                style={{ color: "var(--color-danger)" }}
               >
                 삭제
               </button>
               <button
-                className="btn"
+                className="btn btn-ghost"
                 onClick={() => setShowDetailModal(false)}
               >
                 닫기
@@ -577,6 +452,15 @@ export default function KnowledgeBasePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          variant={toast.variant}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

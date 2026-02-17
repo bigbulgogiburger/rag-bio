@@ -43,12 +43,12 @@ export default function FilterBar({
   };
 
   return (
-    <div className="filter-bar">
+    <div className="filter-bar" role="search" aria-label="필터 검색">
       {fields.map((field) => {
         if (field.type === 'select') {
           return (
             <label key={field.key} className="label">
-              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>
+              <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
                 {field.label}
               </span>
               <select
@@ -70,7 +70,7 @@ export default function FilterBar({
         if (field.type === 'date') {
           return (
             <label key={field.key} className="label">
-              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>
+              <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
                 {field.label}
               </span>
               <input
@@ -88,7 +88,7 @@ export default function FilterBar({
         // type === 'text'
         return (
           <label key={field.key} className="label">
-            <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)' }}>
+            <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
               {field.label}
             </span>
             <input
@@ -109,6 +109,10 @@ export default function FilterBar({
         onClick={onSearch}
         style={{ alignSelf: 'flex-end' }}
       >
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+          <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M10 10L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
         검색
       </button>
     </div>

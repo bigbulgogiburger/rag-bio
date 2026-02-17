@@ -97,7 +97,7 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
         <div>
           <div>{doc.fileName}</div>
           {doc.lastError && (
-            <div style={{ fontSize: "0.85rem", color: "var(--color-danger)", marginTop: "0.25rem" }}>
+            <div className="status-banner status-danger" style={{ marginTop: "0.25rem", fontSize: "var(--font-size-xs)" }}>
               오류: {doc.lastError}
             </div>
           )}
@@ -140,6 +140,15 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
     },
   ];
 
+  if (loading && !inquiry) {
+    return (
+      <div className="stack">
+        <div className="skeleton" style={{ height: "120px" }} />
+        <div className="skeleton" style={{ height: "200px" }} />
+      </div>
+    );
+  }
+
   return (
     <div className="stack">
       {toast && (
@@ -150,24 +159,33 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
         />
       )}
 
-      {loading && <p className="muted">로딩 중...</p>}
       {error && <p className="status-banner status-danger" role="alert">{error}</p>}
 
       {inquiry && (
         <div className="card stack">
           <h3 className="section-title">문의 정보</h3>
+          <hr className="divider" />
+
+          <div className="metrics-grid cols-2">
+            <div className="metric-card">
+              <p className="metric-label">상태</p>
+              <div className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+                <Badge variant={getInquiryStatusBadgeVariant(inquiry.status)}>
+                  {labelInquiryStatus(inquiry.status)}
+                </Badge>
+              </div>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">채널</p>
+              <p className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+                {labelChannel(inquiry.customerChannel)}
+              </p>
+            </div>
+          </div>
+
           <div className="kv">
             <div>
               <b>질문:</b> {inquiry.question}
-            </div>
-            <div>
-              <b>채널:</b> {labelChannel(inquiry.customerChannel)}
-            </div>
-            <div>
-              <b>상태:</b>{" "}
-              <Badge variant={getInquiryStatusBadgeVariant(inquiry.status)}>
-                {labelInquiryStatus(inquiry.status)}
-              </Badge>
             </div>
             <div>
               <b>접수일:</b> {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
@@ -178,15 +196,59 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
 
       {indexingStatus && (
         <div className="card stack">
-          <h3 className="section-title">첨부 문서 ({documents.length}건)</h3>
-
-          <div className="kv">
-            <b>인덱싱 요약</b>
-            <div>
-              전체 {indexingStatus.total} / 업로드 {indexingStatus.uploaded} / 파싱 중 {indexingStatus.parsing} /
-              파싱 완료 {indexingStatus.parsed} / 청크 완료 {indexingStatus.chunked} / 벡터 저장 완료 {indexingStatus.indexed} /
-              실패 {indexingStatus.failed}
+          <div className="page-header">
+            <h3 className="section-title">첨부 문서 ({documents.length}건)</h3>
+            <div className="row">
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => handleRunIndexing(false)}
+                disabled={loading}
+              >
+                인덱싱 실행
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => handleRunIndexing(true)}
+                disabled={loading}
+              >
+                실패 건 재처리
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={fetchInquiryData}
+                disabled={loading}
+              >
+                새로고침
+              </button>
             </div>
+          </div>
+
+          <hr className="divider" />
+
+          {/* Indexing Summary Metrics */}
+          <div className="metrics-grid cols-3">
+            <div className="metric-card">
+              <p className="metric-label">전체</p>
+              <p className="metric-value">{indexingStatus.total}</p>
+              <p className="metric-sub">등록된 문서</p>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">인덱싱 완료</p>
+              <p className="metric-value" style={{ color: "var(--color-success)" }}>{indexingStatus.indexed}</p>
+              <p className="metric-sub">벡터 저장 완료</p>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">실패</p>
+              <p className="metric-value" style={{ color: indexingStatus.failed > 0 ? "var(--color-danger)" : "inherit" }}>
+                {indexingStatus.failed}
+              </p>
+              <p className="metric-sub">재처리 필요</p>
+            </div>
+          </div>
+
+          {/* Progress breakdown */}
+          <div className="status-banner status-info">
+            업로드 {indexingStatus.uploaded} / 파싱 중 {indexingStatus.parsing} / 파싱 완료 {indexingStatus.parsed} / 청크 완료 {indexingStatus.chunked}
           </div>
 
           {documents.length > 0 && (
@@ -196,30 +258,6 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
               emptyMessage="등록된 문서가 없습니다"
             />
           )}
-
-          <div className="row" style={{ marginTop: "var(--space-md)" }}>
-            <button
-              className="btn btn-primary"
-              onClick={() => handleRunIndexing(false)}
-              disabled={loading}
-            >
-              인덱싱 실행
-            </button>
-            <button
-              className="btn"
-              onClick={() => handleRunIndexing(true)}
-              disabled={loading}
-            >
-              실패 건 재처리
-            </button>
-            <button
-              className="btn"
-              onClick={fetchInquiryData}
-              disabled={loading}
-            >
-              새로고침
-            </button>
-          </div>
         </div>
       )}
     </div>

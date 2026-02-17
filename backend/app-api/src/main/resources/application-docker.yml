@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:5432/${POSTGRES_DB:csrag}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER:csrag}
+    password: ${POSTGRES_PASSWORD:csrag}
+  h2:
+    console:
+      enabled: false
+  flyway:
+    enabled: true
+
+app:
+  web:
+    cors:
+      allowed-origins: http://localhost:3000,http://localhost:3001,http://frontend:3000

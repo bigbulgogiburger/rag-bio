@@ -38,35 +38,35 @@ public class DefaultComposeStep implements ComposeStep {
     private String createDraftByTone(AnalyzeResponse analysis, String tone) {
         return switch (tone) {
             case "brief" -> switch (analysis.verdict()) {
-                case "SUPPORTED" -> "근거상 타당합니다. 적용 전 핵심 조건만 최종 점검해 주세요.";
-                case "REFUTED" -> "근거상 권장되지 않습니다. 조건 재설정 또는 대안 프로토콜을 권장합니다.";
-                default -> "조건 의존성이 있어 단정이 어렵습니다. 추가 확인 후 재판정이 필요합니다.";
+                case "SUPPORTED" -> "사내 자료를 참고한 결과, 문의 내용은 근거 기준으로 타당한 것으로 판단됩니다.\n적용 전 핵심 조건에 대한 최종 점검을 권장드립니다.";
+                case "REFUTED" -> "사내 자료를 참고한 결과, 해당 내용은 근거 기준으로 권장되지 않는 것으로 확인됩니다.\n조건 재설정 또는 대안 프로토콜 적용을 검토하여 주시기 바랍니다.";
+                default -> "사내 자료를 참고한 결과, 조건 의존성이 있어 단정이 어려운 상황입니다.\n추가 확인 후 재판정이 필요할 것으로 판단됩니다.";
             };
             case "technical" -> switch (analysis.verdict()) {
-                case "SUPPORTED" -> "현재 retrieval evidence 기준으로 질문 주장과 문서 일치도가 높습니다. 다만 실제 실행 전 샘플 전처리 조건, 장비 파라미터, QC 기준을 교차 검증해 주세요.";
-                case "REFUTED" -> "현재 evidence score 및 risk flag 기준으로 질문 주장은 문서 근거와 충돌합니다. 프로토콜 파라미터를 재검토하고 대체 workflow를 적용하는 것이 적절합니다.";
-                default -> "근거 간 상충 또는 신뢰도 부족이 감지되었습니다. 추가 데이터 확보(샘플 조건/장비 설정/대조군 결과) 후 재평가를 권장합니다.";
+                case "SUPPORTED" -> "사내 자료를 참고한 결과, 현재 검색된 근거 기준으로 문의 내용과 문서 간 일치도가 높은 것으로 확인됩니다.\n다만, 실제 실행 전 샘플 전처리 조건, 장비 파라미터, QC 기준에 대한 교차 검증을 권장드립니다.";
+                case "REFUTED" -> "사내 자료를 참고한 결과, 현재 근거 점수 및 위험 신호 기준으로 문의 내용은 문서 근거와 충돌하는 것으로 확인됩니다.\n프로토콜 파라미터를 재검토하시고, 대체 워크플로우 적용을 검토하여 주시기 바랍니다.";
+                default -> "사내 자료를 참고한 결과, 근거 간 상충 또는 신뢰도 부족이 감지되었습니다.\n추가 데이터 확보(샘플 조건, 장비 설정, 대조군 결과) 후 재평가를 권장드립니다.";
             };
             default -> switch (analysis.verdict()) {
-                case "SUPPORTED" -> "문의 주신 내용은 현재 확보된 근거 기준으로 타당한 방향입니다. 다만 실제 적용 전 샘플 조건과 장비 설정을 최종 점검해 주세요.";
-                case "REFUTED" -> "문의 주신 해석은 현재 근거 기준으로 권장되지 않습니다. 대안 프로토콜 또는 조건 재설정을 권장드립니다.";
-                default -> "문의 주신 내용은 일부 근거가 있으나 조건 의존성이 있어 단정이 어렵습니다. 아래 확인 항목을 점검한 뒤 재판정을 권장드립니다.";
+                case "SUPPORTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 확보된 근거 기준으로 타당한 방향으로 판단됩니다.\n다만, 실제 적용 전 샘플 조건과 장비 설정에 대한 최종 점검을 권장드립니다.";
+                case "REFUTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 근거 기준으로 권장되지 않는 것으로 확인됩니다.\n대안 프로토콜 또는 조건 재설정을 검토하여 주시기 바랍니다.";
+                default -> "문의하여 주신 내용에 대하여 확인한 결과를 안내드립니다.\n\n사내 자료를 참고한 결과, 일부 근거가 확인되었으나 조건 의존성이 있어 단정이 어려운 상황입니다.\n아래 확인 항목을 점검하신 뒤 재판정을 요청하여 주시기 바랍니다.";
             };
         };
     }
 
     private String applyGuardrails(String draft, double confidence, List<String> riskFlags) {
         List<String> notices = new ArrayList<>();
-        if (confidence < 0.75) notices.add("현재 근거 신뢰도가 충분히 높지 않아 추가 확인이 필요합니다.");
-        if (!riskFlags.isEmpty()) notices.add("위험 신호가 감지되어 단정적 결론 대신 보수적 안내가 필요합니다.");
-        return notices.isEmpty() ? draft : String.join(" ", notices) + " " + draft;
+        if (confidence < 0.75) notices.add("현재 근거 신뢰도가 충분히 높지 않아 추가 확인이 필요한 점 안내드립니다.");
+        if (!riskFlags.isEmpty()) notices.add("일부 위험 신호가 감지되어, 단정적 결론 대신 보수적으로 안내드립니다.");
+        return notices.isEmpty() ? draft : String.join("\n", notices) + "\n\n" + draft;
     }
 
     private String formatByChannel(String draft, String channel, List<String> riskFlags) {
-        String cautionLine = riskFlags.isEmpty() ? "" : "\n- 주의: " + String.join(", ", riskFlags);
+        String cautionLine = riskFlags.isEmpty() ? "" : "\n\n참고로, " + String.join(", ", riskFlags) + " 항목이 감지되었습니다.";
         return switch (channel) {
-            case "messenger" -> "[요약]\n" + draft + cautionLine + "\n\n필요하시면 바로 조건별 체크리스트로 정리해드릴게요.";
-            default -> "안녕하세요. Bio-Rad CS팀입니다.\n\n" + draft + cautionLine + "\n\n추가로 샘플 조건(전처리/장비 설정)을 알려주시면 더 정확히 안내드리겠습니다.\n감사합니다.";
+            case "messenger" -> "[요약]\n" + draft + cautionLine + "\n\n추가 확인이 필요하시면 말씀하여 주시기 바랍니다.";
+            default -> "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n" + draft + cautionLine + "\n\n추가 확인이 필요하신 사항이 있으시면 말씀하여 주시기 바랍니다.\n감사합니다.";
         };
     }
 }

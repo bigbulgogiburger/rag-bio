@@ -12,11 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DocumentIndexingService {
@@ -24,17 +23,20 @@ public class DocumentIndexingService {
     private static final Logger log = LoggerFactory.getLogger(DocumentIndexingService.class);
 
     private final DocumentMetadataJpaRepository documentRepository;
+    private final DocumentTextExtractor textExtractor;
     private final OcrService ocrService;
     private final ChunkingService chunkingService;
     private final VectorizingService vectorizingService;
 
     public DocumentIndexingService(
             DocumentMetadataJpaRepository documentRepository,
+            DocumentTextExtractor textExtractor,
             OcrService ocrService,
             ChunkingService chunkingService,
             VectorizingService vectorizingService
     ) {
         this.documentRepository = documentRepository;
+        this.textExtractor = textExtractor;
         this.ocrService = ocrService;
         this.chunkingService = chunkingService;
         this.vectorizingService = vectorizingService;
@@ -65,17 +67,24 @@ public class DocumentIndexingService {
                 String extracted = extractText(doc);
 
                 String finalText;
+                int chunkCount;
                 if (needsOcr(doc, extracted)) {
                     OcrResult ocr = ocrService.extract(Path.of(doc.getStoragePath()));
                     finalText = limitText(ocr.text());
                     doc.markParsedFromOcr(finalText, ocr.confidence());
                     log.info("document.indexing.ocr.success documentId={} confidence={}", doc.getId(), ocr.confidence());
+                    chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText);
                 } else {
-                    finalText = limitText(extracted);
+                    // 페이지별 추출 사용 (PDF는 페이지 정보 보존)
+                    List<DocumentTextExtractor.PageText> pageTexts =
+                            textExtractor.extractByPage(Path.of(doc.getStoragePath()), doc.getContentType());
+                    finalText = limitText(pageTexts.stream()
+                            .map(DocumentTextExtractor.PageText::text)
+                            .collect(Collectors.joining(" ")));
                     doc.markParsed(finalText);
+                    chunkCount = chunkingService.chunkAndStore(doc.getId(), pageTexts, "INQUIRY", doc.getId());
                 }
 
-                int chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText);
                 doc.markChunked(chunkCount);
                 log.info("document.chunking.success documentId={} chunkCount={}", doc.getId(), chunkCount);
 
@@ -95,10 +104,10 @@ public class DocumentIndexingService {
     }
 
     private String extractText(DocumentMetadataJpaEntity document) throws IOException {
-        byte[] bytes = Files.readAllBytes(Path.of(document.getStoragePath()));
-        return new String(bytes, StandardCharsets.UTF_8)
-                .replaceAll("\\p{Cntrl}", " ")
-                .trim();
+        return textExtractor.extract(
+                Path.of(document.getStoragePath()),
+                document.getContentType()
+        );
     }
 
     private boolean needsOcr(DocumentMetadataJpaEntity document, String extracted) {

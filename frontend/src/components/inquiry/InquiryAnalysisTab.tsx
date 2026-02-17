@@ -83,55 +83,80 @@ export default function InquiryAnalysisTab({ inquiryId }: InquiryAnalysisTabProp
         <div className="card stack">
           <h3 className="section-title">분석 결과</h3>
 
-          <div className="kv">
-            <div>
-              <b>판정:</b>{" "}
-              <Badge variant={getVerdictBadgeVariant(analysisResult.verdict)}>
-                {labelVerdict(analysisResult.verdict)}
-              </Badge>
-            </div>
-            <div>
-              <b>신뢰도:</b> {analysisResult.confidence}
-            </div>
-            <div>
-              <b>사유:</b> {analysisResult.reason}
-            </div>
-            {analysisResult.riskFlags.length > 0 && (
-              <div>
-                <b>리스크 플래그:</b>{" "}
-                {analysisResult.riskFlags.map((flag, idx) => (
-                  <Badge key={idx} variant="warn" style={{ marginRight: "0.5rem" }}>
-                    {labelRiskFlag(flag)}
-                  </Badge>
-                ))}
+          <hr className="divider" />
+
+          {/* Verdict & Confidence metrics */}
+          <div className="metrics-grid cols-3">
+            <div className="metric-card">
+              <p className="metric-label">판정</p>
+              <div className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+                <Badge variant={getVerdictBadgeVariant(analysisResult.verdict)}>
+                  {labelVerdict(analysisResult.verdict)}
+                </Badge>
               </div>
-            )}
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">신뢰도</p>
+              <p className="metric-value">{analysisResult.confidence}</p>
+            </div>
+            <div className="metric-card">
+              <p className="metric-label">근거 수</p>
+              <p className="metric-value">{analysisResult.evidences.length}</p>
+              <p className="metric-sub">검색된 근거</p>
+            </div>
           </div>
 
+          {/* Reason */}
+          <div className="draft-box">
+            <b>사유:</b> {analysisResult.reason}
+          </div>
+
+          {/* Risk Flags */}
+          {analysisResult.riskFlags.length > 0 && (
+            <div className="status-banner status-warn">
+              <b>리스크 플래그:</b>{" "}
+              {analysisResult.riskFlags.map((flag, idx) => (
+                <Badge key={idx} variant="warn" style={{ marginLeft: idx > 0 ? "0.25rem" : "0.5rem" }}>
+                  {labelRiskFlag(flag)}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Evidence Items */}
           {analysisResult.evidences.length > 0 && (
-            <div style={{ marginTop: "var(--space-md)" }}>
+            <div className="stack">
               <h4 className="section-title">근거 목록 ({analysisResult.evidences.length}건)</h4>
-              <ul style={{ margin: "var(--space-sm) 0 0", paddingLeft: "var(--space-lg)" }}>
+              <div className="stack">
                 {analysisResult.evidences.map((ev) => (
-                  <li key={ev.chunkId} style={{ marginBottom: "var(--space-sm)" }}>
-                    <div>
+                  <div key={ev.chunkId} className="evidence-item">
+                    <div className="row" style={{ alignItems: "center", gap: "var(--space-sm)" }}>
                       {ev.sourceType && (
-                        <Badge
-                          variant={ev.sourceType === "KNOWLEDGE_BASE" ? "info" : "neutral"}
-                          style={{ marginRight: "var(--space-xs)" }}
-                        >
-                          {ev.sourceType === "KNOWLEDGE_BASE" ? "[지식 기반]" : "[문의 첨부]"}
+                        <Badge variant={ev.sourceType === "KNOWLEDGE_BASE" ? "info" : "neutral"}>
+                          {ev.sourceType === "KNOWLEDGE_BASE" ? "지식 기반" : "문의 첨부"}
                         </Badge>
                       )}
-                      <b>점수:</b> {ev.score.toFixed(3)} |{" "}
-                      <b>청크:</b> {ev.chunkId.slice(0, 8)}...
+                      <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>
+                        {ev.fileName
+                          ? `${ev.fileName}${
+                              ev.pageStart != null
+                                ? ev.pageEnd != null && ev.pageEnd !== ev.pageStart
+                                  ? ` (p.${ev.pageStart}-${ev.pageEnd})`
+                                  : ` (p.${ev.pageStart})`
+                                : ""
+                            }`
+                          : `청크 ${ev.chunkId.slice(0, 8)}`}
+                      </span>
+                      <span className="muted" style={{ fontSize: "var(--font-size-xs)" }}>
+                        유사도 {(ev.score * 100).toFixed(1)}%
+                      </span>
                     </div>
-                    <div style={{ color: "var(--color-text-secondary)", fontSize: "var(--font-size-sm)" }}>
+                    <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "var(--font-size-sm)", lineHeight: 1.6 }}>
                       {ev.excerpt}
-                    </div>
-                  </li>
+                    </p>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
         </div>
