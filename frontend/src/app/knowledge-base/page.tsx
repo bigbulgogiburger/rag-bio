@@ -24,6 +24,8 @@ import FilterBar from "@/components/ui/FilterBar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import Toast from "@/components/ui/Toast";
+import { Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 export default function KnowledgeBasePage() {
   const [response, setResponse] = useState<KbDocumentListResponse | null>(null);
@@ -84,6 +86,33 @@ export default function KnowledgeBasePage() {
     }
   };
 
+  const silentRefreshDocuments = async () => {
+    try {
+      const params = {
+        page,
+        size,
+        sort: "createdAt,desc",
+        category: filters.category || undefined,
+        productFamily: filters.productFamily || undefined,
+        status: filters.status || undefined,
+        keyword: filters.keyword || undefined,
+      };
+      const data = await listKbDocuments(params);
+      setResponse(data);
+    } catch {
+      // 백그라운드 실패 시 무시 (기존 데이터 유지)
+    }
+  };
+
+  const silentRefreshStats = async () => {
+    try {
+      const data = await getKbStats();
+      setStats(data);
+    } catch {
+      // 백그라운드 실패 시 무시
+    }
+  };
+
   useEffect(() => {
     fetchDocuments();
     fetchStats();
@@ -97,8 +126,8 @@ export default function KnowledgeBasePage() {
     if (!hasIndexing) return;
 
     const interval = setInterval(() => {
-      fetchDocuments();
-      fetchStats();
+      silentRefreshDocuments();
+      silentRefreshStats();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -196,7 +225,7 @@ export default function KnowledgeBasePage() {
       key: "title",
       header: "제목",
       render: (item: KbDocument) => (
-        <span style={{ display: "block", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span className="block max-w-[300px] truncate">
           {item.title}
         </span>
       ),
@@ -211,7 +240,7 @@ export default function KnowledgeBasePage() {
       key: "productFamily",
       header: "제품군",
       width: "120px",
-      render: (item: KbDocument) => item.productFamily || <span className="muted">-</span>,
+      render: (item: KbDocument) => item.productFamily || <span className="text-sm text-muted-foreground">-</span>,
     },
     {
       key: "status",
@@ -219,7 +248,7 @@ export default function KnowledgeBasePage() {
       width: "120px",
       render: (item: KbDocument) => (
         <Badge variant={getStatusBadgeVariant(item.status)}>
-          {item.status === "INDEXING" && <span className="badge-spinner" />}
+          {item.status === "INDEXING" && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
           {labelDocStatus(item.status)}
         </Badge>
       ),
@@ -281,55 +310,54 @@ export default function KnowledgeBasePage() {
   ];
 
   return (
-    <div className="stack">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="page-header">
-        <h2 className="card-title">지식 기반 관리</h2>
-        <div className="row">
-          <button
-            className="btn"
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold tracking-tight">지식 기반 관리</h2>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
             onClick={handleIndexAll}
           >
             일괄 인덱싱
-          </button>
-          <button
-            className="btn btn-primary"
+          </Button>
+          <Button
             onClick={() => setShowUploadModal(true)}
           >
             문서 등록
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
       {stats ? (
-        <section className="metrics-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-          <article className="metric-card">
-            <p className="metric-label">전체 문서</p>
-            <p className="metric-value">{stats.totalDocuments}건</p>
+        <section className="grid grid-cols-3 gap-4">
+          <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
           </article>
-          <article className="metric-card">
-            <p className="metric-label">인덱싱 완료</p>
-            <p className="metric-value">{stats.indexedDocuments}건</p>
+          <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.indexedDocuments}건</p>
           </article>
-          <article className="metric-card">
-            <p className="metric-label">총 청크</p>
-            <p className="metric-value">{stats.totalChunks.toLocaleString()}개</p>
+          <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
           </article>
         </section>
       ) : (
-        <section className="metrics-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+        <section className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <article className="metric-card" key={i}>
-              <div className="skeleton" style={{ height: '14px', width: '80px', marginBottom: 'var(--space-sm)' }} />
-              <div className="skeleton" style={{ height: '32px', width: '100px' }} />
+            <article className="rounded-xl border bg-card p-5 shadow-sm" key={i}>
+              <Skeleton className="h-3.5 w-20 mb-2" />
+              <Skeleton className="h-8 w-[100px]" />
             </article>
           ))}
         </section>
       )}
 
       {/* Main Content */}
-      <div className="card stack">
+      <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -338,17 +366,17 @@ export default function KnowledgeBasePage() {
         />
 
         {/* Loading skeleton */}
-        {loading && (
-          <div className="stack" style={{ gap: 'var(--space-sm)' }}>
+        {loading && !response && (
+          <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="skeleton" style={{ height: '44px', width: '100%' }} />
+              <Skeleton key={i} className="h-11 w-full" />
             ))}
           </div>
         )}
 
-        {error && <p className="status-banner status-danger">{error}</p>}
+        {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
 
-        {!loading && !error && response && (
+        {!error && response && (
           <>
             {response.content.length === 0 ? (
               <EmptyState
@@ -395,23 +423,23 @@ export default function KnowledgeBasePage() {
       {/* Detail Modal */}
       {showDetailModal && selectedDoc && (
         <div
-          className="modal-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowDetailModal(false)}
         >
           <div
-            className="modal-content modal-lg stack"
+            className="w-full max-w-3xl rounded-xl border bg-card p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="section-title">{selectedDoc.title}</h3>
+            <h3 className="text-base font-semibold">{selectedDoc.title}</h3>
 
-            <div className="kv">
+            <div className="space-y-2 text-sm">
               <div><b>카테고리:</b> {labelKbCategory(selectedDoc.category)}</div>
               <div><b>제품군:</b> {selectedDoc.productFamily || "-"}</div>
               <div><b>파일:</b> {selectedDoc.fileName} ({(selectedDoc.fileSize / 1024).toFixed(1)} KB)</div>
               <div>
                 <b>상태:</b>{" "}
                 <Badge variant={getStatusBadgeVariant(selectedDoc.status)}>
-                  {selectedDoc.status === "INDEXING" && <span className="badge-spinner" />}
+                  {selectedDoc.status === "INDEXING" && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
                   {labelDocStatus(selectedDoc.status)}
                 </Badge>
               </div>
@@ -421,34 +449,34 @@ export default function KnowledgeBasePage() {
               {selectedDoc.tags && <div><b>태그:</b> {selectedDoc.tags}</div>}
               {selectedDoc.description && <div><b>설명:</b> {selectedDoc.description}</div>}
               {selectedDoc.lastError && (
-                <div className="status-banner status-danger">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   <b>오류:</b> {selectedDoc.lastError}
                 </div>
               )}
             </div>
 
-            <hr className="divider" />
+            <hr className="border-t border-border" />
 
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button
-                className="btn"
+            <div className="flex items-center gap-3 justify-end">
+              <Button
+                variant="outline"
                 onClick={() => handleIndex(selectedDoc.documentId)}
               >
                 인덱싱 실행
-              </button>
-              <button
-                className="btn btn-danger"
+              </Button>
+              <Button
+                variant="destructive"
                 onClick={() => handleDelete(selectedDoc)}
                 disabled={loading}
               >
                 삭제
-              </button>
-              <button
-                className="btn btn-ghost"
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => setShowDetailModal(false)}
               >
                 닫기
-              </button>
+              </Button>
             </div>
           </div>
         </div>

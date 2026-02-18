@@ -1,3 +1,6 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
 interface PaginationProps {
   page: number;
   totalPages: number;
@@ -48,14 +51,19 @@ export default function Pagination({
       buttons.push(
         <button
           key={i}
-          className={`pagination-btn ${i === page ? 'active' : ''}`}
+          className={cn(
+            'inline-flex items-center justify-center min-w-[32px] h-8 px-2 text-xs font-medium rounded-md border transition-colors',
+            i === page
+              ? 'bg-primary text-primary-foreground border-primary font-semibold shadow-sm'
+              : 'border-border bg-card text-foreground hover:bg-muted/50',
+          )}
           onClick={() => onPageChange(i)}
           disabled={i === page}
           aria-label={`페이지 ${i + 1}`}
           aria-current={i === page ? 'page' : undefined}
         >
           {i + 1}
-        </button>
+        </button>,
       );
     }
 
@@ -63,47 +71,55 @@ export default function Pagination({
   };
 
   return (
-    <div className="pagination" role="navigation" aria-label="페이지네이션">
-      <div className="pagination-info">
-        전체 <strong style={{ color: 'var(--color-text)', fontWeight: 600 }}>{totalElements}</strong>건 중 {startItem}-{endItem}건
+    <div
+      className="flex items-center justify-between py-4 text-xs text-muted-foreground gap-4 flex-wrap"
+      role="navigation"
+      aria-label="페이지네이션"
+    >
+      <div>
+        전체{' '}
+        <strong className="text-foreground font-semibold">{totalElements}</strong>
+        건 중 {startItem}-{endItem}건
       </div>
 
-      <div className="pagination-buttons">
+      <div className="flex items-center gap-1">
         <button
-          className="pagination-btn"
+          className={cn(
+            'inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md border border-border bg-card transition-colors',
+            page === 0
+              ? 'opacity-50 cursor-not-allowed'
+              : 'hover:bg-muted/50 text-foreground',
+          )}
           onClick={() => onPageChange(page - 1)}
           disabled={page === 0}
           aria-label="이전 페이지"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style={{ marginRight: '2px' }}>
-            <path d="M8.5 3L4.5 7L8.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
           이전
         </button>
 
         {renderPageButtons()}
 
         <button
-          className="pagination-btn"
+          className={cn(
+            'inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md border border-border bg-card transition-colors',
+            page >= totalPages - 1
+              ? 'opacity-50 cursor-not-allowed'
+              : 'hover:bg-muted/50 text-foreground',
+          )}
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages - 1}
           aria-label="다음 페이지"
         >
           다음
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style={{ marginLeft: '2px' }}>
-            <path d="M5.5 3L9.5 7L5.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+      <div className="flex items-center gap-2">
         <label
           htmlFor="pagination-size-select"
-          style={{
-            fontSize: 'var(--font-size-xs)',
-            color: 'var(--color-muted)',
-            whiteSpace: 'nowrap',
-          }}
+          className="text-xs text-muted-foreground whitespace-nowrap"
         >
           표시:
         </label>
@@ -111,13 +127,7 @@ export default function Pagination({
           id="pagination-size-select"
           value={size}
           onChange={(e) => onSizeChange(Number(e.target.value))}
-          className="select"
-          style={{
-            width: 'auto',
-            padding: '0.3rem 0.5rem',
-            fontSize: 'var(--font-size-xs)',
-            borderRadius: 'var(--radius-sm)',
-          }}
+          className="w-auto border border-border rounded-md px-2 py-1.5 text-xs bg-card text-foreground shadow-sm transition-colors hover:border-border/80 dark:hover:border-border/80 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           aria-label="페이지당 항목 수"
         >
           {sizeOptions.map((option) => (

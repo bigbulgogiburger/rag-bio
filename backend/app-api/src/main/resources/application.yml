@@ -28,7 +28,7 @@ app:
     upload-dir: uploads
   web:
     cors:
-      allowed-origins: http://localhost:3000,http://localhost:3001
+      allowed-origins: http://localhost:3001
 
 openai:
   enabled: ${OPENAI_ENABLED:false}
@@ -57,4 +57,4 @@ logging:
     level: "%5p [req:%X{requestId:-none}]"
 
 server:
-  port: 8080
+  port: 8081

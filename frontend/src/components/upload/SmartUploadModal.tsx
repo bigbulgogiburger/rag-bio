@@ -7,6 +7,7 @@ import {
   uploadKbDocumentWithProgress,
   type UploadQueueFile,
 } from "@/lib/api/client";
+import { Button } from "@/components/ui/button";
 
 interface SmartUploadModalProps {
   open: boolean;
@@ -143,99 +144,103 @@ export default function SmartUploadModal({
   );
 
   return (
-    <div className="modal-backdrop" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={handleClose} role="presentation">
       <div
-        className="modal-content modal-lg stack"
+        className="w-full max-w-3xl rounded-xl border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: "760px" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="smart-upload-title"
       >
-        <div className="page-header">
-          <h3 className="section-title">스마트 문서 업로드</h3>
-          {!uploading && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={handleClose}
-              aria-label="닫기"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
+        <div className="space-y-4 p-6">
+          <div className="flex items-center justify-between">
+            <h3 id="smart-upload-title" className="text-base font-semibold">스마트 문서 업로드</h3>
+            {!uploading && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClose}
+                aria-label="닫기"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </Button>
+            )}
+          </div>
+
+          {/* Drop Zone */}
+          <FileDropZone
+            onFilesAdded={handleFilesAdded}
+            disabled={uploading}
+            currentFileCount={totalCount}
+          />
+
+          {/* File Queue */}
+          {files.length > 0 && (
+            <>
+              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm" aria-live="polite">
+                <span>
+                  총 {totalCount}개 파일
+                  {successCount > 0 && (
+                    <span className="text-success ml-2">
+                      {successCount}건 완료
+                    </span>
+                  )}
+                  {errorCount > 0 && (
+                    <span className="text-destructive ml-2">
+                      {errorCount}건 실패
+                    </span>
+                  )}
+                </span>
+                {pendingCount > 0 && !uploading && (
+                  <span className="text-sm text-muted-foreground">{pendingCount}건 대기 중</span>
+                )}
+                {uploading && (
+                  <span className="text-primary">업로드 중...</span>
+                )}
+              </div>
+
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {files.map((item) => (
+                  <FileQueueItem
+                    key={item.id}
+                    item={item}
+                    onRemove={handleRemove}
+                    onMetadataChange={handleMetadataChange}
+                    disabled={uploading}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
 
-        {/* Drop Zone */}
-        <FileDropZone
-          onFilesAdded={handleFilesAdded}
-          disabled={uploading}
-          currentFileCount={totalCount}
-        />
-
-        {/* File Queue */}
-        {files.length > 0 && (
-          <>
-            <div className="upload-summary">
-              <span>
-                총 {totalCount}개 파일
-                {successCount > 0 && (
-                  <span style={{ color: "var(--color-success)", marginLeft: "var(--space-sm)" }}>
-                    {successCount}건 완료
-                  </span>
-                )}
-                {errorCount > 0 && (
-                  <span style={{ color: "var(--color-danger)", marginLeft: "var(--space-sm)" }}>
-                    {errorCount}건 실패
-                  </span>
-                )}
-              </span>
-              {pendingCount > 0 && !uploading && (
-                <span className="muted">{pendingCount}건 대기 중</span>
-              )}
-              {uploading && (
-                <span style={{ color: "var(--color-primary)" }}>업로드 중...</span>
-              )}
-            </div>
-
-            <div className="file-queue">
-              {files.map((item) => (
-                <FileQueueItem
-                  key={item.id}
-                  item={item}
-                  onRemove={handleRemove}
-                  onMetadataChange={handleMetadataChange}
-                  disabled={uploading}
-                />
-              ))}
-            </div>
-          </>
-        )}
-
         {/* Actions */}
-        <hr className="divider" />
+        <hr className="border-t border-border mx-6" />
 
-        <div className="row" style={{ justifyContent: "flex-end" }}>
+        <div className="flex items-center justify-end gap-3 px-6 pb-6 pt-4">
           {allDone ? (
-            <button className="btn btn-primary" onClick={handleClose}>
+            <Button onClick={handleClose}>
               완료 ({successCount}건 업로드됨)
-            </button>
+            </Button>
           ) : (
             <>
-              <button
-                className="btn btn-ghost"
+              <Button
+                variant="ghost"
                 onClick={handleClose}
                 disabled={uploading}
               >
                 취소
-              </button>
-              <button
-                className="btn btn-primary"
+              </Button>
+              <Button
                 onClick={handleUploadAll}
                 disabled={uploading || pendingCount === 0 || hasInvalid}
               >
                 {uploading
                   ? "업로드 중..."
                   : `전체 업로드 (${pendingCount}건)`}
-              </button>
+              </Button>
             </>
           )}
         </div>

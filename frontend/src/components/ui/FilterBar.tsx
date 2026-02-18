@@ -1,3 +1,7 @@
+import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
 interface FilterField {
   key: string;
   label: string;
@@ -12,6 +16,13 @@ interface FilterBarProps {
   onChange: (key: string, value: string) => void;
   onSearch: () => void;
 }
+
+const inputClasses = cn(
+  'w-full border border-border rounded-md px-3 py-2.5 text-sm',
+  'bg-card text-foreground shadow-sm transition-colors',
+  'hover:border-border/80 dark:hover:border-border/80',
+  'focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10',
+);
 
 /**
  * FilterBar 컴포넌트
@@ -43,16 +54,20 @@ export default function FilterBar({
   };
 
   return (
-    <div className="filter-bar" role="search" aria-label="필터 검색">
+    <div
+      className="flex gap-2 items-end flex-wrap py-4 border-t border-border/50"
+      role="search"
+      aria-label="필터 검색"
+    >
       {fields.map((field) => {
         if (field.type === 'select') {
           return (
-            <label key={field.key} className="label">
-              <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
+            <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {field.label}
               </span>
               <select
-                className="select"
+                className={inputClasses}
                 value={values[field.key] || ''}
                 onChange={(e) => onChange(field.key, e.target.value)}
                 aria-label={field.label}
@@ -69,13 +84,13 @@ export default function FilterBar({
 
         if (field.type === 'date') {
           return (
-            <label key={field.key} className="label">
-              <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
+            <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {field.label}
               </span>
               <input
                 type="date"
-                className="input"
+                className={inputClasses}
                 value={values[field.key] || ''}
                 onChange={(e) => onChange(field.key, e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -87,13 +102,13 @@ export default function FilterBar({
 
         // type === 'text'
         return (
-          <label key={field.key} className="label">
-            <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase' as const, letterSpacing: '0.03em', color: 'var(--color-muted)' }}>
+          <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {field.label}
             </span>
             <input
               type="text"
-              className="input"
+              className={inputClasses}
               value={values[field.key] || ''}
               onChange={(e) => onChange(field.key, e.target.value)}
               onKeyDown={handleKeyDown}
@@ -104,17 +119,10 @@ export default function FilterBar({
         );
       })}
 
-      <button
-        className="btn btn-primary"
-        onClick={onSearch}
-        style={{ alignSelf: 'flex-end' }}
-      >
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-          <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M10 10L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+      <Button onClick={onSearch} className="self-end">
+        <Search className="h-4 w-4" aria-hidden="true" />
         검색
-      </button>
+      </Button>
     </div>
   );
 }

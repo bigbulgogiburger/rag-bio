@@ -32,6 +32,8 @@ argument-hint: "[선택사항: 특정 verify 스킬 이름]"
 | 1 | `verify-kb-indexing` | KB 비동기 인덱싱 파이프라인 검증 |
 | 2 | `verify-flyway-migrations` | Flyway DB 마이그레이션 일관성 검증 |
 | 3 | `verify-frontend-ui` | 프론트엔드 UI 컴포넌트 품질 검증 |
+| 4 | `verify-rag-pipeline` | RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증 |
+| 5 | `verify-inquiry-ui` | 문의 상세 페이지 UI 컴포넌트 검증 |
 
 ## 워크플로우
 

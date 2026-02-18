@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 interface FileDropZoneProps {
   onFilesAdded: (files: File[]) => void;
@@ -141,7 +142,12 @@ export default function FileDropZone({
 
   return (
     <div
-      className={`drop-zone${dragOver ? ' drag-over' : ''}${disabled ? ' disabled' : ''}`}
+      className={cn(
+        'flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
+        'border-border hover:border-primary/50 hover:bg-primary/5',
+        dragOver && 'border-primary bg-primary/5',
+        disabled && 'pointer-events-none opacity-50',
+      )}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -163,11 +169,11 @@ export default function FileDropZone({
         multiple
         accept={accept}
         onChange={handleInputChange}
-        style={{ display: 'none' }}
+        className="hidden"
         aria-hidden="true"
       />
 
-      <div className="drop-zone-icon">
+      <div className="mb-3 text-muted-foreground">
         <svg
           width="48"
           height="48"
@@ -192,9 +198,9 @@ export default function FileDropZone({
         </svg>
       </div>
 
-      <p className="drop-zone-title">파일을 드래그하여 업로드</p>
-      <p className="drop-zone-desc">또는 클릭하여 파일 선택</p>
-      <p className="drop-zone-hint">
+      <p className="text-sm font-semibold text-foreground">파일을 드래그하여 업로드</p>
+      <p className="text-xs text-muted-foreground mt-1">또는 클릭하여 파일 선택</p>
+      <p className="text-xs text-muted-foreground/70 mt-2">
         {formatAcceptLabel(accept)} 파일 지원 (최대 {maxSizeMB}MB, {maxFiles}개)
       </p>
     </div>

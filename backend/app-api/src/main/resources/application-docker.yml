@@ -13,4 +13,4 @@ spring:
 app:
   web:
     cors:
-      allowed-origins: http://localhost:3000,http://localhost:3001,http://frontend:3000
+      allowed-origins: http://localhost:3001,http://frontend:3001

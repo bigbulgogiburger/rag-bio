@@ -9,13 +9,13 @@
   - Duplicate Block Rate(동일 sendRequestId 중복차단)
 
 ## 사전 조건
-- API 서버 실행 중 (`http://localhost:8080` 기본)
+- API 서버 실행 중 (`http://localhost:8081` 기본)
 - DB migration 최신 반영(V11 포함)
 
 ## 실행
 ```bash
 cd /Users/pyeondohun/pienClaw
-API_BASE_URL=http://localhost:8080 \
+API_BASE_URL=http://localhost:8081 \
 EVALSET_PATH=backend/app-api/src/main/resources/evaluation/sprint3_evalset_v1.json \
 SAMPLE_SIZE=5 \
 ANSWER_TONE=professional \

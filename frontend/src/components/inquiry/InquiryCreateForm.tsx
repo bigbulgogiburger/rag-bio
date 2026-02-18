@@ -1,29 +1,48 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   createInquiry,
   uploadInquiryDocument,
 } from "@/lib/api/client";
 import { labelDocStatus } from "@/lib/i18n/labels";
 import { Toast } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+
+const inquirySchema = z.object({
+  question: z.string().min(1, "질문을 입력해 주세요").min(10, "최소 10자 이상 입력해 주세요"),
+  customerChannel: z.enum(["email", "messenger", "portal"]),
+});
+
+type InquiryFormData = z.infer<typeof inquirySchema>;
 
 export default function InquiryCreateForm() {
   const router = useRouter();
-  const [question, setQuestion] = useState("");
-  const [customerChannel, setCustomerChannel] = useState("email");
   const [file, setFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant: "success" | "error" | "warn" | "info" } | null>(null);
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitting(true);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<InquiryFormData>({
+    resolver: zodResolver(inquirySchema),
+    defaultValues: { question: "", customerChannel: "email" },
+  });
+
+  const onSubmit = async (data: InquiryFormData) => {
     setToast(null);
 
     try {
-      const inquiry = await createInquiry({ question, customerChannel });
+      const inquiry = await createInquiry({
+        question: data.question,
+        customerChannel: data.customerChannel,
+      });
 
       if (file) {
         const upload = await uploadInquiryDocument(inquiry.inquiryId, file);
@@ -39,7 +58,7 @@ export default function InquiryCreateForm() {
       }
 
       // Reset form
-      setQuestion("");
+      reset();
       setFile(null);
 
       // Redirect to inquiry detail page after 2 seconds
@@ -51,13 +70,11 @@ export default function InquiryCreateForm() {
         message: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
         variant: "error",
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
   return (
-    <div className="stack">
+    <div className="space-y-4">
       {toast && (
         <Toast
           message={toast.message}
@@ -67,32 +84,34 @@ export default function InquiryCreateForm() {
         />
       )}
 
-      <form className="card stack" onSubmit={onSubmit}>
-        <h2 className="card-title">새 고객 문의 등록</h2>
-        <p className="muted">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
+      <form className="rounded-xl border bg-card p-6 shadow-sm space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <h2 className="text-xl font-semibold tracking-tight">새 고객 문의 등록</h2>
+        <p className="text-sm text-muted-foreground">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
 
-        <hr className="divider" />
+        <hr className="border-t border-border" />
 
-        <div className="stack">
-          <h3 className="section-title">문의 내용</h3>
-          <label className="label">
+        <div className="space-y-4">
+          <h3 className="text-base font-semibold">문의 내용</h3>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
             질문
             <textarea
-              className="textarea"
-              required
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[120px] resize-y"
               rows={5}
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
               placeholder="고객 기술 문의 내용을 입력하세요"
+              aria-invalid={!!errors.question}
+              aria-describedby={errors.question ? "question-error" : undefined}
+              {...register("question")}
             />
+            {errors.question && (
+              <p id="question-error" className="text-xs text-destructive mt-1" role="alert">{errors.question.message}</p>
+            )}
           </label>
 
-          <label className="label">
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
             채널
             <select
-              className="select"
-              value={customerChannel}
-              onChange={(event) => setCustomerChannel(event.target.value)}
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
+              {...register("customerChannel")}
             >
               <option value="email">이메일</option>
               <option value="messenger">메신저</option>
@@ -101,36 +120,37 @@ export default function InquiryCreateForm() {
           </label>
         </div>
 
-        <hr className="divider" />
+        <hr className="border-t border-border" />
 
-        <div className="stack">
-          <h3 className="section-title">문서 첨부</h3>
-          <label className="label">
+        <div className="space-y-4">
+          <h3 className="text-base font-semibold">문서 첨부</h3>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
             파일 (PDF/DOC/DOCX)
-            <div className="file-input-wrapper">
+            <div className="rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
               {file ? (
-                <p className="muted">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
+                <p className="text-sm text-muted-foreground">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
               ) : (
-                <p className="muted">클릭하여 파일을 선택하거나 드래그하세요</p>
+                <p className="text-sm text-muted-foreground">클릭하여 파일을 선택하거나 드래그하세요</p>
               )}
             </div>
           </label>
         </div>
 
-        <hr className="divider" />
+        <hr className="border-t border-border" />
 
-        <button
-          className="btn btn-primary btn-lg btn-pill"
+        <Button
+          size="lg"
+          className="w-full rounded-full"
           type="submit"
-          disabled={submitting}
+          disabled={isSubmitting}
         >
-          {submitting ? "등록 중..." : "문의 등록"}
-        </button>
+          {isSubmitting ? "등록 중..." : "문의 등록"}
+        </Button>
       </form>
     </div>
   );

@@ -20,14 +20,14 @@ docker compose down            # Stop all services
 docker compose logs -f backend # Follow backend logs
 ```
 
-Services: postgres(:5432), backend(:8080), frontend(:3000)
+Services: postgres(:5432), backend(:8081), frontend(:3001)
 
 ### Backend (Spring Boot 3.3.8 / Java 21 / Gradle)
 
 ```bash
 cd backend
 ./gradlew build                    # build all modules + run tests
-./gradlew :app-api:bootRun         # run API server (localhost:8080)
+./gradlew :app-api:bootRun         # run API server (localhost:8081)
 ./gradlew :app-api:test            # run app-api tests only
 ./gradlew :contexts:inquiry-context:test  # run a single context module's tests
 ./gradlew :app-api:jacocoTestReport      # generate coverage report
@@ -38,7 +38,7 @@ cd backend
 ```bash
 cd frontend
 npm install
-npm run dev       # dev server (localhost:3000)
+npm run dev       # dev server (localhost:3001)
 npm run build     # production build
 npm run lint      # ESLint
 ```
@@ -195,3 +195,5 @@ src/lib/
 | `verify-kb-indexing` | KB 비동기 인덱싱 파이프라인 검증 |
 | `verify-flyway-migrations` | Flyway DB 마이그레이션 일관성 검증 |
 | `verify-frontend-ui` | 프론트엔드 UI 컴포넌트 품질 검증 |
+| `verify-rag-pipeline` | RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증 |
+| `verify-inquiry-ui` | 문의 상세 페이지 UI 컴포넌트 검증 |

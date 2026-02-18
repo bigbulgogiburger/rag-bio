@@ -59,10 +59,18 @@ public class AnalysisService {
         Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
                 .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
 
+        // sourceId 기반 조회를 위해 청크의 sourceId 수집
+        Set<UUID> sourceIds = chunkMap.values().stream()
+                .map(DocumentChunkJpaEntity::getSourceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<UUID> allLookupIds = new HashSet<>(docIds);
+        allLookupIds.addAll(sourceIds);
+
         Map<UUID, String> fileNameMap = new HashMap<>();
-        documentRepository.findAllById(docIds)
+        documentRepository.findAllById(allLookupIds)
                 .forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
-        kbDocRepository.findAllById(docIds)
+        kbDocRepository.findAllById(allLookupIds)
                 .forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
 
         List<EvidenceItem> evidences = new ArrayList<>();
@@ -79,7 +87,11 @@ public class AnalysisService {
             ));
 
             DocumentChunkJpaEntity chunk = chunkMap.get(result.chunkId());
-            String fileName = fileNameMap.getOrDefault(result.documentId(), null);
+            String fileName = fileNameMap.get(result.documentId());
+            // documentId로 찾지 못하면 청크의 sourceId로 재조회
+            if (fileName == null && chunk != null && chunk.getSourceId() != null) {
+                fileName = fileNameMap.get(chunk.getSourceId());
+            }
             Integer pageStart = chunk != null ? chunk.getPageStart() : null;
             Integer pageEnd = chunk != null ? chunk.getPageEnd() : null;
 

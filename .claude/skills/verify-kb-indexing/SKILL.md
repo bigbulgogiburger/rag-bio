@@ -30,6 +30,7 @@ description: KB 비동기 인덱싱 파이프라인 검증. 인덱싱 관련 코
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/KnowledgeBaseController.java` | REST 엔드포인트 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentTextExtractor.java` | PDF/DOCX 텍스트 추출 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java` | 청킹 서비스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java` | 문의 문서 인덱싱 서비스 |
 
 ## Workflow
 
@@ -126,16 +127,29 @@ grep -n "accepted\|202\|indexing" backend/app-api/src/main/java/com/biorad/csrag
 
 ### Step 8: DocumentTextExtractor 사용 확인
 
-**파일:** `KnowledgeIndexingWorker.java`
+**파일:** `KnowledgeIndexingWorker.java`, `DocumentIndexingService.java`
 
 **검사:** PDF 텍스트 추출 시 DocumentTextExtractor를 사용하는지 확인 (raw bytes 읽기 금지).
 
 ```bash
-grep -n "DocumentTextExtractor\|extractText\|new String.*bytes" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java
+grep -n "DocumentTextExtractor\|extractText\|extractByPage\|new String.*bytes" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java
 ```
 
-**PASS:** DocumentTextExtractor 의존성 주입 및 extractText() 호출
+**PASS:** DocumentTextExtractor 의존성 주입 및 extractText()/extractByPage() 호출
 **FAIL:** `new String(bytes, UTF-8)` 등 raw bytes 변환 존재
+
+### Step 8b: 페이지별 추출 경로 확인
+
+**파일:** `KnowledgeIndexingWorker.java`, `DocumentIndexingService.java`
+
+**검사:** OCR 불필요 경로에서 `extractByPage()` → `chunkAndStore(docId, pageTexts, sourceType, sourceId)` 4-arg 오버로드를 호출하는지 확인.
+
+```bash
+grep -n "extractByPage\|chunkAndStore.*pageTexts\|PageText" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java
+```
+
+**PASS:** 비-OCR 경로에서 `extractByPage()` 호출 후 `chunkAndStore(docId, pageTexts, ...)` 사용
+**FAIL:** 비-OCR 경로에서도 `extractText()` + 2-arg `chunkAndStore()` 사용 (페이지 정보 누락)
 
 ### Step 9: 워커 에러 핸들링 확인
 

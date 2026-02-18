@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 interface Column<T> {
   key: string;
   header: string;
@@ -12,20 +14,6 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
-/**
- * DataTable 컴포넌트
- *
- * 사용 예:
- * <DataTable
- *   columns={[
- *     { key: 'question', header: '질문 요약' },
- *     { key: 'status', header: '상태', render: (item) => <Badge variant="success">{item.status}</Badge> },
- *   ]}
- *   data={inquiries}
- *   onRowClick={(item) => router.push(`/inquiries/${item.inquiryId}`)}
- *   emptyMessage="등록된 문의가 없습니다"
- * />
- */
 export default function DataTable<T>({
   columns,
   data,
@@ -34,14 +22,14 @@ export default function DataTable<T>({
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="empty-state">
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <svg
           width="48"
           height="48"
           viewBox="0 0 48 48"
           fill="none"
           aria-hidden="true"
-          style={{ marginBottom: 'var(--space-md)', opacity: 0.45 }}
+          className="mb-4 opacity-45"
         >
           <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" strokeWidth="2" fill="none" />
           <path d="M6 18h36" stroke="currentColor" strokeWidth="2" />
@@ -50,7 +38,7 @@ export default function DataTable<T>({
           <circle cx="22" cy="14" r="1.5" fill="currentColor" />
           <path d="M18 28h12M21 32h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        <p style={{ margin: 0, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+        <p className="m-0 font-medium text-muted-foreground">
           {emptyMessage}
         </p>
       </div>
@@ -58,11 +46,16 @@ export default function DataTable<T>({
   }
 
   return (
-    <table className="data-table" role="table">
+    <table className="w-full border-separate border-spacing-0" role="table" aria-label="데이터 테이블">
       <thead>
         <tr>
           {columns.map((column) => (
-            <th key={column.key} style={{ width: column.width }}>
+            <th
+              key={column.key}
+              scope="col"
+              style={{ width: column.width }}
+              className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/50 whitespace-nowrap first:rounded-tl-md last:rounded-tr-md"
+            >
               {column.header}
             </th>
           ))}
@@ -73,7 +66,10 @@ export default function DataTable<T>({
           <tr
             key={index}
             onClick={() => onRowClick?.(item)}
-            style={{ cursor: onRowClick ? 'pointer' : 'default' }}
+            className={cn(
+              onRowClick && 'transition-colors hover:bg-primary/5 cursor-pointer'
+            )}
+            role={onRowClick ? 'button' : undefined}
             tabIndex={onRowClick ? 0 : undefined}
             onKeyDown={(e) => {
               if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
@@ -83,7 +79,10 @@ export default function DataTable<T>({
             }}
           >
             {columns.map((column) => (
-              <td key={column.key}>
+              <td
+                key={column.key}
+                className="px-4 py-3 text-sm border-b border-border/30 align-middle"
+              >
                 {column.render
                   ? column.render(item)
                   : String((item as any)[column.key] ?? '')}

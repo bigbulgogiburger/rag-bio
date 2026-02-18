@@ -15,7 +15,9 @@ import {
   labelChannel,
   labelInquiryStatus,
 } from "@/lib/i18n/labels";
-import { Badge, DataTable, Toast } from "@/components/ui";
+import { Badge, DataTable, Toast, Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface InquiryInfoTabProps {
   inquiryId: string;
@@ -97,7 +99,7 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
         <div>
           <div>{doc.fileName}</div>
           {doc.lastError && (
-            <div className="status-banner status-danger" style={{ marginTop: "0.25rem", fontSize: "var(--font-size-xs)" }}>
+            <div className="mt-1 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive" role="alert">
               오류: {doc.lastError}
             </div>
           )}
@@ -142,15 +144,15 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
 
   if (loading && !inquiry) {
     return (
-      <div className="stack">
-        <div className="skeleton" style={{ height: "120px" }} />
-        <div className="skeleton" style={{ height: "200px" }} />
+      <div className="space-y-6" role="status" aria-label="문의 정보 로딩 중">
+        <Skeleton className="h-[120px]" />
+        <Skeleton className="h-[200px]" />
       </div>
     );
   }
 
   return (
-    <div className="stack">
+    <div className="space-y-6">
       {toast && (
         <Toast
           message={toast.message}
@@ -159,31 +161,31 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
         />
       )}
 
-      {error && <p className="status-banner status-danger" role="alert">{error}</p>}
+      {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p>}
 
       {inquiry && (
-        <div className="card stack">
-          <h3 className="section-title">문의 정보</h3>
-          <hr className="divider" />
+        <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+          <h3 className="text-base font-semibold">문의 정보</h3>
+          <hr className="border-t border-border" />
 
-          <div className="metrics-grid cols-2">
-            <div className="metric-card">
-              <p className="metric-label">상태</p>
-              <div className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">상태</p>
+              <div className="text-lg font-bold tracking-tight text-foreground">
                 <Badge variant={getInquiryStatusBadgeVariant(inquiry.status)}>
                   {labelInquiryStatus(inquiry.status)}
                 </Badge>
               </div>
             </div>
-            <div className="metric-card">
-              <p className="metric-label">채널</p>
-              <p className="metric-value" style={{ fontSize: "var(--font-size-lg)" }}>
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">채널</p>
+              <p className="text-lg font-bold tracking-tight text-foreground">
                 {labelChannel(inquiry.customerChannel)}
               </p>
             </div>
           </div>
 
-          <div className="kv">
+          <div className="space-y-2 text-sm">
             <div>
               <b>질문:</b> {inquiry.question}
             </div>
@@ -195,59 +197,64 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
       )}
 
       {indexingStatus && (
-        <div className="card stack">
-          <div className="page-header">
-            <h3 className="section-title">첨부 문서 ({documents.length}건)</h3>
-            <div className="row">
-              <button
-                className="btn btn-primary btn-sm"
+        <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold">첨부 문서 ({documents.length}건)</h3>
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
                 onClick={() => handleRunIndexing(false)}
                 disabled={loading}
               >
                 인덱싱 실행
-              </button>
-              <button
-                className="btn btn-sm"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => handleRunIndexing(true)}
                 disabled={loading}
               >
                 실패 건 재처리
-              </button>
-              <button
-                className="btn btn-ghost btn-sm"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={fetchInquiryData}
                 disabled={loading}
               >
                 새로고침
-              </button>
+              </Button>
             </div>
           </div>
 
-          <hr className="divider" />
+          <hr className="border-t border-border" />
 
           {/* Indexing Summary Metrics */}
-          <div className="metrics-grid cols-3">
-            <div className="metric-card">
-              <p className="metric-label">전체</p>
-              <p className="metric-value">{indexingStatus.total}</p>
-              <p className="metric-sub">등록된 문서</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">전체</p>
+              <p className="text-2xl font-bold tracking-tight text-foreground">{indexingStatus.total}</p>
+              <p className="text-xs text-muted-foreground">등록된 문서</p>
             </div>
-            <div className="metric-card">
-              <p className="metric-label">인덱싱 완료</p>
-              <p className="metric-value" style={{ color: "var(--color-success)" }}>{indexingStatus.indexed}</p>
-              <p className="metric-sub">벡터 저장 완료</p>
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
+              <p className="text-2xl font-bold tracking-tight text-success">{indexingStatus.indexed}</p>
+              <p className="text-xs text-muted-foreground">벡터 저장 완료</p>
             </div>
-            <div className="metric-card">
-              <p className="metric-label">실패</p>
-              <p className="metric-value" style={{ color: indexingStatus.failed > 0 ? "var(--color-danger)" : "inherit" }}>
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">실패</p>
+              <p className={cn(
+                "text-2xl font-bold tracking-tight",
+                indexingStatus.failed > 0 ? "text-destructive" : "text-foreground"
+              )}>
                 {indexingStatus.failed}
               </p>
-              <p className="metric-sub">재처리 필요</p>
+              <p className="text-xs text-muted-foreground">재처리 필요</p>
             </div>
           </div>
 
           {/* Progress breakdown */}
-          <div className="status-banner status-info">
+          <div className="rounded-lg border border-info/30 bg-info-light px-4 py-3 text-sm text-info-foreground" aria-live="polite">
             업로드 {indexingStatus.uploaded} / 파싱 중 {indexingStatus.parsing} / 파싱 완료 {indexingStatus.parsed} / 청크 완료 {indexingStatus.chunked}
           </div>
 

@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import InquiryInfoTab from "@/components/inquiry/InquiryInfoTab";
 import InquiryAnalysisTab from "@/components/inquiry/InquiryAnalysisTab";
 import InquiryAnswerTab from "@/components/inquiry/InquiryAnswerTab";
@@ -20,22 +21,23 @@ export default function InquiryDetailPage() {
   ];
 
   return (
-    <div className="stack">
-      <div className="page-header">
-        <div className="row">
-          <button
-            className="btn btn-ghost btn-sm"
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => router.push("/inquiries")}
           >
             ← 목록으로
-          </button>
-          <h2 className="card-title">
-            문의 상세 <span className="muted">#{inquiryId.slice(0, 8)}</span>
+          </Button>
+          <h2 className="text-xl font-semibold tracking-tight">
+            문의 상세 <span className="text-sm text-muted-foreground">#{inquiryId.slice(0, 8)}</span>
           </h2>
         </div>
       </div>
 
-      <div className="card">
+      <div className="rounded-xl border bg-card p-6 shadow-sm">
         <Tabs tabs={tabs} defaultTab="info" />
       </div>
     </div>

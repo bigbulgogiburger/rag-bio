@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { cn } from '@/lib/utils';
 
 interface Tab {
   key: string;
@@ -26,87 +27,39 @@ interface TabsProps {
  * />
  */
 export default function Tabs({ tabs, defaultTab }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.key);
-  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-
-  const setTabRef = useCallback((key: string) => (el: HTMLButtonElement | null) => {
-    if (el) {
-      tabRefs.current.set(key, el);
-    } else {
-      tabRefs.current.delete(key);
-    }
-  }, []);
-
-  const focusTab = (key: string) => {
-    tabRefs.current.get(key)?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, tabKey: string) => {
-    const currentIndex = tabs.findIndex((t) => t.key === activeTab);
-    let targetKey: string | undefined;
-
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
-      targetKey = tabs[prevIndex].key;
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      const nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
-      targetKey = tabs[nextIndex].key;
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      targetKey = tabs[0].key;
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      targetKey = tabs[tabs.length - 1].key;
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setActiveTab(tabKey);
-      return;
-    }
-
-    if (targetKey) {
-      setActiveTab(targetKey);
-      focusTab(targetKey);
-    }
-  };
-
-  const activeContent = tabs.find((tab) => tab.key === activeTab)?.content;
-
   return (
-    <div>
-      <div
-        className="tabs-header"
-        role="tablist"
+    <TabsPrimitive.Root defaultValue={defaultTab || tabs[0]?.key}>
+      <TabsPrimitive.List
+        className="flex border-b border-border mb-6"
         aria-label="탭 목록"
-        aria-orientation="horizontal"
       >
         {tabs.map((tab) => (
-          <button
+          <TabsPrimitive.Trigger
             key={tab.key}
-            ref={setTabRef(tab.key)}
-            className={`tab-button ${activeTab === tab.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-            onKeyDown={(e) => handleKeyDown(e, tab.key)}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            aria-controls={`tabpanel-${tab.key}`}
-            id={`tab-${tab.key}`}
-            tabIndex={activeTab === tab.key ? 0 : -1}
+            value={tab.key}
+            className={cn(
+              'px-6 py-2 text-sm font-medium text-muted-foreground',
+              'border-b-2 border-transparent -mb-px',
+              'transition-colors whitespace-nowrap',
+              'hover:text-foreground hover:bg-muted/50',
+              'data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:font-semibold',
+            )}
           >
             {tab.label}
-          </button>
+          </TabsPrimitive.Trigger>
         ))}
-      </div>
+      </TabsPrimitive.List>
 
-      <div
-        role="tabpanel"
-        id={`tabpanel-${activeTab}`}
-        aria-labelledby={`tab-${activeTab}`}
-        tabIndex={0}
-      >
-        {activeContent}
-      </div>
-    </div>
+      {tabs.map((tab) => (
+        <TabsPrimitive.Content
+          key={tab.key}
+          value={tab.key}
+          tabIndex={0}
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+        >
+          {tab.content}
+        </TabsPrimitive.Content>
+      ))}
+    </TabsPrimitive.Root>
   );
 }

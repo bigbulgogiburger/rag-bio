@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getOpsMetrics, listInquiries, type OpsMetrics, type InquiryListItem } from "@/lib/api/client";
 import DataTable from "@/components/ui/DataTable";
+import Badge from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { labelInquiryStatus, labelChannel, labelAnswerStatus } from "@/lib/i18n/labels";
 
 export default function DashboardPage() {
@@ -55,7 +59,7 @@ export default function DashboardPage() {
       key: 'question',
       header: '질문 요약',
       render: (item: InquiryListItem) => (
-        <span style={{ display: 'block', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className="block max-w-[400px] truncate">
           {item.question}
         </span>
       ),
@@ -70,9 +74,9 @@ export default function DashboardPage() {
       key: 'status',
       header: '상태',
       render: (item: InquiryListItem) => (
-        <span className={`badge badge-${getStatusVariant(item.status)}`}>
+        <Badge variant={getStatusVariant(item.status)}>
           {labelInquiryStatus(item.status)}
-        </span>
+        </Badge>
       ),
       width: '100px',
     },
@@ -80,11 +84,11 @@ export default function DashboardPage() {
       key: 'latestAnswerStatus',
       header: '답변',
       render: (item: InquiryListItem) => {
-        if (!item.latestAnswerStatus) return <span className="muted">-</span>;
+        if (!item.latestAnswerStatus) return <span className="text-sm text-muted-foreground">-</span>;
         return (
-          <span className={`badge badge-${getAnswerVariant(item.latestAnswerStatus)}`}>
+          <Badge variant={getAnswerVariant(item.latestAnswerStatus)}>
             {labelAnswerStatus(item.latestAnswerStatus)}
-          </span>
+          </Badge>
         );
       },
       width: '100px',
@@ -93,100 +97,107 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="stack">
-        <div className="page-header">
-          <h2 className="card-title">운영 대시보드</h2>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
         </div>
 
         {/* Skeleton metric cards */}
-        <section className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <section className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <article className="metric-card" key={i}>
-              <div className="skeleton" style={{ height: '14px', width: '80px', marginBottom: 'var(--space-sm)' }} />
-              <div className="skeleton" style={{ height: '32px', width: '100px', marginBottom: 'var(--space-xs)' }} />
-              <div className="skeleton" style={{ height: '12px', width: '60px' }} />
+            <article className="rounded-xl border bg-card p-5 shadow-sm" key={i}>
+              <Skeleton className="mb-3 h-3.5 w-20" />
+              <Skeleton className="mb-2 h-8 w-24" />
+              <Skeleton className="h-3 w-16" />
             </article>
           ))}
         </section>
 
         {/* Skeleton table */}
-        <article className="card">
-          <div className="skeleton" style={{ height: '18px', width: '140px', marginBottom: 'var(--space-lg)' }} />
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="skeleton" style={{ height: '40px', width: '100%', marginBottom: 'var(--space-sm)' }} />
-          ))}
-        </article>
+        <Card>
+          <CardContent className="p-6">
+            <Skeleton className="mb-6 h-[18px] w-36" />
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="mb-3 h-10 w-full" />
+            ))}
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="stack">
-        <div className="page-header">
-          <h2 className="card-title">운영 대시보드</h2>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
         </div>
-        <div className="status-banner status-danger">{error}</div>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="stack">
-      <div className="page-header">
-        <h2 className="card-title">운영 대시보드</h2>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
       </div>
 
       {/* 메트릭 카드 3열 */}
-      <section className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <section className="grid grid-cols-3 gap-4">
         {metricCards.map((metric) => (
-          <article className="metric-card" key={metric.label}>
-            <p className="metric-label">{metric.label}</p>
-            <p className="metric-value">{metric.value}</p>
+          <article className="rounded-xl border bg-card p-5 shadow-sm" key={metric.label}>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground">{metric.value}</p>
             {metric.subValue && (
-              <p className="metric-sub">{metric.subValue}</p>
+              <p className="text-xs text-muted-foreground">{metric.subValue}</p>
             )}
           </article>
         ))}
       </section>
 
       {/* 최근 문의 5건 */}
-      <article className="card">
-        <div className="page-header" style={{ marginBottom: 'var(--space-md)' }}>
-          <h2 className="section-title">최근 문의 (5건)</h2>
-          <button
-            className="btn btn-sm"
-            onClick={() => router.push('/inquiries')}
-          >
-            전체 보기
-          </button>
-        </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold">최근 문의 (5건)</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/inquiries')}
+            >
+              전체 보기
+            </Button>
+          </div>
 
-        <DataTable
-          columns={inquiryColumns}
-          data={inquiries}
-          onRowClick={(item) => router.push(`/inquiries/${item.inquiryId}`)}
-          emptyMessage="등록된 문의가 없습니다"
-        />
-      </article>
+          <DataTable
+            columns={inquiryColumns}
+            data={inquiries}
+            onRowClick={(item) => router.push(`/inquiries/${item.inquiryId}`)}
+            emptyMessage="등록된 문의가 없습니다"
+          />
+        </CardContent>
+      </Card>
 
       {/* 최근 실패 사유 Top */}
-      <article className="card">
-        <h2 className="section-title" style={{ marginBottom: 'var(--space-md)' }}>
-          최근 실패 사유 Top
-        </h2>
-        {(metrics?.topFailureReasons ?? []).length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>실패 사유 데이터 없음</p>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: 'var(--space-lg)' }}>
-            {metrics?.topFailureReasons.map((item, idx) => (
-              <li key={`${item.reason}-${idx}`} style={{ marginBottom: 'var(--space-xs)' }}>
-                {item.reason} <span className="muted">({item.count}건)</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </article>
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="mb-4 text-base font-semibold">
+            최근 실패 사유 Top
+          </h2>
+          {(metrics?.topFailureReasons ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">실패 사유 데이터 없음</p>
+          ) : (
+            <ul className="list-disc pl-5">
+              {metrics?.topFailureReasons.map((item, idx) => (
+                <li key={`${item.reason}-${idx}`} className="mb-1">
+                  {item.reason} <span className="text-sm text-muted-foreground">({item.count}건)</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

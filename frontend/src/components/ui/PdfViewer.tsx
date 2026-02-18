@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import { Button } from "@/components/ui/button";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -23,6 +24,25 @@ export default function PdfViewer({
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pageWidth, setPageWidth] = useState(480);
+
+  // Reset state when document URL or initialPage changes
+  useEffect(() => {
+    setCurrentPage(initialPage);
+    setNumPages(0);
+    setLoadError(null);
+  }, [url, initialPage]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setPageWidth(Math.min(width - 16, 800));
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const onLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -35,56 +55,64 @@ export default function PdfViewer({
 
   if (loadError) {
     return (
-      <div className="pdf-viewer-error">
+      <div className="flex flex-col items-center space-y-4 p-6 text-center text-destructive" role="alert">
         <p>{loadError}</p>
         {downloadUrl && (
-          <a href={downloadUrl} className="btn btn-sm" download>
-            파일 직접 다운로드
-          </a>
+          <Button variant="outline" size="sm" asChild>
+            <a href={downloadUrl} download>
+              파일 직접 다운로드
+            </a>
+          </Button>
         )}
       </div>
     );
   }
 
   return (
-    <div className="pdf-viewer">
-      <div className="pdf-toolbar">
-        <button
-          className="btn btn-sm"
+    <div className="flex flex-col overflow-hidden flex-1 min-h-0">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-muted/50 shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
           disabled={currentPage <= 1}
+          aria-label="이전 페이지"
         >
           이전
-        </button>
-        <span className="pdf-page-info">
+        </Button>
+        <span className="text-sm text-muted-foreground min-w-[60px] text-center" aria-live="polite" aria-atomic="true">
           {currentPage} / {numPages || "..."}
         </span>
-        <button
-          className="btn btn-sm"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
           disabled={currentPage >= numPages}
+          aria-label="다음 페이지"
         >
           다음
-        </button>
+        </Button>
         {downloadUrl && (
-          <a href={downloadUrl} className="btn btn-sm btn-primary" download style={{ marginLeft: "auto" }}>
-            다운로드
-          </a>
+          <Button size="sm" asChild className="ml-auto">
+            <a href={downloadUrl} download>
+              다운로드
+            </a>
+          </Button>
         )}
       </div>
       {fileName && (
-        <div className="pdf-filename muted">{fileName}</div>
+        <div className="text-xs text-muted-foreground px-2 py-1 shrink-0">{fileName}</div>
       )}
-      <div className="pdf-document-wrapper">
+      <div className="overflow-hidden flex justify-center flex-1 min-h-0" ref={containerRef}>
         <Document
           file={url}
           onLoadSuccess={onLoadSuccess}
           onLoadError={onLoadError}
-          loading={<div className="pdf-loading">PDF 로딩 중...</div>}
+          loading={<div className="p-6 text-center text-muted-foreground" role="status" aria-live="polite">PDF 로딩 중...</div>}
         >
           <Page
             pageNumber={currentPage}
-            width={480}
+            width={pageWidth}
             renderTextLayer={true}
             renderAnnotationLayer={true}
           />

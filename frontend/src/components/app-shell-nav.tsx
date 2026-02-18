@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+const baseClass =
+  "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
+const activeClass = "bg-primary/10 text-primary font-semibold";
 
 function itemClass(href: string, pathname: string): string {
   // Exact match for /dashboard and /knowledge-base
@@ -14,10 +19,10 @@ function itemClass(href: string, pathname: string): string {
   } else {
     active = pathname === href;
   }
-  return `menu-item${active ? " active" : ""}`;
+  return cn(baseClass, active && activeClass);
 }
 
-/* ── Inline SVG Icons (16x16) ── */
+/* -- Inline SVG Icons (16x16) -- */
 
 function DashboardIcon() {
   return (
@@ -65,7 +70,7 @@ export default function AppShellNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="menu-nav" aria-label="주 메뉴">
+    <nav className="flex items-center gap-1" aria-label="주 메뉴">
       <Link className={itemClass("/dashboard", pathname)} href="/dashboard">
         <DashboardIcon />
         대시보드

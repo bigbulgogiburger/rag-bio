@@ -12,5 +12,5 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/app-api/build/libs/*.jar app.jar
 RUN mkdir -p /app/uploads
-EXPOSE 8080
+EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -28,6 +28,7 @@ description: Flyway DB 마이그레이션 일관성 검증. 마이그레이션 �
 | `backend/app-api/src/main/resources/db/migration/V14__knowledge_base.sql` | KB 테이블 + source_type/source_id |
 | `backend/app-api/src/main/resources/db/migration/V16__drop_chunks_document_fk.sql` | FK 제거 |
 | `backend/app-api/src/main/resources/db/migration/V17__chunk_content_to_text.sql` | content VARCHAR→TEXT |
+| `backend/app-api/src/main/resources/db/migration/V18__chunk_page_tracking.sql` | page_start/page_end 컬럼 추가 |
 | `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java` | 청크 엔티티 |
 | `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/knowledge/KnowledgeDocumentJpaEntity.java` | KB 문서 엔티티 |
 
@@ -139,6 +140,19 @@ grep -n "CREATE.*INDEX" backend/app-api/src/main/resources/db/migration/V*__*.sq
 | 6 | VARCHAR 길이 일치 | PASS/FAIL | 불일치 항목 |
 | 7 | IF NOT EXISTS | PASS/FAIL | 미사용 구문 목록 |
 | 8 | 인덱스 전략 | PASS/FAIL | 누락 인덱스 제안 |
+
+### Step 9: page_start/page_end JPA 동기화 확인
+
+**파일:** `V18__chunk_page_tracking.sql`, `DocumentChunkJpaEntity.java`
+
+**검사:** V18 마이그레이션의 `page_start`, `page_end` INT 컬럼이 JPA에서 `Integer` 타입으로 선언되고 `@Column(name = "page_start")` / `@Column(name = "page_end")`로 매핑되는지 확인.
+
+```bash
+grep -n "page_start\|page_end\|pageStart\|pageEnd" backend/app-api/src/main/resources/db/migration/V18__chunk_page_tracking.sql backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java
+```
+
+**PASS:** SQL INT 컬럼과 JPA Integer 필드가 일치하고, nullable
+**FAIL:** 타입 불일치 또는 @Column name 미지정
 
 ## Exceptions
 

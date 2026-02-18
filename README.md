@@ -42,7 +42,7 @@ npm install
 npm run dev
 ```
 
-App runs by default on `http://localhost:3000`.
+App runs by default on `http://localhost:3001`.
 
 ### Run Backend
 
@@ -51,12 +51,12 @@ cd backend
 gradle :app-api:bootRun
 ```
 
-API runs by default on `http://localhost:8080`.
+API runs by default on `http://localhost:8081`.
 
 ### Smoke API Call
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/inquiries \
+curl -X POST http://localhost:8081/api/v1/inquiries \
   -H 'Content-Type: application/json' \
   -d '{"question":"Can reagent X be used at 4C overnight?","customerChannel":"email"}'
 ```

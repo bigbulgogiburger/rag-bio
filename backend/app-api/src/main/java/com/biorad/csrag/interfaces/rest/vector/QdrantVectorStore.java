@@ -184,6 +184,19 @@ public class QdrantVectorStore implements VectorStore {
             } catch (Exception ex) {
                 log.info("qdrant.collection.ensure skipped/exists name={} reason={}", collection, ex.getMessage());
             }
+
+            // deleteByDocumentId 필터가 동작하려면 payload 인덱스 필요
+            try {
+                restClient.put()
+                        .uri("/collections/{collection}/index", collection)
+                        .body(Map.of("field_name", "documentId", "field_schema", "keyword"))
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("qdrant.index.ready field=documentId");
+            } catch (Exception ex) {
+                log.info("qdrant.index.ensure skipped/exists field=documentId reason={}", ex.getMessage());
+            }
+
             collectionReady = true;
         }
     }

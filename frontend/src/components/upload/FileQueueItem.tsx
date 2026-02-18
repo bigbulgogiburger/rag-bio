@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { UploadQueueFile } from "@/lib/api/client";
 import { KB_CATEGORY_LABELS } from "@/lib/i18n/labels";
+import { cn } from "@/lib/utils";
 
 interface FileQueueItemProps {
   item: UploadQueueFile;
@@ -25,31 +26,31 @@ function getFileExtension(name: string): string {
 
 function FileIcon({ fileName }: { fileName: string }) {
   const ext = getFileExtension(fileName);
-  let color = "#94a3b8"; // grey default
-  if (ext === "pdf") color = "#dc2626"; // red
-  else if (ext === "doc" || ext === "docx") color = "#2563eb"; // blue
+  let colorClass = "text-muted-foreground";
+  if (ext === "pdf") colorClass = "text-red-600 dark:text-red-400";
+  else if (ext === "doc" || ext === "docx") colorClass = "text-blue-600 dark:text-blue-400";
 
   return (
-    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true" className={colorClass}>
       <path
         d="M3 1h7l4 4v10a1 1 0 01-1 1H3a1 1 0 01-1-1V2a1 1 0 011-1z"
-        fill={color}
+        fill="currentColor"
         opacity={0.15}
       />
       <path
         d="M3 1h7l4 4v10a1 1 0 01-1 1H3a1 1 0 01-1-1V2a1 1 0 011-1z"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth={1.2}
       />
-      <path d="M10 1v4h4" stroke={color} strokeWidth={1.2} />
+      <path d="M10 1v4h4" stroke="currentColor" strokeWidth={1.2} />
     </svg>
   );
 }
 
 function CheckIcon() {
   return (
-    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M3 8.5l3 3 7-7" stroke="#059669" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true" className="text-emerald-600 dark:text-emerald-400">
+      <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -62,52 +63,50 @@ function RemoveIcon() {
   );
 }
 
+const inputClasses = cn(
+  'w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm shadow-sm',
+  'placeholder:text-muted-foreground',
+  'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+  'disabled:cursor-not-allowed disabled:opacity-50',
+);
+
 export default function FileQueueItem({ item, onRemove, onMetadataChange, disabled }: FileQueueItemProps) {
   const [metaOpen, setMetaOpen] = useState(true);
   const isPending = item.status === "pending";
   const canRemove = (isPending || item.status === "error") && !disabled;
 
-  const statusClass =
-    item.status === "uploading"
-      ? "uploading"
-      : item.status === "success"
-        ? "success"
-        : item.status === "error"
-          ? "error"
-          : "";
-
   return (
     <div>
-      <div className={`file-queue-item ${statusClass}`}>
-        <div className="file-icon">
+      <div
+        className={cn(
+          'flex items-center gap-3 rounded-lg border p-3 transition-colors',
+          item.status === 'uploading' && 'border-primary/30 bg-primary/5',
+          item.status === 'success' && 'border-success/30 bg-success-light',
+          item.status === 'error' && 'border-destructive/30 bg-destructive/5',
+          !item.status || item.status === 'pending' ? 'border-border bg-card' : '',
+        )}
+      >
+        <div className="flex-shrink-0">
           {item.status === "success" ? <CheckIcon /> : <FileIcon fileName={item.file.name} />}
         </div>
 
-        <div className="file-info">
-          <div className="file-name">{item.file.name}</div>
-          <div className="file-size">{formatFileSize(item.file.size)}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate">{item.file.name}</div>
+          <div className="text-xs text-muted-foreground">{formatFileSize(item.file.size)}</div>
           {item.status === "error" && item.error && (
-            <div style={{ color: "var(--color-danger)", fontSize: "var(--font-size-xs)", marginTop: 2 }}>
+            <div className="text-xs text-destructive mt-0.5" role="alert">
               {item.error}
             </div>
           )}
         </div>
 
-        <div className="file-actions">
+        <div className="flex-shrink-0">
           {canRemove && (
             <button
               type="button"
               onClick={() => onRemove(item.id)}
               aria-label="삭제"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                color: "var(--color-muted)",
-                display: "flex",
-                alignItems: "center",
-              }}
+              className="flex items-center p-1 text-muted-foreground hover:text-destructive transition-colors"
             >
               <RemoveIcon />
             </button>
@@ -116,23 +115,30 @@ export default function FileQueueItem({ item, onRemove, onMetadataChange, disabl
       </div>
 
       {item.status === "uploading" && (
-        <div className="progress-bar">
+        <div
+          className="h-1 w-full rounded-full bg-muted mt-1 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={item.progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${item.file.name} 업로드 진행률`}
+        >
           <div
-            className="progress-fill"
+            className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${item.progress}%` }}
           />
         </div>
       )}
 
       {item.status === "success" && (
-        <div className="progress-bar">
-          <div className="progress-fill complete" style={{ width: "100%" }} />
+        <div className="h-1 w-full rounded-full bg-muted mt-1 overflow-hidden">
+          <div className="h-full w-full rounded-full bg-success" />
         </div>
       )}
 
       {item.status === "error" && (
-        <div className="progress-bar">
-          <div className="progress-fill error" style={{ width: "100%" }} />
+        <div className="h-1 w-full rounded-full bg-muted mt-1 overflow-hidden">
+          <div className="h-full w-full rounded-full bg-destructive" />
         </div>
       )}
 
@@ -141,40 +147,30 @@ export default function FileQueueItem({ item, onRemove, onMetadataChange, disabl
           <button
             type="button"
             onClick={() => setMetaOpen((v) => !v)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "var(--font-size-xs)",
-              color: "var(--color-primary)",
-              padding: "var(--space-xs) 0",
-            }}
+            className="text-xs text-primary py-1 hover:underline"
+            aria-expanded={metaOpen}
+            aria-label={metaOpen ? "메타데이터 접기" : "메타데이터 펼치기"}
           >
             {metaOpen ? "메타데이터 접기 ▲" : "메타데이터 펼치기 ▼"}
           </button>
 
           {metaOpen && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: "var(--space-sm)",
-                padding: "var(--space-sm) 0",
-              }}
-            >
+            <div className="grid grid-cols-3 gap-2 py-2">
               <input
-                className="input"
+                className={inputClasses}
                 type="text"
                 placeholder="제목"
                 value={item.metadata.title}
                 onChange={(e) => onMetadataChange(item.id, "title", e.target.value)}
                 disabled={disabled}
+                aria-label="제목"
               />
               <select
-                className="select"
+                className={inputClasses}
                 value={item.metadata.category}
                 onChange={(e) => onMetadataChange(item.id, "category", e.target.value)}
                 disabled={disabled}
+                aria-label="카테고리"
               >
                 <option value="">카테고리 선택</option>
                 {Object.entries(KB_CATEGORY_LABELS).map(([key, label]) => (
@@ -184,12 +180,13 @@ export default function FileQueueItem({ item, onRemove, onMetadataChange, disabl
                 ))}
               </select>
               <input
-                className="input"
+                className={inputClasses}
                 type="text"
                 placeholder="제품군"
                 value={item.metadata.productFamily}
                 onChange={(e) => onMetadataChange(item.id, "productFamily", e.target.value)}
                 disabled={disabled}
+                aria-label="제품군"
               />
             </div>
           )}

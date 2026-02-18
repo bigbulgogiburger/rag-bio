@@ -19,6 +19,8 @@ import Pagination from "@/components/ui/Pagination";
 import FilterBar from "@/components/ui/FilterBar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 export default function InquiriesPage() {
   const router = useRouter();
@@ -112,7 +114,7 @@ export default function InquiriesPage() {
       key: "question",
       header: "질문 요약",
       render: (item: InquiryListItem) => (
-        <span style={{ display: "block", maxWidth: "400px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span className="block max-w-[400px] truncate">
           {item.question}
         </span>
       ),
@@ -143,7 +145,7 @@ export default function InquiriesPage() {
             {labelAnswerStatus(item.latestAnswerStatus)}
           </Badge>
         ) : (
-          <span className="muted">-</span>
+          <span className="text-sm text-muted-foreground">-</span>
         ),
     },
     {
@@ -198,20 +200,19 @@ export default function InquiriesPage() {
   ];
 
   return (
-    <div className="stack">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="page-header">
-        <h2 className="card-title">문의 대응 내역</h2>
-        <button
-          className="btn btn-primary"
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold tracking-tight">문의 대응 내역</h2>
+        <Button
           onClick={() => router.push("/inquiries/new")}
         >
           문의 작성
-        </button>
+        </Button>
       </div>
 
       {/* Main Content Card */}
-      <div className="card stack">
+      <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -220,17 +221,17 @@ export default function InquiriesPage() {
         />
 
         {/* Loading skeleton */}
-        {loading && (
-          <div className="stack" style={{ gap: 'var(--space-sm)' }}>
+        {loading && !response && (
+          <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="skeleton" style={{ height: '44px', width: '100%' }} />
+              <Skeleton key={i} className="h-11 w-full" />
             ))}
           </div>
         )}
 
-        {error && <p className="status-banner status-danger">{error}</p>}
+        {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
 
-        {!loading && !error && response && (
+        {!error && response && (
           <>
             {response.content.length === 0 ? (
               <EmptyState
