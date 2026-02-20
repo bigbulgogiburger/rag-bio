@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.common.exception.ConflictException;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaEntity;
@@ -13,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,7 +55,7 @@ class AnswerComposerServiceUnitTest {
     }
 
     @Test
-    void send_throws409_whenStatusIsNotApproved_and_logsRejectedAttempt() {
+    void send_throwsConflict_whenStatusIsNotApproved_and_logsRejectedAttempt() {
         UUID inquiryId = UUID.randomUUID();
         UUID answerId = UUID.randomUUID();
 
@@ -63,7 +63,7 @@ class AnswerComposerServiceUnitTest {
         when(answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> service.send(inquiryId, answerId, "sender-1", "email", "req-1"))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Only approved answer can be sent");
 
         verify(emailSender, never()).send(any());
@@ -95,7 +95,7 @@ class AnswerComposerServiceUnitTest {
     }
 
     @Test
-    void send_throws409_whenUnsupportedChannel() {
+    void send_throwsConflict_whenUnsupportedChannel() {
         UUID inquiryId = UUID.randomUUID();
         UUID answerId = UUID.randomUUID();
 
@@ -104,7 +104,7 @@ class AnswerComposerServiceUnitTest {
         when(emailSender.supports("messenger")).thenReturn(false);
 
         assertThatThrownBy(() -> service.send(inquiryId, answerId, "sender-1", "messenger", "req-2"))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Unsupported send channel");
     }
 
@@ -130,7 +130,7 @@ class AnswerComposerServiceUnitTest {
     }
 
     @Test
-    void approve_throws409_whenStatusIsSent() {
+    void approve_throwsConflict_whenStatusIsSent() {
         UUID inquiryId = UUID.randomUUID();
         UUID answerId = UUID.randomUUID();
 
@@ -139,7 +139,7 @@ class AnswerComposerServiceUnitTest {
         when(answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> service.approve(inquiryId, answerId, "approver-1", "approved"))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Only draft/reviewed answer can be approved");
     }
 

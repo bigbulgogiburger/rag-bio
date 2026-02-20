@@ -18,12 +18,12 @@ import {
   KB_CATEGORY_LABELS,
   DOC_STATUS_LABELS,
 } from "@/lib/i18n/labels";
+import { showToast } from "@/lib/toast";
 import DataTable from "@/components/ui/DataTable";
 import Pagination from "@/components/ui/Pagination";
 import FilterBar from "@/components/ui/FilterBar";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
-import Toast from "@/components/ui/Toast";
 import { Skeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 
@@ -52,8 +52,7 @@ export default function KnowledgeBasePage() {
   const [selectedDoc, setSelectedDoc] = useState<KbDocument | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // Toast state
-  const [toast, setToast] = useState<{ variant: "success" | "error" | "warn" | "info"; message: string } | null>(null);
+  // Toast is now handled globally via sonner (showToast)
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -182,13 +181,13 @@ export default function KnowledgeBasePage() {
     const docTitle = doc?.title ?? docId;
     try {
       await indexKbDocument(docId);
-      setToast({ variant: "success", message: `"${docTitle}" 인덱싱을 시작합니다.` });
+      showToast(`"${docTitle}" 인덱싱을 시작합니다.`, "success");
       fetchDocuments();
     } catch (err) {
       if (err instanceof Error && err.message.includes("409")) {
-        setToast({ variant: "warn", message: "이미 인덱싱이 진행 중입니다" });
+        showToast("이미 인덱싱이 진행 중입니다", "warn");
       } else {
-        setToast({ variant: "error", message: err instanceof Error ? err.message : "인덱싱 중 오류가 발생했습니다." });
+        showToast(err instanceof Error ? err.message : "인덱싱 중 오류가 발생했습니다.", "error");
       }
     }
   };
@@ -201,13 +200,13 @@ export default function KnowledgeBasePage() {
     setError(null);
     try {
       const result = await indexAllKbDocuments();
-      setToast({ variant: "success", message: result.message });
+      showToast(result.message, "success");
       fetchDocuments();
     } catch (err) {
       if (err instanceof Error && err.message.includes("409")) {
-        setToast({ variant: "warn", message: "이미 인덱싱이 진행 중입니다" });
+        showToast("이미 인덱싱이 진행 중입니다", "warn");
       } else {
-        setToast({ variant: "error", message: err instanceof Error ? err.message : "일괄 인덱싱 중 오류가 발생했습니다." });
+        showToast(err instanceof Error ? err.message : "일괄 인덱싱 중 오류가 발생했습니다.", "error");
       }
     }
   };
@@ -482,14 +481,6 @@ export default function KnowledgeBasePage() {
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <Toast
-          variant={toast.variant}
-          message={toast.message}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   );
 }

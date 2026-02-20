@@ -49,11 +49,12 @@ public class MockVectorStore implements VectorStore {
 
     @Override
     public void deleteByDocumentId(UUID documentId) {
-        int removed = (int) records.entrySet().stream()
+        List<UUID> toRemove = records.entrySet().stream()
                 .filter(e -> e.getValue().documentId().equals(documentId))
-                .peek(e -> records.remove(e.getKey()))
-                .count();
-        log.info("vector.deleteByDocumentId.success documentId={} removed={}", documentId, removed);
+                .map(Map.Entry::getKey)
+                .toList();
+        toRemove.forEach(records::remove);
+        log.info("vector.deleteByDocumentId.success documentId={} removed={}", documentId, toRemove.size());
     }
 
     public int size() {

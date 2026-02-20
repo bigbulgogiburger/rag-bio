@@ -2,6 +2,7 @@ package com.biorad.csrag.interfaces.rest.chunk;
 
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
+import com.biorad.csrag.interfaces.rest.document.DocumentTextExtractor.PageText;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,6 +11,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -171,6 +173,60 @@ class ChunkingServiceTest {
                 String lastSentenceOfFirst = firstSentences[firstSentences.length - 1];
                 assertThat(secondChunk).contains(lastSentenceOfFirst.substring(0, Math.min(20, lastSentenceOfFirst.length())));
             }
+        }
+    }
+
+    @Test
+    void chunkAndStore_withPageTexts_createsChunksWithPageInfo() {
+        UUID docId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+
+        String page1 = "Page one content here.";
+        String page2 = "Page two content here.";
+        // After joining with " ": "Page one content here. Page two content here."
+        List<PageText> pageTexts = new ArrayList<>();
+        pageTexts.add(new PageText(1, page1, 0, page1.length()));
+        pageTexts.add(new PageText(2, page2, page1.length() + 1, page1.length() + 1 + page2.length()));
+
+        int count = chunkingService.chunkAndStore(docId, pageTexts, "KNOWLEDGE_BASE", sourceId);
+
+        verify(chunkRepository).saveAll(chunksCaptor.capture());
+        List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
+
+        assertThat(count).isGreaterThanOrEqualTo(1);
+        assertThat(chunks).allSatisfy(chunk -> {
+            assertThat(chunk.getSourceType()).isEqualTo("KNOWLEDGE_BASE");
+            assertThat(chunk.getSourceId()).isEqualTo(sourceId);
+        });
+    }
+
+    @Test
+    void chunkAndStore_emptyText_returnsZero() {
+        UUID docId = UUID.randomUUID();
+        int count = chunkingService.chunkAndStore(docId, "");
+        assertThat(count).isEqualTo(0);
+    }
+
+    @Test
+    void chunkAndStore_nullText_returnsZero() {
+        UUID docId = UUID.randomUUID();
+        int count = chunkingService.chunkAndStore(docId, (String) null);
+        assertThat(count).isEqualTo(0);
+    }
+
+    @Test
+    void chunkAndStore_forceSplitsLongSentence() {
+        UUID docId = UUID.randomUUID();
+        // Single sentence > CHUNK_SIZE(1000) chars
+        String longSentence = "A".repeat(1500);
+        int count = chunkingService.chunkAndStore(docId, longSentence);
+
+        verify(chunkRepository).saveAll(chunksCaptor.capture());
+        List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
+
+        assertThat(count).isGreaterThan(1);
+        for (DocumentChunkJpaEntity chunk : chunks) {
+            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1000);
         }
     }
 }

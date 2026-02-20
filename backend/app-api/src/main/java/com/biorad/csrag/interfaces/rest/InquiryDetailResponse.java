@@ -6,6 +6,7 @@ public record InquiryDetailResponse(
         String inquiryId,
         String question,
         String customerChannel,
+        String preferredTone,
         String status,
         Instant createdAt
 ) {

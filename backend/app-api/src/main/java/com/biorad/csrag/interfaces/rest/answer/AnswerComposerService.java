@@ -10,16 +10,16 @@ import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendCommand;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendResult;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
+import com.biorad.csrag.common.exception.NotFoundException;
+import com.biorad.csrag.common.exception.ConflictException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 @Service
+@Transactional
 public class AnswerComposerService {
 
     private final AnswerOrchestrationService orchestrationService;
@@ -71,7 +71,8 @@ public class AnswerComposerService {
                     0.0,
                     "일부 단계 실행에 실패해 보수적 초안으로 대체되었습니다.",
                     List.of("ORCHESTRATION_FALLBACK"),
-                    List.of()
+                    List.of(),
+                    null
             );
             citations = List.of();
             formatWarnings = List.of("FALLBACK_DRAFT_USED");
@@ -102,15 +103,15 @@ public class AnswerComposerService {
                 Instant.now()
         ));
 
-        return toResponse(saved, orchestration.formatWarnings());
+        return toResponse(saved, orchestration.formatWarnings(), analysis.translatedQuery());
     }
 
     public AnswerDraftResponse review(UUID inquiryId, UUID answerId, String actor, String comment) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+                .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
 
         if ("APPROVED".equals(entity.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Already approved answer cannot be reviewed");
+            throw new ConflictException("ANSWER_ALREADY_APPROVED", "Already approved answer cannot be reviewed");
         }
 
         entity.markReviewed(actor, comment);
@@ -119,16 +120,17 @@ public class AnswerComposerService {
 
     public AnswerDraftResponse approve(UUID inquiryId, UUID answerId, String actor, String comment) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+                .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
 
         if (!"REVIEWED".equals(entity.getStatus()) && !"DRAFT".equals(entity.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Only draft/reviewed answer can be approved");
+            throw new ConflictException("INVALID_ANSWER_STATUS", "Only draft/reviewed answer can be approved");
         }
 
         entity.markApproved(actor, comment);
         return toResponse(answerDraftRepository.save(entity), List.of());
     }
 
+    @Transactional(readOnly = true)
     public List<AnswerDraftResponse> history(UUID inquiryId) {
         return answerDraftRepository.findByInquiryIdOrderByVersionDesc(inquiryId).stream()
                 .map(entity -> toResponse(entity, List.of()))
@@ -137,7 +139,7 @@ public class AnswerComposerService {
 
     public AnswerDraftResponse send(UUID inquiryId, UUID answerId, String actor, String channel, String sendRequestId) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Answer draft not found"));
+                .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
 
         String requestId = (sendRequestId == null || sendRequestId.isBlank()) ? null : sendRequestId.trim();
 
@@ -148,7 +150,7 @@ public class AnswerComposerService {
 
         if (!"APPROVED".equals(entity.getStatus())) {
             logSendAttempt(inquiryId, answerId, requestId, "REJECTED_NOT_APPROVED", "status=" + entity.getStatus());
-            throw new ResponseStatusException(CONFLICT, "Only approved answer can be sent");
+            throw new ConflictException("ANSWER_NOT_APPROVED", "Only approved answer can be sent");
         }
 
         String normalizedChannel = (channel == null || channel.isBlank()) ? entity.getChannel() : channel.trim().toLowerCase();
@@ -156,7 +158,7 @@ public class AnswerComposerService {
         MessageSender sender = messageSenders.stream()
                 .filter(s -> s.supports(normalizedChannel))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Unsupported send channel: " + normalizedChannel));
+                .orElseThrow(() -> new ConflictException("UNSUPPORTED_CHANNEL", "Unsupported send channel: " + normalizedChannel));
 
         SendResult result = sender.send(new SendCommand(
                 inquiryId,
@@ -171,9 +173,10 @@ public class AnswerComposerService {
         return toResponse(answerDraftRepository.save(entity), List.of());
     }
 
+    @Transactional(readOnly = true)
     public AnswerDraftResponse latest(UUID inquiryId) {
         AnswerDraftJpaEntity entity = answerDraftRepository.findTopByInquiryIdOrderByVersionDesc(inquiryId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No answer draft found"));
+                .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
         return toResponse(entity, List.of());
     }
 
@@ -195,7 +198,15 @@ public class AnswerComposerService {
                 : "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n현재 자동 판정 단계 일부에 제한이 발생하여, 우선 보수적 안내를 제공드립니다.\n추가 자료(샘플 조건, 장비 설정 등)를 확인하신 후 답변 재생성을 요청하여 주시기 바랍니다.\n감사합니다.";
     }
 
+    public AnswerDraftResponse toResponsePublic(AnswerDraftJpaEntity entity) {
+        return toResponse(entity, List.of());
+    }
+
     private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride) {
+        return toResponse(entity, formatWarningsOverride, null);
+    }
+
+    private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride, String translatedQuery) {
         List<String> citations = entity.getCitations() == null || entity.getCitations().isBlank()
                 ? List.of()
                 : List.of(entity.getCitations().split("\\s*\\|\\s*"));
@@ -227,7 +238,12 @@ public class AnswerComposerService {
                 entity.getSentBy(),
                 entity.getSendChannel(),
                 entity.getSendMessageId(),
-                formatWarnings
+                formatWarnings,
+                entity.getReviewScore(),
+                entity.getReviewDecision(),
+                entity.getApprovalDecision(),
+                entity.getApprovalReason(),
+                translatedQuery
         );
     }
 

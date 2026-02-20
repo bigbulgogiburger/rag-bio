@@ -21,6 +21,11 @@ public record AnswerDraftResponse(
         String sentBy,
         String sendChannel,
         String sendMessageId,
-        List<String> formatWarnings
+        List<String> formatWarnings,
+        Integer reviewScore,
+        String reviewDecision,
+        String approvalDecision,
+        String approvalReason,
+        String translatedQuery
 ) {
 }

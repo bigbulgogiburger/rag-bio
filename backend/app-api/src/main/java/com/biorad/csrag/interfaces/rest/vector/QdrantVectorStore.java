@@ -153,7 +153,13 @@ public class QdrantVectorStore implements VectorStore {
                     .toBodilessEntity();
             log.info("qdrant.deleteByDocumentId.success documentId={}", documentId);
         } catch (Exception ex) {
-            log.warn("qdrant.deleteByDocumentId.failed documentId={} reason={}", documentId, ex.getMessage());
+            String msg = ex.getMessage() != null ? ex.getMessage() : "";
+            if (msg.contains("doesn't exist")) {
+                log.info("qdrant.deleteByDocumentId.skipped documentId={} reason=collection_not_found", documentId);
+            } else {
+                log.error("qdrant.deleteByDocumentId.failed documentId={} reason={}", documentId, msg);
+                throw new RuntimeException("Failed to delete vectors for documentId=" + documentId, ex);
+            }
         }
     }
 
@@ -167,22 +173,36 @@ public class QdrantVectorStore implements VectorStore {
                 return;
             }
 
-            Map<String, Object> vectors = Map.of(
-                    "size", Math.max(1, vectorSize),
-                    "distance", "Cosine"
-            );
-
-            Map<String, Object> body = Map.of("vectors", vectors);
-
+            // 먼저 컬렉션 존재 여부를 GET으로 확인
+            boolean exists = false;
             try {
-                restClient.put()
+                restClient.get()
                         .uri("/collections/{collection}", collection)
-                        .body(body)
                         .retrieve()
                         .toBodilessEntity();
-                log.info("qdrant.collection.ready name={} dim={}", collection, vectorSize);
+                exists = true;
+                log.info("qdrant.collection.exists name={}", collection);
             } catch (Exception ex) {
-                log.info("qdrant.collection.ensure skipped/exists name={} reason={}", collection, ex.getMessage());
+                log.info("qdrant.collection.not_found name={}, creating...", collection);
+            }
+
+            if (!exists) {
+                Map<String, Object> vectors = Map.of(
+                        "size", Math.max(1, vectorSize),
+                        "distance", "Cosine"
+                );
+                Map<String, Object> body = Map.of("vectors", vectors);
+                try {
+                    restClient.put()
+                            .uri("/collections/{collection}", collection)
+                            .body(body)
+                            .retrieve()
+                            .toBodilessEntity();
+                    log.info("qdrant.collection.created name={} dim={}", collection, vectorSize);
+                } catch (Exception ex) {
+                    log.error("qdrant.collection.create.failed name={} reason={}", collection, ex.getMessage());
+                    return; // 컬렉션 생성 실패 시 collectionReady를 true로 설정하지 않음
+                }
             }
 
             // deleteByDocumentId 필터가 동작하려면 payload 인덱스 필요

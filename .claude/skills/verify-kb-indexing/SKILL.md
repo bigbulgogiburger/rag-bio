@@ -31,6 +31,8 @@ description: KB 비동기 인덱싱 파이프라인 검증. 인덱싱 관련 코
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentTextExtractor.java` | PDF/DOCX 텍스트 추출 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java` | 청킹 서비스 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java` | 문의 문서 인덱싱 서비스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java` | Qdrant 벡터 스토어 (컬렉션 자동 생성 + 벡터 삭제) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/MockVectorStore.java` | Mock 벡터 스토어 (동시성 안전 삭제) |
 
 ## Workflow
 
@@ -164,7 +166,98 @@ grep -n "catch\|markFailed\|lastError" backend/app-api/src/main/java/com/biorad/
 **PASS:** catch(Exception)에서 markFailed(error) 호출 및 저장
 **FAIL:** 예외 전파 또는 markFailed 누락
 
-### Step 10: 스레드 풀 설정 검증
+### Step 9b: 워커 문서 조회 시 null-safe 패턴 확인
+
+**파일:** `KnowledgeIndexingWorker.java`
+
+**검사:** @Async 워커에서 문서 조회 시 `ResponseStatusException` 대신 `orElse(null)` + null 체크 + return 패턴을 사용하는지 확인. @Async 메서드에서 ResponseStatusException은 Spring MVC 예외 핸들러에 도달하지 않음.
+
+```bash
+grep -n "ResponseStatusException\|orElse(null)\|doc == null" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java
+```
+
+**PASS:** `findById(docId).orElse(null)` + `if (doc == null) return` 패턴, ResponseStatusException import 없음
+**FAIL:** ResponseStatusException 사용 또는 orElseThrow() 사용
+
+### Step 9c: 벡터 삭제 시 예외 전파 확인
+
+**파일:** `QdrantVectorStore.java`, `KnowledgeBaseService.java`
+
+**검사:** `QdrantVectorStore.deleteByDocumentId()`가 실패 시 RuntimeException을 throw하고, `KnowledgeBaseService.delete()`에서 이를 try-catch로 감싸 고스트 벡터 상황을 로깅하되 DB 삭제는 계속 진행하는지 확인.
+
+```bash
+grep -n "deleteByDocumentId\|RuntimeException\|ghost" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeBaseService.java
+```
+
+**PASS:** QdrantVectorStore에서 RuntimeException throw + KnowledgeBaseService에서 try-catch 감싸기 + error 로그
+**FAIL:** QdrantVectorStore에서 예외 삼킴 또는 KnowledgeBaseService에서 벡터 삭제 실패 시 전체 롤백
+
+### Step 9d: ensureCollection GET 우선 확인 패턴
+
+**파일:** `QdrantVectorStore.java`
+
+**검사:** `ensureCollection()`이 컬렉션 존재 여부를 GET 요청으로 먼저 확인하고, 없을 때만 PUT으로 생성하며, 생성 실패 시 `collectionReady`를 true로 설정하지 않는지 확인.
+
+```bash
+grep -n "GET\|exists\|collectionReady\|return;" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
+```
+
+**PASS:** GET 확인 → 미존재 시 PUT 생성 → 실패 시 early return (collectionReady 미설정)
+**FAIL:** GET 확인 없이 바로 PUT 또는 생성 실패에도 collectionReady = true
+
+### Step 9e: MockVectorStore 동시성 안전 삭제
+
+**파일:** `MockVectorStore.java`
+
+**검사:** `deleteByDocumentId()`에서 ConcurrentHashMap의 entrySet을 직접 순회하며 삭제하지 않고, 삭제 대상 키를 먼저 수집한 후 별도로 삭제하는지 확인.
+
+```bash
+grep -n "toRemove\|stream\|forEach.*remove\|removeIf" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/MockVectorStore.java
+```
+
+**PASS:** 키를 List로 수집 후 별도 삭제 또는 removeIf 사용
+**FAIL:** entrySet 순회 중 직접 remove 호출 (ConcurrentModificationException 위험)
+
+### Step 10: 워커 벡터 사전 삭제 확인 (유령 벡터 방지)
+
+**파일:** `KnowledgeIndexingWorker.java`
+
+**검사:** 재인덱싱 시 유령 벡터 방지를 위해 `vectorStore.deleteByDocumentId(docId)`를 청킹 전에 호출하는지 확인.
+
+```bash
+grep -n "deleteByDocumentId\|vectorStore" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java
+```
+
+**PASS:** `vectorStore.deleteByDocumentId(docId)` 호출이 텍스트 추출/청킹 전에 존재
+**FAIL:** 벡터 삭제 없이 바로 청킹 시작 (유령 벡터 위험)
+
+### Step 11: ChunkingService 콘텐츠 기반 페이지 매핑 확인
+
+**파일:** `ChunkingService.java`
+
+**검사:** `resolvePageRange`가 오프셋 기반이 아닌 콘텐츠 매칭 방식(`findMatchingPage`)을 사용하는지 확인. 문장 분리/재결합 시 오프셋 드리프트 문제를 해결하기 위함.
+
+```bash
+grep -n "findMatchingPage\|normalizedPages\|resolvePageRange" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `findMatchingPage` 메서드 존재, `normalizedPages` 사전 계산, `resolvePageRange`가 문자열 콘텐츠를 받음
+**FAIL:** 오프셋 기반 `resolvePageRange(int chunkStart, int chunkEnd, ...)` 사용
+
+### Step 12: QdrantVectorStore deleteByDocumentId 컬렉션 미존재 안전 처리
+
+**파일:** `QdrantVectorStore.java`
+
+**검사:** `deleteByDocumentId()`가 컬렉션이 존재하지 않을 때 graceful하게 처리하는지 확인 (재인덱싱 첫 실행 시 발생 가능).
+
+```bash
+grep -n "doesn't exist\|collection_not_found\|deleteByDocumentId" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
+```
+
+**PASS:** `msg.contains("doesn't exist")` 시 로그만 남기고 skip, 그 외 예외는 RuntimeException throw
+**FAIL:** 컬렉션 미존재 시 무조건 예외 전파
+
+### Step 13: 스레드 풀 설정 검증
 
 **파일:** `AsyncConfig.java`
 
@@ -190,7 +283,14 @@ grep -n "corePoolSize\|maxPoolSize\|queueCapacity\|threadNamePrefix\|waitForTask
 | 7 | HTTP 202 반환 | PASS/FAIL | 비동기 엔드포인트 응답 |
 | 8 | TextExtractor 사용 | PASS/FAIL | PDF 추출 방식 |
 | 9 | 워커 에러 핸들링 | PASS/FAIL | catch + markFailed |
-| 10 | 스레드 풀 설정 | PASS/FAIL | 설정값 적절성 |
+| 9b | 워커 null-safe 패턴 | PASS/FAIL | orElse(null) + return |
+| 9c | 벡터 삭제 예외 전파 | PASS/FAIL | RuntimeException + try-catch |
+| 9d | ensureCollection GET 우선 | PASS/FAIL | GET → PUT → early return |
+| 9e | MockVectorStore 동시성 | PASS/FAIL | 키 수집 후 삭제 |
+| 10 | 워커 벡터 사전 삭제 | PASS/FAIL | deleteByDocumentId 호출 위치 |
+| 11 | 콘텐츠 기반 페이지 매핑 | PASS/FAIL | findMatchingPage 존재 |
+| 12 | 컬렉션 미존재 안전 처리 | PASS/FAIL | doesn't exist 처리 |
+| 13 | 스레드 풀 설정 | PASS/FAIL | 설정값 적절성 |
 
 ## Exceptions
 

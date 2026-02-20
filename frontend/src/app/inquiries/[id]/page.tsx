@@ -1,23 +1,56 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { Tabs } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import InquiryInfoTab from "@/components/inquiry/InquiryInfoTab";
-import InquiryAnalysisTab from "@/components/inquiry/InquiryAnalysisTab";
 import InquiryAnswerTab from "@/components/inquiry/InquiryAnswerTab";
 import InquiryHistoryTab from "@/components/inquiry/InquiryHistoryTab";
+import { TabErrorBoundary } from "@/components/error";
+import { getInquiry, type InquiryDetail } from "@/lib/api/client";
 
 export default function InquiryDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const inquiryId = params.id as string;
 
+  const [inquiry, setInquiry] = useState<InquiryDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const tabParam = searchParams.get("tab");
+  const validTabs = ["info", "answer", "history"];
+  const defaultTab = tabParam && validTabs.includes(tabParam) ? tabParam : "info";
+
+  useEffect(() => {
+    getInquiry(inquiryId)
+      .then(setInquiry)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "문의를 불러올 수 없습니다."));
+  }, [inquiryId]);
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+          {loadError}
+        </p>
+      </div>
+    );
+  }
+
+  if (!inquiry) {
+    return (
+      <div className="flex items-center justify-center p-12 text-sm text-muted-foreground" role="status" aria-live="polite">
+        불러오는 중...
+      </div>
+    );
+  }
+
   const tabs = [
-    { key: "info", label: "기본 정보", content: <InquiryInfoTab inquiryId={inquiryId} /> },
-    { key: "analysis", label: "분석", content: <InquiryAnalysisTab inquiryId={inquiryId} /> },
-    { key: "answer", label: "답변", content: <InquiryAnswerTab inquiryId={inquiryId} /> },
-    { key: "history", label: "이력", content: <InquiryHistoryTab inquiryId={inquiryId} /> },
+    { key: "info", label: "문의 정보", content: <TabErrorBoundary><InquiryInfoTab inquiryId={inquiryId} /></TabErrorBoundary> },
+    { key: "answer", label: "답변", content: <TabErrorBoundary><InquiryAnswerTab inquiryId={inquiryId} inquiry={inquiry} /></TabErrorBoundary> },
+    { key: "history", label: "이력", content: <TabErrorBoundary><InquiryHistoryTab inquiryId={inquiryId} /></TabErrorBoundary> },
   ];
 
   return (
@@ -38,7 +71,7 @@ export default function InquiryDetailPage() {
       </div>
 
       <div className="rounded-xl border bg-card p-6 shadow-sm">
-        <Tabs tabs={tabs} defaultTab="info" />
+        <Tabs tabs={tabs} defaultTab={defaultTab} />
       </div>
     </div>
   );

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f4f4f7; }
+        .container { max-width: 640px; margin: 0 auto; background: #ffffff; }
+        .header { background: #003366; padding: 24px 32px; }
+        .header h1 { color: #ffffff; font-size: 18px; margin: 0; font-weight: 600; }
+        .header p { color: #a0c4e8; font-size: 13px; margin: 6px 0 0 0; }
+        .body { padding: 32px; }
+        .body h2 { color: #003366; font-size: 16px; margin: 0 0 16px 0; border-bottom: 2px solid #003366; padding-bottom: 8px; }
+        .draft-content { background: #f8f9fa; border-left: 4px solid #003366; padding: 20px; margin: 16px 0; line-height: 1.7; white-space: pre-wrap; font-size: 14px; color: #333; }
+        .meta-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+        .meta-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .meta-table td:first-child { color: #666; width: 120px; font-weight: 600; }
+        .citations { margin: 16px 0; }
+        .citation-item { background: #f0f4f8; border-radius: 4px; padding: 10px 14px; margin: 6px 0; font-size: 12px; color: #555; }
+        .footer { background: #f4f4f7; padding: 20px 32px; text-align: center; font-size: 11px; color: #999; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-supported { background: #d4edda; color: #155724; }
+        .badge-conditional { background: #fff3cd; color: #856404; }
+        .badge-unsupported { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bio-Rad CS 기술지원 답변</h1>
+            <p th:text="'문의 ID: ' + ${inquiryId}">문의 ID: xxxxxxxx</p>
+        </div>
+        <div class="body">
+            <table class="meta-table">
+                <tr>
+                    <td>판정</td>
+                    <td>
+                        <span class="badge" th:classappend="${verdict == 'SUPPORTED'} ? 'badge-supported' : (${verdict == 'CONDITIONAL'} ? 'badge-conditional' : 'badge-unsupported')" th:text="${verdict}">CONDITIONAL</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>신뢰도</td>
+                    <td th:text="${#numbers.formatDecimal(confidence * 100, 1, 1)} + '%'">85.0%</td>
+                </tr>
+                <tr>
+                    <td>어조</td>
+                    <td th:text="${tone}">professional</td>
+                </tr>
+                <tr>
+                    <td>버전</td>
+                    <td th:text="'v' + ${version}">v1</td>
+                </tr>
+            </table>
+
+            <h2>답변 내용</h2>
+            <div class="draft-content" th:text="${draft}">답변 초안 내용이 여기에 표시됩니다.</div>
+
+            <div th:if="${not #lists.isEmpty(citations)}">
+                <h2>인용 근거</h2>
+                <div class="citations">
+                    <div class="citation-item" th:each="citation : ${citations}" th:text="${citation}">chunk=xxx score=0.95</div>
+                </div>
+            </div>
+
+            <div th:if="${not #lists.isEmpty(riskFlags)}">
+                <h2>리스크 플래그</h2>
+                <div class="citations">
+                    <div class="citation-item" th:each="flag : ${riskFlags}" th:text="${flag}">RISK_FLAG</div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            <p>Bio-Rad Laboratories, Inc. | CS Copilot 자동 생성 답변</p>
+            <p>본 이메일은 승인된 답변을 기반으로 자동 발송되었습니다.</p>
+        </div>
+    </div>
+</body>
+</html>

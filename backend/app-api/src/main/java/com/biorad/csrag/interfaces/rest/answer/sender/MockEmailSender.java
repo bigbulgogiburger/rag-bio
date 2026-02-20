@@ -1,10 +1,12 @@
 package com.biorad.csrag.interfaces.rest.answer.sender;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(name = "app.mail.enabled", havingValue = "false", matchIfMissing = true)
 public class MockEmailSender implements MessageSender {
 
     @Override

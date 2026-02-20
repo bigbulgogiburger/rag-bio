@@ -36,10 +36,10 @@ public class AnswerDraftJpaEntity {
     @Column(name = "status", nullable = false, length = 32)
     private String status;
 
-    @Column(name = "draft", nullable = false, length = 5000)
+    @Column(name = "draft", nullable = false, columnDefinition = "TEXT")
     private String draft;
 
-    @Column(name = "citations", nullable = false, length = 5000)
+    @Column(name = "citations", nullable = false, columnDefinition = "TEXT")
     private String citations;
 
     @Column(name = "risk_flags", nullable = false, length = 1000)
@@ -77,6 +77,18 @@ public class AnswerDraftJpaEntity {
 
     @Column(name = "send_request_id", length = 120)
     private String sendRequestId;
+
+    @Column(name = "review_score")
+    private Integer reviewScore;
+
+    @Column(name = "review_decision", length = 32)
+    private String reviewDecision;
+
+    @Column(name = "approval_decision", length = 32)
+    private String approvalDecision;
+
+    @Column(name = "approval_reason", length = 2000)
+    private String approvalReason;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -124,8 +136,36 @@ public class AnswerDraftJpaEntity {
     public String getSendChannel() { return sendChannel; }
     public String getSendMessageId() { return sendMessageId; }
     public String getSendRequestId() { return sendRequestId; }
+    public Integer getReviewScore() { return reviewScore; }
+    public String getReviewDecision() { return reviewDecision; }
+    public String getApprovalDecision() { return approvalDecision; }
+    public String getApprovalReason() { return approvalReason; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public void markAiReviewed(String reviewer, int score, String decision, String comment) {
+        this.status = "REVIEWED";
+        this.reviewedBy = reviewer;
+        this.reviewComment = comment;
+        this.reviewedAt = Instant.now();
+        this.reviewScore = score;
+        this.reviewDecision = decision;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markAiApproved(String decision, String reason) {
+        this.approvalDecision = decision;
+        this.approvalReason = reason;
+        if ("AUTO_APPROVED".equals(decision)) {
+            this.status = "APPROVED";
+            this.approvedBy = "ai-approval-agent";
+            this.approvedAt = Instant.now();
+        }
+        if ("REJECTED".equals(decision)) {
+            this.status = "DRAFT";
+        }
+        this.updatedAt = Instant.now();
+    }
 
     public void markReviewed(String reviewer, String comment) {
         this.status = "REVIEWED";
@@ -140,6 +180,11 @@ public class AnswerDraftJpaEntity {
         this.approvedBy = approver;
         this.approveComment = comment;
         this.approvedAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    public void updateDraft(String newDraft) {
+        this.draft = newDraft;
         this.updatedAt = Instant.now();
     }
 

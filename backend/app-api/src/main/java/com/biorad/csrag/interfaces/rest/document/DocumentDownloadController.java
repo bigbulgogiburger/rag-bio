@@ -17,7 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
+import com.biorad.csrag.common.exception.NotFoundException;
+import com.biorad.csrag.common.exception.ValidationException;
+import com.biorad.csrag.common.exception.ExternalServiceException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,7 +55,7 @@ public class DocumentDownloadController {
         Path filePath = Path.of(info.storagePath());
 
         if (!Files.exists(filePath)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found on storage");
+            throw new NotFoundException("FILE_NOT_FOUND", "File not found on storage");
         }
 
         String encodedFileName = URLEncoder.encode(info.fileName(), StandardCharsets.UTF_8)
@@ -77,7 +79,7 @@ public class DocumentDownloadController {
             @RequestParam int to
     ) {
         if (from < 1 || to < from) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            throw new ValidationException("INVALID_PAGE_RANGE",
                     "Invalid page range: from=" + from + " to=" + to);
         }
 
@@ -85,7 +87,7 @@ public class DocumentDownloadController {
         Path filePath = Path.of(info.storagePath());
 
         if (!Files.exists(filePath)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found on storage");
+            throw new NotFoundException("FILE_NOT_FOUND", "File not found on storage");
         }
 
         // 비-PDF: 전체 파일 반환
@@ -109,8 +111,8 @@ public class DocumentDownloadController {
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(new ByteArrayResource(pdfBytes));
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to extract PDF pages", e);
+            throw new ExternalServiceException("PDFExtractor",
+                    "Failed to extract PDF pages");
         }
     }
 
@@ -120,7 +122,7 @@ public class DocumentDownloadController {
             int actualTo = Math.min(to, totalPages);
 
             if (from > totalPages) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                throw new ValidationException("INVALID_PAGE_RANGE",
                         "Page " + from + " exceeds total pages " + totalPages);
             }
 
@@ -146,7 +148,7 @@ public class DocumentDownloadController {
                 .map(d -> new DocumentInfo(d.getStoragePath(), d.getFileName(), d.getContentType()))
                 .or(() -> kbDocRepository.findById(documentId)
                         .map(d -> new DocumentInfo(d.getStoragePath(), d.getFileName(), d.getContentType())))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new NotFoundException("DOCUMENT_NOT_FOUND",
                         "Document not found: " + documentId));
     }
 

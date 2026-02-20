@@ -44,4 +44,12 @@ public class RetrievalEvidenceJpaEntity {
         this.question = question;
         this.createdAt = createdAt;
     }
+
+    public UUID getId() { return id; }
+    public UUID getInquiryId() { return inquiryId; }
+    public UUID getChunkId() { return chunkId; }
+    public double getScore() { return score; }
+    public int getRankOrder() { return rankOrder; }
+    public String getQuestion() { return question; }
+    public Instant getCreatedAt() { return createdAt; }
 }

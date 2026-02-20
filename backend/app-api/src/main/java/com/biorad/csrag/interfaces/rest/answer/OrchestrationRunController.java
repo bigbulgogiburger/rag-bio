@@ -9,7 +9,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
+import com.biorad.csrag.common.exception.NotFoundException;
+import com.biorad.csrag.common.exception.ValidationException;
 
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +32,7 @@ public class OrchestrationRunController {
     public List<OrchestrationRunResponse> list(@PathVariable String inquiryId) {
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+                .orElseThrow(() -> new NotFoundException("INQUIRY_NOT_FOUND", "문의를 찾을 수 없습니다."));
 
         return runRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid)
                 .stream()
@@ -51,7 +52,7 @@ public class OrchestrationRunController {
         try {
             return UUID.fromString(inquiryId);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid inquiryId format");
+            throw new ValidationException("INVALID_INQUIRY_ID", "Invalid inquiryId format");
         }
     }
 }

@@ -9,12 +9,10 @@ import com.biorad.csrag.interfaces.rest.document.ocr.OcrService;
 import com.biorad.csrag.interfaces.rest.vector.VectorizingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -37,19 +35,22 @@ public class KnowledgeIndexingWorker {
     private final VectorizingService vectorizingService;
     private final OcrService ocrService;
     private final DocumentTextExtractor textExtractor;
+    private final com.biorad.csrag.interfaces.rest.vector.VectorStore vectorStore;
 
     public KnowledgeIndexingWorker(
             KnowledgeDocumentJpaRepository kbDocRepository,
             ChunkingService chunkingService,
             VectorizingService vectorizingService,
             OcrService ocrService,
-            DocumentTextExtractor textExtractor
+            DocumentTextExtractor textExtractor,
+            com.biorad.csrag.interfaces.rest.vector.VectorStore vectorStore
     ) {
         this.kbDocRepository = kbDocRepository;
         this.chunkingService = chunkingService;
         this.vectorizingService = vectorizingService;
         this.ocrService = ocrService;
         this.textExtractor = textExtractor;
+        this.vectorStore = vectorStore;
     }
 
     /**
@@ -59,12 +60,18 @@ public class KnowledgeIndexingWorker {
     @Async("kbIndexingExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void indexOneAsync(UUID docId) {
-        KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+        KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId).orElse(null);
+        if (doc == null) {
+            log.warn("kb.indexing.skipped documentId={} reason=document_not_found", docId);
+            return;
+        }
 
         try {
             doc.markParsing();
             kbDocRepository.save(doc);
+
+            // 기존 벡터 삭제 (재인덱싱 시 유령 벡터 방지)
+            vectorStore.deleteByDocumentId(docId);
 
             // 텍스트 추출 (PDF: PDFBox, DOCX: POI)
             String extracted = extractText(doc.getStoragePath(), doc.getContentType());

@@ -18,6 +18,20 @@ spring:
   h2:
     console:
       enabled: true
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enabled: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   servlet:
     multipart:
       max-file-size: 20MB
@@ -28,7 +42,17 @@ app:
     upload-dir: uploads
   web:
     cors:
-      allowed-origins: http://localhost:3001
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3001}
+  mail:
+    enabled: ${SMTP_ENABLED:false}
+    from: ${SMTP_FROM:noreply@biorad.com}
+    from-name: ${SMTP_FROM_NAME:Bio-Rad CS 기술지원}
+    max-retries: ${SMTP_MAX_RETRIES:3}
+  security:
+    jwt:
+      secret: ${JWT_SECRET:default-dev-secret-key-change-in-production-minimum-32-chars!!}
+      access-token-expiration: ${JWT_ACCESS_EXPIRATION:900000}
+      refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 openai:
   enabled: ${OPENAI_ENABLED:false}
@@ -52,9 +76,25 @@ vector:
     url: ${WEAVIATE_URL:}
     api-key: ${WEAVIATE_API_KEY:}
 
+search:
+  hybrid:
+    enabled: ${HYBRID_SEARCH_ENABLED:true}
+    rrf-k: 60
+    vector-weight: 1.0
+    keyword-weight: 1.0
+
 logging:
   pattern:
     level: "%5p [req:%X{requestId:-none}]"
 
 server:
   port: 8081
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-produces-media-type: application/json

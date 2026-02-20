@@ -1,13 +1,21 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.interfaces.rest.answer.agent.ApprovalAgentService;
+import com.biorad.csrag.interfaces.rest.answer.agent.ReviewAgentService;
 import com.biorad.csrag.inquiry.domain.model.Inquiry;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -22,7 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = AnswerController.class)
-@org.springframework.test.context.ContextConfiguration(classes = AnswerController.class)
+@ContextConfiguration(classes = AnswerController.class)
+@Import({JacksonAutoConfiguration.class, com.biorad.csrag.common.exception.GlobalExceptionHandler.class})
+@AutoConfigureMockMvc(addFilters = false)
 class AnswerControllerWebMvcTest {
 
     @Autowired
@@ -37,6 +47,15 @@ class AnswerControllerWebMvcTest {
     @MockBean
     private AnswerDraftJpaRepository answerDraftRepository;
 
+    @MockBean
+    private AiReviewResultJpaRepository aiReviewResultRepository;
+
+    @MockBean
+    private ReviewAgentService reviewAgentService;
+
+    @MockBean
+    private ApprovalAgentService approvalAgentService;
+
     @Test
     void review_returns403_whenUserIdMissing() throws Exception {
         String inquiryId = UUID.randomUUID().toString();
@@ -49,7 +68,7 @@ class AnswerControllerWebMvcTest {
                                 {"comment":"review"}
                                 """))
                 .andExpect(status().isForbidden())
-                .andExpect(status().reason(org.hamcrest.Matchers.containsString("AUTH_USER_ID_REQUIRED")));
+                .andExpect(jsonPath("$.error.code").value("AUTH_USER_ID_REQUIRED"));
     }
 
     @Test
@@ -65,7 +84,7 @@ class AnswerControllerWebMvcTest {
                                 {"comment":"approve"}
                                 """))
                 .andExpect(status().isForbidden())
-                .andExpect(status().reason(org.hamcrest.Matchers.containsString("AUTH_ROLE_FORBIDDEN")));
+                .andExpect(jsonPath("$.error.code").value("AUTH_ROLE_FORBIDDEN"));
     }
 
     @Test
@@ -120,7 +139,12 @@ class AnswerControllerWebMvcTest {
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 }

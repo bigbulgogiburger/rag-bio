@@ -30,16 +30,20 @@ public class InquiryJpaEntity {
     @Column(name = "status", nullable = false, length = 40)
     private InquiryStatus status;
 
+    @Column(name = "preferred_tone", length = 40)
+    private String preferredTone;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected InquiryJpaEntity() {
     }
 
-    private InquiryJpaEntity(UUID id, String question, String customerChannel, InquiryStatus status, Instant createdAt) {
+    private InquiryJpaEntity(UUID id, String question, String customerChannel, String preferredTone, InquiryStatus status, Instant createdAt) {
         this.id = id;
         this.question = question;
         this.customerChannel = customerChannel;
+        this.preferredTone = preferredTone;
         this.status = status;
         this.createdAt = createdAt;
     }
@@ -49,13 +53,14 @@ public class InquiryJpaEntity {
                 inquiry.getId().value(),
                 inquiry.getQuestion(),
                 inquiry.getCustomerChannel(),
+                inquiry.getPreferredTone(),
                 inquiry.getStatus(),
                 inquiry.getCreatedAt()
         );
     }
 
     public Inquiry toDomain() {
-        return Inquiry.reconstitute(new InquiryId(id), question, customerChannel, status, createdAt);
+        return Inquiry.reconstitute(new InquiryId(id), question, customerChannel, preferredTone, status, createdAt);
     }
 
     // Getters for query projections
@@ -69,6 +74,10 @@ public class InquiryJpaEntity {
 
     public String getCustomerChannel() {
         return customerChannel;
+    }
+
+    public String getPreferredTone() {
+        return preferredTone;
     }
 
     public InquiryStatus getStatus() {

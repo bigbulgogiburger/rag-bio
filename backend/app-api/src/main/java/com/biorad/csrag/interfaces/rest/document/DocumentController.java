@@ -4,10 +4,15 @@ import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaE
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,16 +22,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
+import com.biorad.csrag.common.exception.NotFoundException;
+import com.biorad.csrag.common.exception.ValidationException;
+import com.biorad.csrag.common.exception.ExternalServiceException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+@Tag(name = "Document", description = "문의 첨부 문서 관리 API")
 @RestController
 @RequestMapping("/api/v1/inquiries/{inquiryId}/documents")
 public class DocumentController {
@@ -42,6 +51,7 @@ public class DocumentController {
     private final InquiryRepository inquiryRepository;
     private final DocumentMetadataJpaRepository documentMetadataJpaRepository;
     private final DocumentIndexingService documentIndexingService;
+    private final DocumentIndexingWorker documentIndexingWorker;
 
     @Value("${app.storage.upload-dir:uploads}")
     private String uploadDir;
@@ -49,17 +59,23 @@ public class DocumentController {
     public DocumentController(
             InquiryRepository inquiryRepository,
             DocumentMetadataJpaRepository documentMetadataJpaRepository,
-            DocumentIndexingService documentIndexingService
+            DocumentIndexingService documentIndexingService,
+            DocumentIndexingWorker documentIndexingWorker
     ) {
         this.inquiryRepository = inquiryRepository;
         this.documentMetadataJpaRepository = documentMetadataJpaRepository;
         this.documentIndexingService = documentIndexingService;
+        this.documentIndexingWorker = documentIndexingWorker;
     }
 
+    @Operation(summary = "문서 업로드", description = "문의에 PDF/DOC/DOCX 문서를 업로드합니다 (자동 인덱싱 트리거)")
+    @ApiResponse(responseCode = "201", description = "업로드 성공")
+    @ApiResponse(responseCode = "400", description = "유효성 검증 실패 (빈 파일 또는 허용되지 않는 파일 형식)")
+    @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DocumentUploadResponse upload(
-            @PathVariable String inquiryId,
+            @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId,
             @RequestParam("file") MultipartFile file
     ) {
         log.info("document.upload.request inquiryId={} fileName={} size={} contentType={}",
@@ -70,15 +86,15 @@ public class DocumentController {
 
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+                .orElseThrow(() -> new NotFoundException("INQUIRY_NOT_FOUND", "문의를 찾을 수 없습니다."));
 
         if (file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File must not be empty");
+            throw new ValidationException("FILE_EMPTY", "File must not be empty");
         }
 
         String contentType = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
         if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only PDF/DOC/DOCX files are allowed");
+            throw new ValidationException("INVALID_FILE_TYPE", "Only PDF/DOC/DOCX files are allowed");
         }
 
         String fileName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename());
@@ -111,19 +127,33 @@ public class DocumentController {
             documentMetadataJpaRepository.save(entity);
             log.info("document.upload.success inquiryId={} documentId={} status=UPLOADED", inquiryUuid, documentId);
 
+            // Trigger async indexing automatically after upload
+            documentIndexingWorker.indexOneAsync(documentId);
+            log.info("document.upload.auto-indexing.triggered inquiryId={} documentId={}", inquiryUuid, documentId);
+
             return new DocumentUploadResponse(documentId.toString(), inquiryUuid.toString(), fileName, "UPLOADED");
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store uploaded file", e);
+            throw new ExternalServiceException("FileStorage", "Failed to store uploaded file");
         }
     }
 
+    @Operation(summary = "문서 목록 조회", description = "문의에 첨부된 문서 목록을 조회합니다")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
     @GetMapping
-    public List<DocumentStatusResponse> list(@PathVariable String inquiryId) {
+    public List<DocumentStatusResponse> list(
+            @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId
+    ) {
         return getDocumentStatuses(inquiryId);
     }
 
+    @Operation(summary = "인덱싱 상태 조회", description = "문의 첨부 문서의 인덱싱 진행 상태를 조회합니다")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
     @GetMapping("/indexing-status")
-    public InquiryIndexingStatusResponse indexingStatus(@PathVariable String inquiryId) {
+    public InquiryIndexingStatusResponse indexingStatus(
+            @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId
+    ) {
         log.info("document.indexing.status.request inquiryId={}", inquiryId);
         List<DocumentStatusResponse> docs = getDocumentStatuses(inquiryId);
 
@@ -147,27 +177,42 @@ public class DocumentController {
         );
     }
 
+    @Operation(summary = "인덱싱 실행", description = "문의 첨부 문서의 인덱싱을 수동으로 트리거합니다")
+    @ApiResponse(responseCode = "200", description = "인덱싱 실행 성공")
+    @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
+    @ApiResponse(responseCode = "409", description = "모든 문서가 이미 인덱싱 중 또는 완료")
     @PostMapping("/indexing/run")
-    public IndexingRunResponse runIndexing(
-            @PathVariable String inquiryId,
+    public ResponseEntity<?> runIndexing(
+            @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId,
             @RequestParam(name = "failedOnly", defaultValue = "false") boolean failedOnly
     ) {
         log.info("document.indexing.run.request inquiryId={} failedOnly={}", inquiryId, failedOnly);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+                .orElseThrow(() -> new NotFoundException("INQUIRY_NOT_FOUND", "문의를 찾을 수 없습니다."));
+
+        // Reject if all eligible documents are currently being indexed (intermediate states)
+        Set<String> indexingStates = Set.of("PARSING", "PARSED", "PARSED_OCR", "CHUNKED");
+        List<DocumentMetadataJpaEntity> docs = documentMetadataJpaRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid);
+        boolean allInProgress = !docs.isEmpty() && docs.stream()
+                .allMatch(d -> indexingStates.contains(d.getStatus()) || "INDEXED".equals(d.getStatus()));
+        if (allInProgress) {
+            log.info("document.indexing.run.conflict inquiryId={} reason=all_documents_already_indexing_or_indexed", inquiryUuid);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "All documents are already being indexed or have been indexed."));
+        }
 
         IndexingRunResponse response = documentIndexingService.run(inquiryUuid, failedOnly);
         log.info("document.indexing.run.success inquiryId={} processed={} succeeded={} failed={}",
                 response.inquiryId(), response.processed(), response.succeeded(), response.failed());
-        return response;
+        return ResponseEntity.ok(response);
     }
 
     private List<DocumentStatusResponse> getDocumentStatuses(String inquiryId) {
         log.info("document.list.request inquiryId={}", inquiryId);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+                .orElseThrow(() -> new NotFoundException("INQUIRY_NOT_FOUND", "문의를 찾을 수 없습니다."));
 
         return documentMetadataJpaRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid)
                 .stream()
@@ -192,7 +237,7 @@ public class DocumentController {
         try {
             return UUID.fromString(inquiryId);
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid inquiryId format");
+            throw new ValidationException("INVALID_INQUIRY_ID", "Invalid inquiryId format");
         }
     }
 }

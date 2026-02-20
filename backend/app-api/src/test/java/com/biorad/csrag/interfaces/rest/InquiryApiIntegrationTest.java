@@ -86,11 +86,13 @@ class InquiryApiIntegrationTest {
                 .andExpect(jsonPath("$.fileName").value("protocol.pdf"))
                 .andExpect(jsonPath("$.status").value("UPLOADED"));
 
+        // After upload, async indexing is triggered automatically, so the status
+        // may have transitioned from UPLOADED to PARSING/INDEXED/FAILED_PARSING by the time we query.
         String listResponse = mockMvc.perform(get("/api/v1/inquiries/{inquiryId}/documents", inquiryId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].inquiryId").value(inquiryId))
                 .andExpect(jsonPath("$[0].fileName").value("protocol.pdf"))
-                .andExpect(jsonPath("$[0].status").value("UPLOADED"))
+                .andExpect(jsonPath("$[0].status").isNotEmpty())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();

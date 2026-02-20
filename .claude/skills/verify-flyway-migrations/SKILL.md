@@ -31,6 +31,11 @@ description: Flyway DB 마이그레이션 일관성 검증. 마이그레이션 �
 | `backend/app-api/src/main/resources/db/migration/V18__chunk_page_tracking.sql` | page_start/page_end 컬럼 추가 |
 | `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java` | 청크 엔티티 |
 | `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/knowledge/KnowledgeDocumentJpaEntity.java` | KB 문서 엔티티 |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AnswerDraftJpaEntity.java` | 답변 초안 엔티티 (draft/citations TEXT) |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AiReviewResultJpaEntity.java` | AI 리뷰 결과 엔티티 |
+| `backend/app-api/src/main/resources/db/migration/V19__inquiry_preferred_tone.sql` | preferred_tone 컬럼 추가 |
+| `backend/app-api/src/main/resources/db/migration/V20__ai_workflow_columns.sql` | AI 워크플로우 컬럼 (review/approval) |
+| `backend/app-api/src/main/resources/db/migration/V21__answer_draft_text_columns.sql` | draft/citations VARCHAR→TEXT 변환 |
 
 ## Workflow
 
@@ -84,16 +89,16 @@ grep -in "TIMESTAMP" backend/app-api/src/main/resources/db/migration/V*__*.sql
 
 ### Step 5: JPA 엔티티 TEXT 컬럼 동기화
 
-**파일:** `DocumentChunkJpaEntity.java`, `KnowledgeDocumentJpaEntity.java`
+**파일:** `DocumentChunkJpaEntity.java`, `KnowledgeDocumentJpaEntity.java`, `AnswerDraftJpaEntity.java`
 
-**검사:** SQL에서 TEXT 타입인 컬럼이 JPA에서도 `columnDefinition = "TEXT"`로 선언되었는지 확인.
+**검사:** SQL에서 TEXT 타입인 컬럼이 JPA에서도 `columnDefinition = "TEXT"`로 선언되었는지 확인. V17(chunk content), V21(draft/citations) 등 모든 TEXT 변환 마이그레이션을 검사.
 
 ```bash
-grep -n "columnDefinition.*TEXT\|TYPE TEXT" backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/knowledge/KnowledgeDocumentJpaEntity.java backend/app-api/src/main/resources/db/migration/V17__chunk_content_to_text.sql
+grep -n "columnDefinition.*TEXT\|TYPE TEXT" backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/knowledge/KnowledgeDocumentJpaEntity.java backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AnswerDraftJpaEntity.java backend/app-api/src/main/resources/db/migration/V17__chunk_content_to_text.sql backend/app-api/src/main/resources/db/migration/V21__answer_draft_text_columns.sql
 ```
 
-**PASS:** SQL TEXT 타입과 JPA columnDefinition = "TEXT" 일치
-**FAIL:** SQL은 TEXT인데 JPA에서 length = 4000 등 VARCHAR 설정
+**PASS:** SQL TEXT 타입과 JPA columnDefinition = "TEXT" 일치 (chunk content, draft, citations 모두)
+**FAIL:** SQL은 TEXT인데 JPA에서 length = 4000/5000 등 VARCHAR 설정
 
 ### Step 6: VARCHAR 길이 일치 확인
 
@@ -140,6 +145,9 @@ grep -n "CREATE.*INDEX" backend/app-api/src/main/resources/db/migration/V*__*.sq
 | 6 | VARCHAR 길이 일치 | PASS/FAIL | 불일치 항목 |
 | 7 | IF NOT EXISTS | PASS/FAIL | 미사용 구문 목록 |
 | 8 | 인덱스 전략 | PASS/FAIL | 누락 인덱스 제안 |
+| 9 | page_start/page_end 동기화 | PASS/FAIL | INT vs Integer 일치 |
+| 10 | AI 워크플로우 컬럼 동기화 | PASS/FAIL | V20 컬럼 매핑 |
+| 11 | preferred_tone 동기화 | PASS/FAIL | V19 컬럼 매핑 |
 
 ### Step 9: page_start/page_end JPA 동기화 확인
 
@@ -153,6 +161,32 @@ grep -n "page_start\|page_end\|pageStart\|pageEnd" backend/app-api/src/main/reso
 
 **PASS:** SQL INT 컬럼과 JPA Integer 필드가 일치하고, nullable
 **FAIL:** 타입 불일치 또는 @Column name 미지정
+
+### Step 10: AI 워크플로우 컬럼 동기화 확인
+
+**파일:** `V20__ai_workflow_columns.sql`, `AnswerDraftJpaEntity.java`, `AiReviewResultJpaEntity.java`
+
+**검사:** V20에서 추가된 AI 워크플로우 컬럼(ai_review_decision, ai_review_score, ai_approval_decision 등)이 JPA 엔티티에 올바르게 매핑되는지 확인.
+
+```bash
+grep -n "ai_review\|ai_approval\|aiReview\|aiApproval" backend/app-api/src/main/resources/db/migration/V20__ai_workflow_columns.sql backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AnswerDraftJpaEntity.java backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AiReviewResultJpaEntity.java
+```
+
+**PASS:** SQL 컬럼과 JPA 필드가 일치 (이름, 타입)
+**FAIL:** SQL에 컬럼이 있지만 JPA에 대응 필드 없음 또는 타입 불일치
+
+### Step 11: preferred_tone 컬럼 동기화 확인
+
+**파일:** `V19__inquiry_preferred_tone.sql`, Inquiry 관련 JPA 엔티티
+
+**검사:** V19에서 추가된 preferred_tone VARCHAR 컬럼이 JPA 엔티티에 매핑되는지 확인.
+
+```bash
+grep -rn "preferred_tone\|preferredTone" backend/app-api/src/main/resources/db/migration/V19__inquiry_preferred_tone.sql backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/inquiry/
+```
+
+**PASS:** SQL VARCHAR 컬럼과 JPA String 필드 일치
+**FAIL:** JPA에 preferredTone 필드 없음
 
 ## Exceptions
 

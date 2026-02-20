@@ -8,6 +8,7 @@ public record AnalyzeResponse(
         double confidence,
         String reason,
         List<String> riskFlags,
-        List<EvidenceItem> evidences
+        List<EvidenceItem> evidences,
+        String translatedQuery
 ) {
 }

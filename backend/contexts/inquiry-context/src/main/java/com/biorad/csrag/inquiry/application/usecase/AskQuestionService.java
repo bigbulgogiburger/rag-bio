@@ -17,7 +17,7 @@ public class AskQuestionService implements AskQuestionUseCase {
     @Override
     @Transactional
     public AskQuestionResult ask(AskQuestionCommand command) {
-        Inquiry inquiry = Inquiry.create(command.question(), command.customerChannel());
+        Inquiry inquiry = Inquiry.create(command.question(), command.customerChannel(), command.preferredTone());
         Inquiry saved = inquiryRepository.save(inquiry);
         return new AskQuestionResult(
                 saved.getId().value().toString(),

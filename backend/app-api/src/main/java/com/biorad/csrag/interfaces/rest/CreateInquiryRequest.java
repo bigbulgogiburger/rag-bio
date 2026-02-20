@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 public record CreateInquiryRequest(
         @NotBlank(message = "question is required")
         String question,
-        String customerChannel
+        String customerChannel,
+        String preferredTone
 ) {
 }

@@ -8,8 +8,11 @@ import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJp
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaRepository;
+import com.biorad.csrag.interfaces.rest.search.HybridSearchResult;
+import com.biorad.csrag.interfaces.rest.search.HybridSearchService;
+import com.biorad.csrag.interfaces.rest.search.QueryTranslationService;
+import com.biorad.csrag.interfaces.rest.search.TranslatedQuery;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
-import com.biorad.csrag.interfaces.rest.vector.VectorSearchResult;
 import com.biorad.csrag.interfaces.rest.vector.VectorStore;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +29,8 @@ public class AnalysisService {
     private final DocumentChunkJpaRepository chunkRepository;
     private final DocumentMetadataJpaRepository documentRepository;
     private final KnowledgeDocumentJpaRepository kbDocRepository;
+    private final QueryTranslationService queryTranslationService;
+    private final HybridSearchService hybridSearchService;
 
     public AnalysisService(
             EmbeddingService embeddingService,
@@ -33,7 +38,9 @@ public class AnalysisService {
             RetrievalEvidenceJpaRepository evidenceRepository,
             DocumentChunkJpaRepository chunkRepository,
             DocumentMetadataJpaRepository documentRepository,
-            KnowledgeDocumentJpaRepository kbDocRepository
+            KnowledgeDocumentJpaRepository kbDocRepository,
+            QueryTranslationService queryTranslationService,
+            HybridSearchService hybridSearchService
     ) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
@@ -41,20 +48,36 @@ public class AnalysisService {
         this.chunkRepository = chunkRepository;
         this.documentRepository = documentRepository;
         this.kbDocRepository = kbDocRepository;
+        this.queryTranslationService = queryTranslationService;
+        this.hybridSearchService = hybridSearchService;
     }
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
-        List<EvidenceItem> evidences = retrieve(inquiryId, question, topK);
-        return verify(inquiryId, question, evidences);
+        TranslatedQuery tq = queryTranslationService.translate(question);
+        List<EvidenceItem> evidences = doRetrieve(inquiryId, tq.translated(), topK);
+        AnalyzeResponse response = verify(inquiryId, question, evidences);
+        return new AnalyzeResponse(
+                response.inquiryId(),
+                response.verdict(),
+                response.confidence(),
+                response.reason(),
+                response.riskFlags(),
+                response.evidences(),
+                tq.wasTranslated() ? tq.translated() : null
+        );
     }
 
     public List<EvidenceItem> retrieve(UUID inquiryId, String question, int topK) {
-        List<Double> queryVector = embeddingService.embed(question);
-        List<VectorSearchResult> searchResults = vectorStore.search(queryVector, topK);
+        TranslatedQuery tq = queryTranslationService.translate(question);
+        return doRetrieve(inquiryId, tq.translated(), topK);
+    }
+
+    private List<EvidenceItem> doRetrieve(UUID inquiryId, String searchQuery, int topK) {
+        List<HybridSearchResult> searchResults = hybridSearchService.search(searchQuery, topK);
 
         // 배치 조회로 N+1 방지
-        Set<UUID> chunkIds = searchResults.stream().map(VectorSearchResult::chunkId).collect(Collectors.toSet());
-        Set<UUID> docIds = searchResults.stream().map(VectorSearchResult::documentId).collect(Collectors.toSet());
+        Set<UUID> chunkIds = searchResults.stream().map(HybridSearchResult::chunkId).collect(Collectors.toSet());
+        Set<UUID> docIds = searchResults.stream().map(HybridSearchResult::documentId).collect(Collectors.toSet());
 
         Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
                 .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
@@ -75,14 +98,14 @@ public class AnalysisService {
 
         List<EvidenceItem> evidences = new ArrayList<>();
         int rank = 1;
-        for (VectorSearchResult result : searchResults) {
+        for (HybridSearchResult result : searchResults) {
             evidenceRepository.save(new RetrievalEvidenceJpaEntity(
                     UUID.randomUUID(),
                     inquiryId,
                     result.chunkId(),
-                    result.score(),
+                    result.vectorScore(),
                     rank,
-                    question,
+                    searchQuery,
                     Instant.now()
             ));
 
@@ -98,7 +121,7 @@ public class AnalysisService {
             evidences.add(new EvidenceItem(
                     result.chunkId().toString(),
                     result.documentId().toString(),
-                    result.score(),
+                    result.vectorScore(),
                     summarize(result.content()),
                     result.sourceType(),
                     fileName,
@@ -122,7 +145,8 @@ public class AnalysisService {
                     0.0,
                     "관련 근거를 찾지 못해 추가 자료가 필요합니다.",
                     List.of("INSUFFICIENT_EVIDENCE"),
-                    evidences
+                    evidences,
+                    null
             );
         }
 
@@ -173,7 +197,8 @@ public class AnalysisService {
                 round(avg),
                 reason,
                 riskFlags,
-                evidences
+                evidences,
+                null
         );
     }
 

@@ -136,6 +136,11 @@ public class ChunkingService {
                 .map(PageText::text)
                 .collect(Collectors.joining(" "));
 
+        // 콘텐츠 매칭용 정규화 페이지 텍스트 사전 계산 (오프셋 드리프트에 영향받지 않음)
+        List<String> normalizedPages = pageTexts.stream()
+                .map(pt -> pt.text().replaceAll("\\s+", " ").trim())
+                .collect(Collectors.toList());
+
         chunkRepository.deleteByDocumentId(documentId);
 
         List<String> sentences = splitIntoSentences(fullText);
@@ -169,7 +174,7 @@ public class ChunkingService {
                     String subChunk = content.substring(pos, end);
                     int startOff = globalOffset + pos;
                     int endOff = startOff + subChunk.length();
-                    int[] pageRange = resolvePageRange(startOff, endOff, pageTexts);
+                    int[] pageRange = resolvePageRange(subChunk, pageTexts, normalizedPages);
 
                     chunks.add(new DocumentChunkJpaEntity(
                             UUID.randomUUID(), documentId, chunkIndex,
@@ -189,7 +194,7 @@ public class ChunkingService {
 
             int startOffset = globalOffset;
             int endOffset = startOffset + content.length();
-            int[] pageRange = resolvePageRange(startOffset, endOffset, pageTexts);
+            int[] pageRange = resolvePageRange(content, pageTexts, normalizedPages);
 
             chunks.add(new DocumentChunkJpaEntity(
                     UUID.randomUUID(), documentId, chunkIndex,
@@ -215,34 +220,44 @@ public class ChunkingService {
     }
 
     /**
-     * 청크의 [chunkStart, chunkEnd) 범위가 어떤 페이지에 걸치는지 계산한다.
-     * pageNumber=0(비-PDF)이면 [0,0] 반환 → null로 변환됨.
+     * 청크의 내용이 어떤 페이지에 걸치는지 텍스트 매칭으로 결정한다.
+     * 오프셋 기반 대신 콘텐츠 매칭을 사용하여 문장 분리/재결합 오프셋 드리프트 문제를 해결.
      */
-    private int[] resolvePageRange(int chunkStart, int chunkEnd, List<PageText> pageTexts) {
-        int pageStart = 0;
-        int pageEnd = 0;
-        for (PageText pt : pageTexts) {
-            if (pt.startOffset() <= chunkStart && chunkStart < pt.endOffset()) {
-                pageStart = pt.pageNumber();
-            }
-            if (pt.startOffset() < chunkEnd && chunkEnd <= pt.endOffset()) {
-                pageEnd = pt.pageNumber();
-            }
+    private int[] resolvePageRange(String chunkContent, List<PageText> pageTexts, List<String> normalizedPages) {
+        if (chunkContent == null || chunkContent.isBlank() || pageTexts.isEmpty()) {
+            return new int[]{0, 0};
         }
-        // chunkEnd가 정확히 마지막 페이지의 endOffset과 같은 경우
-        if (pageEnd == 0 && !pageTexts.isEmpty()) {
-            PageText last = pageTexts.get(pageTexts.size() - 1);
-            if (chunkEnd == last.endOffset()) {
-                pageEnd = last.pageNumber();
-            }
-        }
-        if (pageStart == 0 && pageEnd != 0) {
-            pageStart = pageEnd;
-        }
-        if (pageEnd == 0 && pageStart != 0) {
-            pageEnd = pageStart;
-        }
+
+        String normalized = chunkContent.replaceAll("\\s+", " ").trim();
+        int pageStart = findMatchingPage(normalized, true, pageTexts, normalizedPages);
+        int pageEnd = findMatchingPage(normalized, false, pageTexts, normalizedPages);
+
+        if (pageStart == 0 && pageEnd != 0) pageStart = pageEnd;
+        if (pageEnd == 0 && pageStart != 0) pageEnd = pageStart;
         return new int[]{pageStart, pageEnd};
+    }
+
+    /**
+     * 청크 텍스트의 시작 또는 끝 부분을 프로브로 사용하여 매칭되는 페이지를 찾는다.
+     * 프로브 길이를 점진적으로 줄여 페이지 경계를 걸치는 텍스트도 처리.
+     */
+    private int findMatchingPage(String normalized, boolean fromStart,
+                                 List<PageText> pageTexts, List<String> normalizedPages) {
+        int textLen = normalized.length();
+        if (textLen < 10) return 0;
+
+        for (int probeLen = Math.min(50, textLen); probeLen >= 15; probeLen -= 5) {
+            String probe = fromStart
+                    ? normalized.substring(0, probeLen)
+                    : normalized.substring(textLen - probeLen);
+
+            for (int i = 0; i < normalizedPages.size(); i++) {
+                if (normalizedPages.get(i).contains(probe)) {
+                    return pageTexts.get(i).pageNumber();
+                }
+            }
+        }
+        return 0;
     }
 
     List<String> splitIntoSentences(String text) {

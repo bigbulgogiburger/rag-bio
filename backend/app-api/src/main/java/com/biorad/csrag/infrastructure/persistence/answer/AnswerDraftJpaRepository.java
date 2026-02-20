@@ -44,4 +44,8 @@ public interface AnswerDraftJpaRepository extends JpaRepository<AnswerDraftJpaEn
     long countByStatusIn(Collection<String> statuses);
 
     long countByRiskFlagsContaining(String token);
+
+    List<AnswerDraftJpaEntity> findByCreatedAtBetween(Instant from, Instant to);
+
+    List<AnswerDraftJpaEntity> findByStatusAndSentAtBetween(String status, Instant from, Instant to);
 }

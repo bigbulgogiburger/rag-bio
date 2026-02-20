@@ -9,13 +9,14 @@ import {
   createInquiry,
   uploadInquiryDocument,
 } from "@/lib/api/client";
-import { labelDocStatus } from "@/lib/i18n/labels";
+import { labelDocStatus, labelTone } from "@/lib/i18n/labels";
 import { Toast } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 
 const inquirySchema = z.object({
   question: z.string().min(1, "질문을 입력해 주세요").min(10, "최소 10자 이상 입력해 주세요"),
   customerChannel: z.enum(["email", "messenger", "portal"]),
+  answerTone: z.enum(["professional", "technical", "brief"]),
 });
 
 type InquiryFormData = z.infer<typeof inquirySchema>;
@@ -32,7 +33,7 @@ export default function InquiryCreateForm() {
     formState: { errors, isSubmitting },
   } = useForm<InquiryFormData>({
     resolver: zodResolver(inquirySchema),
-    defaultValues: { question: "", customerChannel: "email" },
+    defaultValues: { question: "", customerChannel: "email", answerTone: "professional" },
   });
 
   const onSubmit = async (data: InquiryFormData) => {
@@ -42,6 +43,7 @@ export default function InquiryCreateForm() {
       const inquiry = await createInquiry({
         question: data.question,
         customerChannel: data.customerChannel,
+        preferredTone: data.answerTone,
       });
 
       if (file) {
@@ -61,10 +63,8 @@ export default function InquiryCreateForm() {
       reset();
       setFile(null);
 
-      // Redirect to inquiry detail page after 2 seconds
-      setTimeout(() => {
-        router.push(`/inquiries/${inquiry.inquiryId}`);
-      }, 2000);
+      // Redirect immediately to answer tab
+      router.push(`/inquiries/${inquiry.inquiryId}?tab=answer`);
     } catch (error) {
       setToast({
         message: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
@@ -107,17 +107,33 @@ export default function InquiryCreateForm() {
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            채널
-            <select
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
-              {...register("customerChannel")}
-            >
-              <option value="email">이메일</option>
-              <option value="messenger">메신저</option>
-              <option value="portal">포털</option>
-            </select>
-          </label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              채널
+              <select
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
+                {...register("customerChannel")}
+              >
+                <option value="email">이메일</option>
+                <option value="messenger">메신저</option>
+                <option value="portal">포털</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              답변 톤
+              <select
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
+                {...register("answerTone")}
+              >
+                {(["professional", "technical", "brief"] as const).map((tone) => (
+                  <option key={tone} value={tone}>
+                    {labelTone(tone)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <hr className="border-t border-border" />

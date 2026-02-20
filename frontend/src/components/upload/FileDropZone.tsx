@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { showToast } from '@/lib/toast';
 
 interface FileDropZoneProps {
   onFilesAdded: (files: File[]) => void;
@@ -46,10 +47,11 @@ export default function FileDropZone({
       const files = Array.from(fileList);
 
       if (files.length > remaining) {
-        alert(
+        showToast(
           remaining <= 0
             ? `최대 ${maxFiles}개 파일까지 업로드할 수 있습니다. 더 이상 추가할 수 없습니다.`
             : `최대 ${maxFiles}개 파일까지 업로드할 수 있습니다. ${remaining}개만 추가할 수 있습니다.`,
+          "warn",
         );
         return [];
       }
@@ -71,7 +73,7 @@ export default function FileDropZone({
       }
 
       if (errors.length > 0) {
-        alert(errors.join('\n'));
+        errors.forEach((err) => showToast(err, "error"));
       }
 
       return valid;

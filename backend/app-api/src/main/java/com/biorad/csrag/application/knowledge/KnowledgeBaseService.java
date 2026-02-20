@@ -11,13 +11,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
+import com.biorad.csrag.common.exception.NotFoundException;
+import com.biorad.csrag.common.exception.ValidationException;
+import com.biorad.csrag.common.exception.ConflictException;
+import com.biorad.csrag.common.exception.ExternalServiceException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -74,7 +76,7 @@ public class KnowledgeBaseService {
             String uploadedBy
     ) {
         if (file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty");
+            throw new ValidationException("FILE_EMPTY", "File is empty");
         }
 
         try {
@@ -110,7 +112,7 @@ public class KnowledgeBaseService {
             return toResponse(entity);
         } catch (IOException e) {
             log.error("kb.upload.failed title={} error={}", title, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "File upload failed");
+            throw new ExternalServiceException("FileStorage", "File upload failed");
         }
     }
 
@@ -162,7 +164,7 @@ public class KnowledgeBaseService {
     @Transactional(readOnly = true)
     public KbDocumentResponse getDetail(UUID docId) {
         KnowledgeDocumentJpaEntity entity = kbDocRepository.findById(docId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+                .orElseThrow(() -> new NotFoundException("KB_DOCUMENT_NOT_FOUND", "지식 기반 문서를 찾을 수 없습니다."));
         return toResponse(entity);
     }
 
@@ -172,11 +174,11 @@ public class KnowledgeBaseService {
     @Transactional
     public KbIndexingResponse indexOne(UUID docId) {
         KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+                .orElseThrow(() -> new NotFoundException("KB_DOCUMENT_NOT_FOUND", "지식 기반 문서를 찾을 수 없습니다."));
 
         // 이미 인덱싱 진행 중이면 409 Conflict
         if ("INDEXING".equals(doc.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 인덱싱이 진행 중입니다.");
+            throw new ConflictException("INDEXING_IN_PROGRESS", "이미 인덱싱이 진행 중입니다.");
         }
 
         // 상태를 INDEXING으로 변경하고 저장
@@ -236,13 +238,17 @@ public class KnowledgeBaseService {
     @Transactional
     public void delete(UUID docId) {
         KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+                .orElseThrow(() -> new NotFoundException("KB_DOCUMENT_NOT_FOUND", "지식 기반 문서를 찾을 수 없습니다."));
 
         // 1. 청크 삭제
         chunkRepository.deleteByDocumentId(docId);
 
-        // 2. 벡터 삭제
-        vectorStore.deleteByDocumentId(docId);
+        // 2. 벡터 삭제 (실패해도 DB 삭제는 계속 진행)
+        try {
+            vectorStore.deleteByDocumentId(docId);
+        } catch (Exception e) {
+            log.error("kb.delete.vector.failed documentId={} reason={} — ghost vectors may remain", docId, e.getMessage());
+        }
 
         // 3. 파일 삭제
         try {
@@ -286,7 +292,7 @@ public class KnowledgeBaseService {
     @Transactional
     public KbDocumentResponse analyzeMetadata(UUID docId) {
         KnowledgeDocumentJpaEntity entity = kbDocRepository.findById(docId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+                .orElseThrow(() -> new NotFoundException("KB_DOCUMENT_NOT_FOUND", "지식 기반 문서를 찾을 수 없습니다."));
 
         enrichWithAi(entity, Path.of(entity.getStoragePath()), entity.getContentType());
         return toResponse(entity);

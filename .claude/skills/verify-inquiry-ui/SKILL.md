@@ -25,8 +25,7 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 
 | File | Purpose |
 |------|---------|
-| `frontend/src/components/inquiry/InquiryAnswerTab.tsx` | 답변 탭 (Tailwind grid split pane + Citation 파싱 + PdfViewer) |
-| `frontend/src/components/inquiry/InquiryAnalysisTab.tsx` | 분석 탭 (근거 표시 + sourceType 뱃지 + shadcn Button) |
+| `frontend/src/components/inquiry/InquiryAnswerTab.tsx` | 답변 탭 (Tailwind grid split pane + Citation 파싱 + PdfViewer + translatedQuery 표시) |
 | `frontend/src/components/inquiry/InquiryCreateForm.tsx` | 문의 생성 폼 (react-hook-form + zod + shadcn Button) |
 | `frontend/src/components/inquiry/InquiryInfoTab.tsx` | 정보 탭 (문서 목록 + 인덱싱 상태 + Skeleton) |
 | `frontend/src/components/inquiry/InquiryHistoryTab.tsx` | 이력 탭 (버전 히스토리 + Tailwind grid split pane + PdfViewer) |
@@ -34,7 +33,7 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 | `frontend/src/components/upload/FileDropZone.tsx` | 파일 드래그앤드롭 영역 (cn + Tailwind) |
 | `frontend/src/components/upload/FileQueueItem.tsx` | 파일 큐 아이템 (cn + status 기반 스타일) |
 | `frontend/src/lib/api/client.ts` | API 클라이언트 (타입 정의 + 헬퍼 함수) |
-| `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 함수 |
+| `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 함수 (labelReviewDecision, labelApprovalDecision 포함) |
 
 ## Workflow
 
@@ -92,16 +91,16 @@ grep -rn "whitespace-pre-wrap\|pre-wrap" frontend/src/components/inquiry/Inquiry
 
 ### Step 5: sourceType 뱃지 매핑 일관성
 
-**파일:** `InquiryAnalysisTab.tsx`, `InquiryAnswerTab.tsx`
+**파일:** `InquiryAnswerTab.tsx`
 
-**검사:** KNOWLEDGE_BASE="지식 기반" (info), INQUIRY/else="문의 첨부" (neutral) 매핑이 양쪽 컴포넌트에서 일관되는지 확인.
+**검사:** KNOWLEDGE_BASE="지식 기반" (info), INQUIRY/else="문의 첨부" (neutral) 매핑이 AnswerTab에서 올바르게 적용되는지 확인. (InquiryAnalysisTab.tsx는 삭제됨 — 분석 결과가 AnswerTab에 통합)
 
 ```bash
-grep -rn "지식 기반\|문의 첨부\|KNOWLEDGE_BASE\|sourceType" frontend/src/components/inquiry/InquiryAnalysisTab.tsx frontend/src/components/inquiry/InquiryAnswerTab.tsx
+grep -rn "지식 기반\|문의 첨부\|KNOWLEDGE_BASE\|sourceType" frontend/src/components/inquiry/InquiryAnswerTab.tsx
 ```
 
-**PASS:** 양쪽 모두 동일한 매핑 규칙 사용
-**FAIL:** 컴포넌트 간 뱃지 variant 또는 라벨 불일치
+**PASS:** KNOWLEDGE_BASE="지식 기반" (info), INQUIRY="문의 첨부" (neutral) 매핑 존재
+**FAIL:** 뱃지 variant 또는 라벨 불일치
 
 ### Step 6: 한국어 라벨 함수 사용 확인
 
@@ -168,6 +167,71 @@ grep -n "getDocumentDownloadUrl\|getDocumentPagesUrl" frontend/src/lib/api/clien
 **PASS:** 두 함수 모두 존재
 **FAIL:** 함수 누락
 
+### Step 11: AI 워크플로우 UI 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** AI 자동 워크플로우(autoWorkflow), 리뷰 상세(reviewDetail), 승인 게이트 결과(gateResults) UI가 존재하고 올바르게 표시되는지 확인.
+
+```bash
+grep -n "autoWorkflow\|reviewDetail\|gateResults\|labelReviewDecision\|labelApprovalDecision" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** autoWorkflow 체크박스, reviewDetail 패널, gateResults 4개 게이트 표시 존재
+**FAIL:** AI 워크플로우 UI 없음 또는 라벨 함수 미사용
+
+### Step 12: 답변 본문 수정(editing) UI 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** 답변 본문 수정 기능이 textarea + 저장/취소 버튼으로 구현되고, SENT 상태에서 수정 버튼이 숨겨지는지 확인.
+
+```bash
+grep -n "isEditing\|editedDraft\|handleSaveDraft\|textarea\|수정\|저장\|취소" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** isEditing 토글, textarea, 저장/취소 버튼, SENT 상태 시 수정 버튼 숨김
+**FAIL:** 수정 기능 없음 또는 SENT 상태에서 수정 가능
+
+### Step 13: sendRequestId 고유성 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** 전송 요청 ID가 `Date.now()` 등을 활용하여 매번 고유한 값을 생성하는지 확인. 정적 문자열 사용 시 재전송 방지가 동작하지 않음.
+
+```bash
+grep -n "sendRequestId\|Date.now\|requestId" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** `Date.now()` 또는 UUID 등 동적 값으로 requestId 생성
+**FAIL:** 정적 문자열 (예: `-send-v1`) 사용
+
+### Step 14: preferredTone 초기값 자동 적용 확인
+
+**파일:** `InquiryAnswerTab.tsx`, `frontend/src/lib/api/client.ts`
+
+**검사:** InquiryDetail에 `preferredTone` 필드가 있고, AnswerTab에서 초기 tone 값으로 사용되는지 확인.
+
+```bash
+grep -n "preferredTone\|initialTone\|selectedTone" frontend/src/components/inquiry/InquiryAnswerTab.tsx frontend/src/lib/api/client.ts
+```
+
+**PASS:** client.ts에 preferredTone 타입 정의 + AnswerTab에서 초기값으로 사용
+**FAIL:** preferredTone 필드 미정의 또는 초기값 미적용
+
+### Step 15: translatedQuery 영어 번역 표시 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** 하이브리드 검색 시 한국어 질문이 영어로 번역된 경우, 번역 결과(`translatedQuery`)가 UI에 표시되는지 확인. 원본 질문과 동일하면 표시하지 않아야 함.
+
+```bash
+grep -n "translatedQuery" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** `translatedQuery` 필드를 조건부로 표시 (원본과 다를 때만)하고 italic 스타일 적용
+**FAIL:** `translatedQuery` 표시 로직 없음 또는 무조건 표시
+
 ## Output Format
 
 | # | 검사 항목 | 결과 | 상세 |
@@ -182,6 +246,11 @@ grep -n "getDocumentDownloadUrl\|getDocumentPagesUrl" frontend/src/lib/api/clien
 | 8 | react-hook-form + zod | PASS/FAIL | 누락 패턴 |
 | 9 | 파일 업로드 accept | PASS/FAIL | accept 속성 |
 | 10 | 다운로드 URL 헬퍼 | PASS/FAIL | 함수 유무 |
+| 11 | AI 워크플로우 UI | PASS/FAIL | autoWorkflow/reviewDetail/gateResults |
+| 12 | 답변 본문 수정 UI | PASS/FAIL | textarea + 저장/취소 + SENT 숨김 |
+| 13 | sendRequestId 고유성 | PASS/FAIL | Date.now() 사용 |
+| 14 | preferredTone 초기값 | PASS/FAIL | 타입 정의 + 자동 적용 |
+| 15 | translatedQuery 표시 | PASS/FAIL | 조건부 표시 + italic 스타일 |
 
 ## Exceptions
 

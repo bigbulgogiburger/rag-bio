@@ -103,7 +103,7 @@ public class OpenAiVerifyStep implements VerifyStep {
             }
             confidence = Math.max(0.0, Math.min(1.0, confidence));
 
-            return new AnalyzeResponse(inquiryId.toString(), verdict, confidence, reason, riskFlags, evidences);
+            return new AnalyzeResponse(inquiryId.toString(), verdict, confidence, reason, riskFlags, evidences, null);
         } catch (Exception ex) {
             log.warn("openai.verify.parse.failed, extracting from text: {}", ex.getMessage());
             return parseFromPlainText(inquiryId, content, evidences);
@@ -129,7 +129,8 @@ public class OpenAiVerifyStep implements VerifyStep {
                 Math.round(avgScore * 1000d) / 1000d,
                 content.length() > 300 ? content.substring(0, 300) : content,
                 List.of(),
-                evidences
+                evidences,
+                null
         );
     }
 

@@ -2,21 +2,45 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getOpsMetrics, listInquiries, type OpsMetrics, type InquiryListItem } from "@/lib/api/client";
+import {
+  getOpsMetrics,
+  listInquiries,
+  getTimeline,
+  getProcessingTime,
+  getKbUsage,
+  getMetricsCsvUrl,
+  type OpsMetrics,
+  type InquiryListItem,
+  type InquiryListResponse,
+  type TimelineData,
+  type ProcessingTimeData,
+  type KbUsageData,
+  type DashboardPeriod,
+} from "@/lib/api/client";
 import DataTable from "@/components/ui/DataTable";
 import Badge from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { labelInquiryStatus, labelChannel, labelAnswerStatus } from "@/lib/i18n/labels";
+import { PeriodSelector, TimelineChart, StatusPieChart } from "@/components/dashboard";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<OpsMetrics | null>(null);
   const [inquiries, setInquiries] = useState<InquiryListItem[]>([]);
+  const [inquiryListResponse, setInquiryListResponse] = useState<InquiryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Analytics state
+  const [period, setPeriod] = useState<DashboardPeriod>("30d");
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
+  const [processingTime, setProcessingTime] = useState<ProcessingTimeData | null>(null);
+  const [kbUsage, setKbUsage] = useState<KbUsageData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Initial load
   useEffect(() => {
     Promise.all([
       getOpsMetrics(),
@@ -25,10 +49,34 @@ export default function DashboardPage() {
       .then(([metricsData, inquiriesData]) => {
         setMetrics(metricsData);
         setInquiries(inquiriesData.content);
+        setInquiryListResponse(inquiriesData);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "데이터를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }, []);
+
+  // Analytics load (on period change)
+  useEffect(() => {
+    setAnalyticsLoading(true);
+    Promise.all([
+      getTimeline(period),
+      getProcessingTime(period),
+      getKbUsage(period),
+    ])
+      .then(([timelineData, processingTimeData, kbUsageData]) => {
+        setTimeline(timelineData);
+        setProcessingTime(processingTimeData);
+        setKbUsage(kbUsageData);
+      })
+      .catch(() => {
+        // Silently handle analytics errors — main metrics still visible
+      })
+      .finally(() => setAnalyticsLoading(false));
+  }, [period]);
+
+  const handleExportCsv = () => {
+    window.open(getMetricsCsvUrl(period), "_blank");
+  };
 
   const metricCards = [
     {
@@ -101,8 +149,6 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
         </div>
-
-        {/* Skeleton metric cards */}
         <section className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <article className="rounded-xl border bg-card p-5 shadow-sm" key={i}>
@@ -112,14 +158,10 @@ export default function DashboardPage() {
             </article>
           ))}
         </section>
-
-        {/* Skeleton table */}
         <Card>
           <CardContent className="p-6">
             <Skeleton className="mb-6 h-[18px] w-36" />
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="mb-3 h-10 w-full" />
-            ))}
+            <Skeleton className="h-[300px] w-full" />
           </CardContent>
         </Card>
       </div>
@@ -139,12 +181,19 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header with period selector + CSV export */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
+        <div className="flex items-center gap-3">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExportCsv}>
+            CSV 내보내기
+          </Button>
+        </div>
       </div>
 
-      {/* 메트릭 카드 3열 */}
-      <section className="grid grid-cols-3 gap-4">
+      {/* Metric Cards */}
+      <section className="grid grid-cols-3 gap-4 lg:grid-cols-6">
         {metricCards.map((metric) => (
           <article className="rounded-xl border bg-card p-5 shadow-sm" key={metric.label}>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
@@ -154,13 +203,94 @@ export default function DashboardPage() {
             )}
           </article>
         ))}
+
+        {/* Processing Time Metrics */}
+        {processingTime && (
+          <>
+            <article className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">평균 처리 시간</p>
+              <p className="text-2xl font-bold tracking-tight text-foreground">
+                {processingTime.avgProcessingTimeHours > 0 ? `${processingTime.avgProcessingTimeHours}h` : "-"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                중앙값 {processingTime.medianProcessingTimeHours}h
+              </p>
+            </article>
+            <article className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">완료 건수</p>
+              <p className="text-2xl font-bold tracking-tight text-foreground">{processingTime.totalCompleted}건</p>
+              <p className="text-xs text-muted-foreground">
+                {processingTime.minProcessingTimeHours}h ~ {processingTime.maxProcessingTimeHours}h
+              </p>
+            </article>
+            <article className="rounded-xl border bg-card p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">KB 활용률</p>
+              <p className="text-2xl font-bold tracking-tight text-foreground">
+                {kbUsage ? `${kbUsage.kbUsageRate}%` : "-"}
+              </p>
+              {kbUsage && (
+                <p className="text-xs text-muted-foreground">
+                  {kbUsage.kbEvidences}/{kbUsage.totalEvidences}건
+                </p>
+              )}
+            </article>
+          </>
+        )}
       </section>
 
-      {/* 최근 문의 5건 */}
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+        {/* Timeline Chart */}
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-base font-semibold">문의 처리 현황</h3>
+            {analyticsLoading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <TimelineChart data={timeline?.data ?? []} />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Status Pie Chart */}
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-base font-semibold">상태별 분포</h3>
+            <StatusPieChart inquiries={inquiryListResponse} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KB Usage - Top Referenced Documents */}
+      {kbUsage && kbUsage.topDocuments.length > 0 && (
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-base font-semibold">KB 상위 참조 문서</h3>
+            <div className="space-y-2">
+              {kbUsage.topDocuments.map((doc, idx) => (
+                <div
+                  key={doc.documentId}
+                  className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {idx + 1}
+                    </span>
+                    <span className="text-sm font-medium">{doc.fileName}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{doc.referenceCount}회 참조</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Inquiries Table */}
       <Card>
         <CardContent className="p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold">최근 문의 (5건)</h2>
+            <h3 className="text-base font-semibold">최근 문의 (5건)</h3>
             <Button
               variant="outline"
               size="sm"
@@ -179,12 +309,12 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* 최근 실패 사유 Top */}
+      {/* Failure Reasons */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="mb-4 text-base font-semibold">
+          <h3 className="mb-4 text-base font-semibold">
             최근 실패 사유 Top
-          </h2>
+          </h3>
           {(metrics?.topFailureReasons ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">실패 사유 데이터 없음</p>
           ) : (
