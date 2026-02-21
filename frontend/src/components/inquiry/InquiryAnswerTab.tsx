@@ -954,6 +954,48 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
 
               <hr className="border-t border-border" />
 
+              {/* Refinement Request Section */}
+              {answerDraft.status !== "SENT" && (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-base font-semibold">보완 요청</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {answerDraft.refinementCount ?? 0}/{MAX_REFINEMENTS}회 사용
+                      </span>
+                    </div>
+                    <textarea
+                      className="w-full min-h-[80px] rounded-lg border border-input bg-transparent p-3 text-sm leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={refinementInstructions}
+                      onChange={(e) => setRefinementInstructions(e.target.value)}
+                      placeholder="추가 요청사항을 입력하세요 (예: 더 간결하게, 특정 제품에 대한 내용 추가, 톤 변경 등)"
+                      aria-label="보완 요청사항 입력"
+                      disabled={(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS || loading}
+                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleRefineDraft}
+                        disabled={
+                          loading ||
+                          !refinementInstructions.trim() ||
+                          (answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS
+                        }
+                        aria-busy={loading}
+                      >
+                        {loading && <SpinnerIcon />}
+                        {loading ? "보완 답변 생성 중..." : "보완 답변 생성"}
+                      </Button>
+                      {(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS && (
+                        <p className="text-xs text-destructive">
+                          보완 요청 횟수를 모두 사용했습니다
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <hr className="border-t border-border" />
+                </>
+              )}
+
               {/* Workflow Actions */}
               <div className="space-y-4">
                 <h4 className="text-base font-semibold">워크플로우 액션</h4>
@@ -1349,48 +1391,6 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                   </div>
                 )}
               </div>
-
-              {/* Refinement Request Section */}
-              {answerDraft.status !== "SENT" && (
-                <>
-                  <hr className="border-t border-border" />
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-base font-semibold">보완 요청</h4>
-                      <span className="text-xs text-muted-foreground">
-                        {answerDraft.refinementCount ?? 0}/{MAX_REFINEMENTS}회 사용
-                      </span>
-                    </div>
-                    <textarea
-                      className="w-full min-h-[80px] rounded-lg border border-input bg-transparent p-3 text-sm leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={refinementInstructions}
-                      onChange={(e) => setRefinementInstructions(e.target.value)}
-                      placeholder="추가 요청사항을 입력하세요 (예: 더 간결하게, 특정 제품에 대한 내용 추가, 톤 변경 등)"
-                      aria-label="보완 요청사항 입력"
-                      disabled={(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS || loading}
-                    />
-                    <div className="flex items-center gap-3">
-                      <Button
-                        onClick={handleRefineDraft}
-                        disabled={
-                          loading ||
-                          !refinementInstructions.trim() ||
-                          (answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS
-                        }
-                        aria-busy={loading}
-                      >
-                        {loading && <SpinnerIcon />}
-                        {loading ? "보완 답변 생성 중..." : "보완 답변 생성"}
-                      </Button>
-                      {(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS && (
-                        <p className="text-xs text-destructive">
-                          보완 요청 횟수를 모두 사용했습니다
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 

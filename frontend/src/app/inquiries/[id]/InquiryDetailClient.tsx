@@ -67,7 +67,7 @@ export default function InquiryDetailClient() {
   const tabs = [
     { key: "info", label: "문의 정보", content: <TabErrorBoundary><InquiryInfoTab inquiryId={inquiryId} /></TabErrorBoundary> },
     { key: "answer", label: "답변", content: <TabErrorBoundary><InquiryAnswerTab inquiryId={inquiryId} inquiry={inquiry} /></TabErrorBoundary> },
-    { key: "history", label: "이력", content: <TabErrorBoundary><InquiryHistoryTab inquiryId={inquiryId} /></TabErrorBoundary> },
+    { key: "history", label: "이력", content: <TabErrorBoundary><InquiryHistoryTab inquiryId={inquiryId} inquiryQuestion={inquiry.question} /></TabErrorBoundary> },
   ];
 
   return (
