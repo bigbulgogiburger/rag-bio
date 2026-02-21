@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
+import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class DefaultComposeStep implements ComposeStep {
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
         String draft = createDraftByTone(analysis, normalizedTone);
+        draft = insertCitations(draft, analysis.evidences());
         draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
         draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags());
 
@@ -33,6 +35,43 @@ public class DefaultComposeStep implements ComposeStep {
             if (text.length() > 260) warnings.add("MESSENGER_LENGTH_OVERFLOW");
         }
         return warnings;
+    }
+
+    private String insertCitations(String draft, List<EvidenceItem> evidences) {
+        if (evidences == null || evidences.isEmpty()) {
+            return draft;
+        }
+
+        List<String> citations = evidences.stream()
+                .filter(ev -> ev.fileName() != null)
+                .limit(2)
+                .map(this::formatCitation)
+                .toList();
+
+        if (citations.isEmpty()) {
+            return draft;
+        }
+
+        String citationText = " (" + String.join("; ", citations) + ")";
+        // "사내 자료를 참고한 결과" 뒤에 citation 삽입
+        int idx = draft.indexOf("사내 자료를 참고한 결과");
+        if (idx >= 0) {
+            int insertPos = idx + "사내 자료를 참고한 결과".length();
+            return draft.substring(0, insertPos) + citationText + draft.substring(insertPos);
+        }
+
+        return draft;
+    }
+
+    private String formatCitation(EvidenceItem ev) {
+        StringBuilder sb = new StringBuilder(ev.fileName());
+        if (ev.pageStart() != null) {
+            sb.append(", p.").append(ev.pageStart());
+            if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
+                sb.append("-").append(ev.pageEnd());
+            }
+        }
+        return sb.toString();
     }
 
     private String createDraftByTone(AnalyzeResponse analysis, String tone) {

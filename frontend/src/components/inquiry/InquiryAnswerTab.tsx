@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   draftInquiryAnswer,
@@ -399,6 +399,59 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
       acc[cat].push(issue);
       return acc;
     }, {});
+  };
+
+  // Render answer body with clickable citation links
+  const renderDraftWithCitations = (text: string): ReactNode => {
+    const citationRegex = /\(([^,]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = citationRegex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+
+      const matchedFileName = match[1].trim();
+      const pageStart = parseInt(match[2], 10);
+      const pageEnd = match[3] ? parseInt(match[3], 10) : pageStart;
+      const fullMatch = match[0];
+
+      // Find matching evidence item
+      const matchingEvidence = evidenceItems.find((ev) => {
+        if (!ev.fileName) return false;
+        const nameMatch = ev.fileName.toLowerCase() === matchedFileName.toLowerCase();
+        if (!nameMatch) return false;
+        if (ev.pageStart == null) return true;
+        return ev.pageStart === pageStart || (ev.pageStart <= pageStart && (ev.pageEnd ?? ev.pageStart) >= pageEnd);
+      });
+
+      if (matchingEvidence) {
+        parts.push(
+          <button
+            key={`citation-${match.index}`}
+            type="button"
+            className="text-primary underline cursor-pointer hover:text-primary/80"
+            onClick={() => setSelectedEvidence(matchingEvidence)}
+          >
+            {fullMatch}
+          </button>
+        );
+      } else {
+        parts.push(fullMatch);
+      }
+
+      lastIndex = match.index + fullMatch.length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
   };
 
   // Draft step label mapping
@@ -802,7 +855,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                   </div>
                 ) : (
                   <div className="rounded-lg border bg-muted/20 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                    {answerDraft.draft}
+                    {renderDraftWithCitations(answerDraft.draft)}
                   </div>
                 )}
               </div>
@@ -1256,6 +1309,15 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                     }
                     initialPage={1}
                     downloadUrl={getDocumentDownloadUrl(selectedEvidence.documentId)}
+                    pagesDownloadUrl={
+                      selectedEvidence.pageStart != null
+                        ? getDocumentPagesUrl(
+                            selectedEvidence.documentId,
+                            selectedEvidence.pageStart,
+                            selectedEvidence.pageEnd ?? selectedEvidence.pageStart
+                          ) + "&download=true"
+                        : undefined
+                    }
                     fileName={selectedEvidence.fileName ?? undefined}
                   />
                 ) : (

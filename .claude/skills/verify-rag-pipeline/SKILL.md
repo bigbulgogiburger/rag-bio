@@ -5,7 +5,7 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 
 ## Purpose
 
-1. **격식체 프롬프트 규칙** — OpenAiComposeStep 시스템 프롬프트에 8개 규칙 (격식체, 마크다운 금지, 번호 인용 금지 등) 존재 확인
+1. **격식체 프롬프트 규칙** — OpenAiComposeStep 시스템 프롬프트에 8개 규칙 (격식체, 마크다운 금지, 번호 인용 금지, 인라인 인용 형식 등) 존재 확인
 2. **DefaultComposeStep 톤 템플릿** — 3 tone × 3 verdict 조합이 격식체이고 자연어 인용 사용 확인
 3. **Citation 형식 일관성** — `chunk=UUID score=0.xxx documentId=UUID fileName=... pageStart=... pageEnd=...` 형식 확인
 4. **EvidenceItem 필드 완전성** — record 필드 (chunkId, documentId, score, excerpt, sourceType, fileName, pageStart, pageEnd) 확인
@@ -56,8 +56,21 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 grep -n "격식체\|마크다운.*금지\|번호 인용 금지\|이모지.*금지" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiComposeStep.java
 ```
 
-**PASS:** 격식체 존댓말, 마크다운 서식 금지, [1],[2] 번호 인용 금지, 이모지 금지 규칙 모두 존재
+**PASS:** 격식체 존댓말, 마크다운 서식 금지, [1],[2] 번호 인용 금지, 이모지 금지, 인라인 인용 형식 `(파일명, p.XX)` 규칙 모두 존재
 **FAIL:** 핵심 규칙 누락 또는 마크다운 허용 문구 존재
+
+### Step 1a: OpenAiComposeStep 인라인 인용 형식 규칙 확인
+
+**파일:** `OpenAiComposeStep.java`
+
+**검사:** 시스템 프롬프트와 buildPrompt에 인라인 인용 형식 `(파일명, p.XX)` 또는 `(파일명, p.XX-YY)` 지시가 있는지 확인.
+
+```bash
+grep -n "파일명.*p\.\|인용.*괄호\|출처.*표기" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiComposeStep.java
+```
+
+**PASS:** 인라인 인용 형식 지시 존재 (시스템 프롬프트 규칙 6 + buildPrompt 요구사항 7)
+**FAIL:** 인라인 인용 형식 지시 없음
 
 ### Step 2: OpenAiComposeStep 프롬프트 섹션 형식 확인
 
@@ -162,6 +175,19 @@ grep -n "from < 1\|to < from\|BAD_REQUEST\|NOT_FOUND" backend/app-api/src/main/j
 
 **PASS:** from >= 1, to >= from 검증 + 적절한 HTTP 상태 코드 (400, 404)
 **FAIL:** 범위 검증 없이 PDF 페이지 추출 시도
+
+### Step 9a: DocumentDownloadController download 파라미터 확인
+
+**파일:** `DocumentDownloadController.java`
+
+**검사:** `/pages` 엔드포인트에 `download` boolean 파라미터가 있고, `true`=attachment / `false`=inline으로 Content-Disposition이 설정되는지 확인.
+
+```bash
+grep -n "boolean download\|attachment\|inline" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentDownloadController.java
+```
+
+**PASS:** `@RequestParam(defaultValue = "false") boolean download` + disposition 분기
+**FAIL:** download 파라미터 없음 또는 항상 attachment
 
 ### Step 10: DocumentDownloadController 이중 문서 조회
 
@@ -305,7 +331,9 @@ grep -n "ConditionalOnProperty\|Primary" backend/app-api/src/main/java/com/biora
 | 6 | EvidenceItem 필드 | PASS/FAIL | 누락 필드 목록 |
 | 7 | N+1 방지 배치 조인 | PASS/FAIL | 개별 쿼리 위치 |
 | 8 | 다운로드 엔드포인트 | PASS/FAIL | 누락 항목 |
+| 1a | 인라인 인용 형식 | PASS/FAIL | (파일명, p.XX) 지시 |
 | 9 | 페이지 범위 검증 | PASS/FAIL | 검증 누락 항목 |
+| 9a | download 파라미터 | PASS/FAIL | inline/attachment 분기 |
 | 10 | 이중 문서 조회 | PASS/FAIL | 단일 경로 위치 |
 | 11 | @Transactional 설정 | PASS/FAIL | readOnly 누락 |
 | 12 | 4단 승인 게이트 | PASS/FAIL | 게이트 누락/과도한 차단 |

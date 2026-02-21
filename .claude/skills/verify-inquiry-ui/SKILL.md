@@ -29,6 +29,8 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 | `frontend/src/components/inquiry/InquiryCreateForm.tsx` | 문의 생성 폼 (react-hook-form + zod + shadcn Button) |
 | `frontend/src/components/inquiry/InquiryInfoTab.tsx` | 정보 탭 (문서 목록 + 인덱싱 상태 + Skeleton) |
 | `frontend/src/components/inquiry/InquiryHistoryTab.tsx` | 이력 탭 (버전 히스토리 + Tailwind grid split pane + PdfViewer) |
+| `frontend/src/app/inquiries/[id]/page.tsx` | 문의 상세 페이지 서버 래퍼 (generateStaticParams + Suspense) |
+| `frontend/src/app/inquiries/[id]/InquiryDetailClient.tsx` | 문의 상세 클라이언트 (useParams + useSearchParams + 탭 라우팅) |
 | `frontend/src/components/upload/SmartUploadModal.tsx` | 스마트 업로드 모달 (KB 문서 일괄 업로드) |
 | `frontend/src/components/upload/FileDropZone.tsx` | 파일 드래그앤드롭 영역 (cn + Tailwind) |
 | `frontend/src/components/upload/FileQueueItem.tsx` | 파일 큐 아이템 (cn + status 기반 스타일) |
@@ -167,6 +169,45 @@ grep -n "getDocumentDownloadUrl\|getDocumentPagesUrl" frontend/src/lib/api/clien
 **PASS:** 두 함수 모두 존재
 **FAIL:** 함수 누락
 
+### Step 10a: pagesDownloadUrl prop 전달 확인
+
+**파일:** `InquiryAnswerTab.tsx`, `InquiryHistoryTab.tsx`
+
+**검사:** PdfViewer에 `pagesDownloadUrl` prop이 전달되어 근거 페이지 분할 다운로드가 가능한지 확인.
+
+```bash
+grep -n "pagesDownloadUrl" frontend/src/components/inquiry/InquiryAnswerTab.tsx frontend/src/components/inquiry/InquiryHistoryTab.tsx
+```
+
+**PASS:** 양쪽 모두 `pagesDownloadUrl={...getDocumentPagesUrl(...) + "&download=true"}` 패턴 존재
+**FAIL:** pagesDownloadUrl prop 누락 (전체 다운로드만 가능)
+
+### Step 10b: 인라인 인용 클릭 핸들링 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** 답변 본문 내 `(파일명, p.XX-YY)` 패턴이 클릭 가능한 요소로 변환되어 해당 근거를 선택할 수 있는지 확인.
+
+```bash
+grep -n "citationRegex\|renderBodyWithCitations\|파일명.*p\.\|citation.*click\|handleCitationClick" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** 인라인 인용 패턴 파싱 + 클릭 시 selectedEvidence 설정
+**FAIL:** 인라인 인용 클릭 핸들링 없음 (본문에 텍스트로만 표시)
+
+### Step 10c: triggerBlobDownload 크로스오리진 다운로드 패턴 확인
+
+**파일:** `PdfViewer.tsx`, `PdfExpandModal.tsx`
+
+**검사:** 다운로드가 `<a download>` 대신 `fetch → blob → createObjectURL` 패턴을 사용하는지 확인. (크로스오리진에서 `<a download>`는 브라우저가 무시)
+
+```bash
+grep -rn "triggerBlobDownload\|createObjectURL\|fetch.*blob" frontend/src/components/ui/PdfViewer.tsx frontend/src/components/ui/PdfExpandModal.tsx
+```
+
+**PASS:** triggerBlobDownload 함수 존재 + 모든 다운로드 버튼이 이 함수 사용
+**FAIL:** `<a href download>` 패턴으로 직접 다운로드 시도
+
 ### Step 11: AI 워크플로우 UI 확인
 
 **파일:** `InquiryAnswerTab.tsx`
@@ -246,6 +287,9 @@ grep -n "translatedQuery" frontend/src/components/inquiry/InquiryAnswerTab.tsx
 | 8 | react-hook-form + zod | PASS/FAIL | 누락 패턴 |
 | 9 | 파일 업로드 accept | PASS/FAIL | accept 속성 |
 | 10 | 다운로드 URL 헬퍼 | PASS/FAIL | 함수 유무 |
+| 10a | pagesDownloadUrl prop | PASS/FAIL | AnswerTab/HistoryTab |
+| 10b | 인라인 인용 클릭 | PASS/FAIL | citation 파싱 + 클릭 |
+| 10c | triggerBlobDownload | PASS/FAIL | 크로스오리진 다운로드 |
 | 11 | AI 워크플로우 UI | PASS/FAIL | autoWorkflow/reviewDetail/gateResults |
 | 12 | 답변 본문 수정 UI | PASS/FAIL | textarea + 저장/취소 + SENT 숨김 |
 | 13 | sendRequestId 고유성 | PASS/FAIL | Date.now() 사용 |

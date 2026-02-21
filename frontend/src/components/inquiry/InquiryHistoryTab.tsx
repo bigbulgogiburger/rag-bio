@@ -360,6 +360,15 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
                     }
                     initialPage={1}
                     downloadUrl={getDocumentDownloadUrl(selectedEvidence.documentId)}
+                    pagesDownloadUrl={
+                      selectedEvidence.pageStart != null
+                        ? getDocumentPagesUrl(
+                            selectedEvidence.documentId,
+                            selectedEvidence.pageStart,
+                            selectedEvidence.pageEnd ?? selectedEvidence.pageStart
+                          ) + "&download=true"
+                        : undefined
+                    }
                     fileName={selectedEvidence.fileName ?? undefined}
                   />
                 ) : (

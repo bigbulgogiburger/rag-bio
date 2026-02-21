@@ -1,5 +1,12 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function InquiryFormPage() {
-  redirect("/inquiries/new");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/inquiries/new");
+  }, [router]);
+  return null;
 }

@@ -76,7 +76,8 @@ public class DocumentDownloadController {
     public ResponseEntity<Resource> downloadPages(
             @PathVariable UUID documentId,
             @RequestParam int from,
-            @RequestParam int to
+            @RequestParam int to,
+            @RequestParam(defaultValue = "false") boolean download
     ) {
         if (from < 1 || to < from) {
             throw new ValidationException("INVALID_PAGE_RANGE",
@@ -105,9 +106,11 @@ public class DocumentDownloadController {
 
             log.info("document.pages.download documentId={} from={} to={}", documentId, from, to);
 
+            String disposition = download ? "attachment" : "inline";
+
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename*=UTF-8''" + encodedFileName)
+                            disposition + "; filename*=UTF-8''" + encodedFileName)
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(new ByteArrayResource(pdfBytes));
         } catch (IOException e) {

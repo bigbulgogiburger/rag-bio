@@ -37,7 +37,8 @@ description: 프론트엔드 UI 컴포넌트 품질 검증 (shadcn/ui + Tailwind
 | `frontend/src/components/ui/EmptyState.tsx` | 빈 상태 CTA (shadcn Button) |
 | `frontend/src/components/ui/FilterBar.tsx` | 필터 검색바 (shadcn Button, role=search) |
 | `frontend/src/components/ui/Pagination.tsx` | 페이지 내비게이션 (aria-current) |
-| `frontend/src/components/ui/PdfViewer.tsx` | PDF 미리보기 (shadcn Button, SSR 미지원) |
+| `frontend/src/components/ui/PdfViewer.tsx` | PDF 미리보기 (shadcn Button, SSR 미지원, triggerBlobDownload) |
+| `frontend/src/components/ui/PdfExpandModal.tsx` | PDF 확대 모달 (@radix-ui/react-dialog, SSR 미지원, triggerBlobDownload) |
 | `frontend/src/components/ui/sonner.tsx` | Sonner Toaster 래퍼 (shadcn toast provider) |
 | `frontend/src/components/ui/index.ts` | 배럴 export (PdfViewer 제외) |
 | `frontend/src/components/theme-provider.tsx` | next-themes ThemeProvider 래퍼 |
@@ -170,14 +171,14 @@ grep -rn "forwardRef\|displayName\|cva\|VariantProps" frontend/src/components/ui
 
 **파일:** `frontend/src/components/ui/index.ts`
 
-**검사:** PdfViewer가 배럴 export에서 제외되고 사용처에서 dynamic import + ssr: false 사용.
+**검사:** PdfViewer와 PdfExpandModal이 배럴 export에서 제외되고 사용처에서 dynamic import + ssr: false 사용.
 
 ```bash
-grep -n "PdfViewer" frontend/src/components/ui/index.ts
-grep -rn "dynamic.*PdfViewer\|ssr.*false" frontend/src/components/inquiry/*.tsx
+grep -n "PdfViewer\|PdfExpandModal" frontend/src/components/ui/index.ts
+grep -rn "dynamic.*PdfViewer\|dynamic.*PdfExpandModal\|ssr.*false" frontend/src/components/inquiry/*.tsx frontend/src/components/ui/PdfViewer.tsx
 ```
 
-**PASS:** index.ts에 PdfViewer export 없음 + 사용처에서 dynamic + ssr: false
+**PASS:** index.ts에 PdfViewer/PdfExpandModal export 없음 + 사용처에서 dynamic + ssr: false
 **FAIL:** 배럴 export에 포함 또는 직접 import
 
 ### Step 10: 배럴 export 완전성 확인
@@ -190,8 +191,8 @@ grep -rn "dynamic.*PdfViewer\|ssr.*false" frontend/src/components/inquiry/*.tsx
 grep -c "export" frontend/src/components/ui/index.ts
 ```
 
-**PASS:** Badge, DataTable, Pagination, Tabs, Toast, EmptyState, FilterBar, Toaster, Button, Card*, Input, Skeleton 모두 export
-**FAIL:** 신규 컴포넌트 export 누락
+**PASS:** Badge, DataTable, Pagination, Tabs, Toast, EmptyState, FilterBar, Toaster, Button, Card*, Input, Skeleton 모두 export (PdfViewer, PdfExpandModal 제외)
+**FAIL:** 신규 컴포넌트 export 누락 (단, SSR 미지원 컴포넌트는 제외가 정상)
 
 ## Output Format
 

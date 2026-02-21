@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:5432/${POSTGRES_DB:csrag}
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:csrag}
     driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER:csrag}
     password: ${POSTGRES_PASSWORD:csrag}
@@ -13,4 +13,4 @@ spring:
 app:
   web:
     cors:
-      allowed-origins: http://localhost:3001,http://frontend:3001
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3001,http://frontend:3001}

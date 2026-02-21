@@ -39,7 +39,7 @@ cd backend
 cd frontend
 npm install
 npm run dev       # dev server (localhost:3001)
-npm run build     # production build
+npm run build     # production build (static export → out/)
 npm run lint      # ESLint
 ```
 
@@ -60,7 +60,7 @@ Backend reads env vars via `application.yml` placeholders. Key toggles:
 
 - `backend/` — Spring Boot multi-module (Gradle), DDD bounded contexts
 - `frontend/` — Next.js App Router (`src/app/`, `src/components/`, `src/lib/`)
-- `infra/` — docker-compose (Postgres + Backend + Frontend), Dockerfiles in backend/ and frontend/
+- `infra/` — docker-compose (local: Postgres + Backend + Frontend), Terraform (AWS: EC2 + RDS + S3 + CloudFront)
 - `docs/` — architecture, API, testing strategy, workflow reports, sprint backlogs
 - `scripts/` — sprint evaluation scripts (Node.js/Bash)
 
@@ -97,12 +97,13 @@ Domain entities use factory methods (`Inquiry.create()`, `Inquiry.reconstitute()
 
 ```
 src/app/                          — Next.js App Router pages
-├── page.tsx                      — Redirect to /dashboard
+├── page.tsx                      — Client redirect to /dashboard
 ├── dashboard/page.tsx            — Ops dashboard (metrics + recent 5 inquiries)
 ├── inquiries/page.tsx            — Inquiry list (filter, pagination, search)
 ├── inquiries/new/page.tsx        — Create inquiry form
-├── inquiries/[id]/page.tsx       — Inquiry detail (4 tabs: info, analysis, answer, history)
-├── inquiry/new/page.tsx          — Legacy redirect → /inquiries/new
+├── inquiries/[id]/page.tsx       — Inquiry detail (server wrapper + Suspense + generateStaticParams)
+├── inquiries/[id]/InquiryDetailClient.tsx — Inquiry detail client (4 tabs: info, answer, history)
+├── inquiry/new/page.tsx          — Client redirect → /inquiries/new
 └── knowledge-base/page.tsx       — Knowledge Base management (CRUD, indexing, stats)
 
 src/components/
@@ -174,6 +175,98 @@ src/lib/
 - `ChunkingService` has overloaded `chunkAndStore()` accepting `sourceType` and `sourceId` parameters
 - `VectorStore` interface includes `deleteByDocumentId()` and `upsert()` with `sourceType` metadata
 - `VectorSearchResult` includes `sourceType` field, propagated through `AnalysisService` to `EvidenceItem`
+
+## Live Deployment (AWS)
+
+### Architecture
+
+```
+[가비아 DNS]
+  ├── app.infottyt.com → A → EC2 Elastic IP
+  └── api.infottyt.com → A → EC2 Elastic IP
+
+[EC2 t4g.small (ARM, 2GB RAM)]
+  nginx (Let's Encrypt TLS)
+  ├── app.infottyt.com → /opt/frontend/ (정적 파일 서빙)
+  └── api.infottyt.com → localhost:8081 (리버스 프록시)
+
+  Docker
+  └── backend (eclipse-temurin:21-jre, -Xmx1g)
+        └── /opt/app/app.jar
+
+[RDS db.t4g.micro] ← PostgreSQL 16
+[S3 csrag-frontend-prod] ← 프론트엔드 백업 (CloudFront 연결, 현재 미사용)
+```
+
+### Key Facts
+
+- **리전**: ap-northeast-2 (서울)
+- **EC2 IP**: `terraform output ec2_public_ip` (Elastic IP)
+- **SSH**: `ssh -i ~/.ssh/csrag-deployer ec2-user@<IP>`
+- **프론트엔드**: Next.js static export (`output: 'export'`) → nginx 직접 서빙
+- **백엔드**: Spring Boot JAR → Docker 컨테이너 (포트 8081)
+- **TLS**: Let's Encrypt via Certbot (자동 갱신)
+- **CORS**: `CORS_ALLOWED_ORIGINS` 환경변수 (`/opt/app/.env`)
+
+### Deploy Commands
+
+```bash
+# ─── 백엔드 배포 ───────────────────────────────
+cd backend
+./gradlew :app-api:bootJar -x test
+scp -i ~/.ssh/csrag-deployer app-api/build/libs/app-api-0.1.0-SNAPSHOT.jar \
+  ec2-user@<IP>:/opt/app/app.jar
+ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
+  'cd /opt/app && docker compose down && docker compose up -d'
+
+# ─── 프론트엔드 배포 ──────────────────────────
+cd frontend
+NEXT_PUBLIC_API_BASE_URL=https://api.infottyt.com npm run build
+tar czf /tmp/frontend-out.tar.gz -C out .
+scp -i ~/.ssh/csrag-deployer /tmp/frontend-out.tar.gz ec2-user@<IP>:/tmp/
+ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
+  'sudo rm -rf /opt/frontend/* && sudo tar xzf /tmp/frontend-out.tar.gz -C /opt/frontend && sudo chown -R nginx:nginx /opt/frontend && rm /tmp/frontend-out.tar.gz'
+```
+
+### EC2 File Layout
+
+```
+/opt/app/
+├── .env                    # 환경변수 (DB, OpenAI, CORS)
+├── docker-compose.yml      # 백엔드 컨테이너 정의
+├── app.jar                 # Spring Boot JAR
+├── uploads/                # 업로드 파일
+└── setup-tls.sh            # Let's Encrypt 초기 설정 스크립트
+
+/opt/frontend/              # Next.js static export 파일
+├── index.html
+├── _next/static/           # JS/CSS 번들
+├── login/index.html
+├── dashboard/index.html
+├── inquiries/index.html
+└── ...
+
+/etc/nginx/conf.d/
+├── backend.conf            # api.infottyt.com → localhost:8081
+└── frontend.conf           # app.infottyt.com → /opt/frontend/
+```
+
+### Terraform
+
+인프라 코드: `infra/terraform/`
+```bash
+cd infra/terraform
+terraform plan     # 변경사항 확인
+terraform apply    # 적용
+terraform output   # IP, 배포 명령어, DNS 가이드 출력
+```
+
+### Frontend Build Notes
+
+- `next.config.mjs`: `output: 'export'`, `trailingSlash: true`
+- `NEXT_PUBLIC_API_BASE_URL`은 빌드 타임에 임베딩됨 (런타임 변경 불가)
+- `middleware.ts` 없음 (static export 미지원, AuthProvider가 클라이언트 인증 처리)
+- 동적 라우트 `[id]`는 `generateStaticParams` + Suspense boundary 사용
 
 ## Development Principles
 

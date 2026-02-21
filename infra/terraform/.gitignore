@@ -1,0 +1,17 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# 민감 정보
+terraform.tfvars
+*.auto.tfvars
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

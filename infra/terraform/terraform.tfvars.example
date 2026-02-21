@@ -1,0 +1,27 @@
+# =============================================================================
+# terraform.tfvars.example
+# 이 파일을 terraform.tfvars로 복사 후 값을 입력하세요.
+# cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+# ─── 도메인 (가비아) ─────────────────────────────────────────────────────────
+domain_name   = "example.com"
+app_subdomain = "app"
+api_subdomain = "api"
+
+# ─── EC2 SSH ─────────────────────────────────────────────────────────────────
+# SSH 공개키 (cat ~/.ssh/id_rsa.pub 또는 cat ~/.ssh/id_ed25519.pub)
+ssh_public_key = "ssh-ed25519 AAAA..."
+
+# SSH 접속 허용 IP (curl ifconfig.me 로 확인)
+ssh_allowed_cidr = "123.456.789.0/32"
+
+# ─── RDS (PostgreSQL) ────────────────────────────────────────────────────────
+db_name     = "csrag"
+db_username = "csrag"
+db_password = "CHANGE_ME_STRONG_PASSWORD"
+
+# ─── 애플리케이션 ────────────────────────────────────────────────────────────
+openai_api_key     = ""
+openai_enabled     = false
+vector_db_provider = "mock"

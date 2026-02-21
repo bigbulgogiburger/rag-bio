@@ -55,7 +55,7 @@ public class OpenAiComposeStep implements ComposeStep {
                     .body(Map.of(
                             "model", chatModel,
                             "messages", new Object[]{
-                                    Map.of("role", "system", "content", "너는 Bio-Rad 고객 서비스팀의 한국어 비즈니스 이메일 작성 전문가이다.\n반드시 다음 규칙을 지켜라:\n1. 격식체 존댓말 사용 (~드립니다, ~바랍니다, ~겠습니다)\n2. email 채널: 인사(\"안녕하세요.\") → 맥락 → 본론 → 마무리(\"감사합니다.\")\n3. messenger 채널: [요약] 태그로 시작, 260자 이내, 간결하게\n4. 한 문장에 하나의 의미만 담아 짧고 명확하게 작성\n5. 마크다운 서식(##, **, -, 등) 절대 사용 금지. 순수 텍스트만 작성\n6. [1], [2] 같은 번호 인용 금지. \"사내 자료를 참고한 결과\" 등 자연스러운 표현 사용\n7. 이모지, 과도한 느낌표 사용 금지\n8. 과장/단정 금지, 근거에 없는 내용 추측 금지"),
+                                    Map.of("role", "system", "content", "너는 Bio-Rad 고객 서비스팀의 한국어 비즈니스 이메일 작성 전문가이다.\n반드시 다음 규칙을 지켜라:\n1. 격식체 존댓말 사용 (~드립니다, ~바랍니다, ~겠습니다)\n2. email 채널: 인사(\"안녕하세요.\") → 맥락 → 본론 → 마무리(\"감사합니다.\")\n3. messenger 채널: [요약] 태그로 시작, 260자 이내, 간결하게\n4. 한 문장에 하나의 의미만 담아 짧고 명확하게 작성\n5. 마크다운 서식(##, **, -, 등) 절대 사용 금지. 순수 텍스트만 작성\n6. 각 주장의 근거가 되는 참고 자료의 출처를 본문 내에 자연스럽게 포함할 것. 형식: (파일명, p.XX) 또는 (파일명, p.XX-YY). [1], [2] 같은 번호 인용은 금지\n7. 이모지, 과도한 느낌표 사용 금지\n8. 과장/단정 금지, 근거에 없는 내용 추측 금지"),
                                     Map.of("role", "user", "content", prompt)
                             },
                             "temperature", 0.2
@@ -93,9 +93,20 @@ public class OpenAiComposeStep implements ComposeStep {
             int limit = Math.min(5, evidences.size());
             for (int i = 0; i < limit; i++) {
                 var ev = evidences.get(i);
-                sb.append("- (유사도: ")
+                sb.append("- (");
+                if (ev.fileName() != null) {
+                    sb.append("파일명: ").append(ev.fileName());
+                    if (ev.pageStart() != null) {
+                        sb.append(", p.").append(ev.pageStart());
+                        if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
+                            sb.append("-").append(ev.pageEnd());
+                        }
+                    }
+                    sb.append(", ");
+                }
+                sb.append("유사도: ")
                         .append(String.format("%.3f", ev.score()))
-                        .append(", 출처: ").append(ev.sourceType()).append(")\n")
+                        .append(")\n")
                         .append(ev.excerpt()).append("\n\n");
             }
         }
@@ -107,6 +118,7 @@ public class OpenAiComposeStep implements ComposeStep {
         sb.append("4) 과장/단정 금지, 근거에 없는 내용 추측 금지\n");
         sb.append("5) 후속 확인 항목 1~3개 포함\n");
         sb.append("6) channel=email이면 인사(\"안녕하세요.\")/마무리(\"감사합니다.\") 포함, messenger면 [요약] 태그로 시작하여 간결하게\n");
+        sb.append("7) 참고 자료의 내용을 인용할 때 해당 자료의 파일명과 페이지 번호를 괄호 안에 자연스럽게 표기할 것. 예: \"~기능이 제공됩니다 (10000107223.pdf, p.94-95)\". 근거가 없는 내용에는 출처 표기 금지\n");
 
         return sb.toString();
     }
