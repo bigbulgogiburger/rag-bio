@@ -99,7 +99,7 @@ export interface AnalyzeResult {
   translatedQuery?: string;
 }
 
-export type AnswerTone = "professional" | "technical" | "brief";
+export type AnswerTone = "professional" | "technical" | "brief" | "gilseon";
 export type AnswerChannel = "email" | "messenger";
 
 export interface AnswerDraftResult {

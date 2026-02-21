@@ -80,7 +80,7 @@ public class OpenAiComposeStep implements ComposeStep {
         StringBuilder sb = new StringBuilder();
         sb.append("아래 분석 결과와 참고 자료를 바탕으로 고객 답변 초안을 한국어 격식체로 작성해줘.\n\n");
         sb.append("[분석 결과]\n");
-        sb.append("- tone: ").append(tone == null ? "professional" : tone).append("\n");
+        sb.append("- tone: ").append(tone == null ? "gilseon" : tone).append("\n");
         sb.append("- channel: ").append(channel == null ? "email" : channel).append("\n");
         sb.append("- verdict: ").append(analysis.verdict()).append("\n");
         sb.append("- confidence: ").append(analysis.confidence()).append("\n");
@@ -119,6 +119,23 @@ public class OpenAiComposeStep implements ComposeStep {
         sb.append("5) 후속 확인 항목 1~3개 포함\n");
         sb.append("6) channel=email이면 인사(\"안녕하세요.\")/마무리(\"감사합니다.\") 포함, messenger면 [요약] 태그로 시작하여 간결하게\n");
         sb.append("7) 참고 자료의 내용을 인용할 때 해당 자료의 파일명과 페이지 번호를 괄호 안에 자연스럽게 표기할 것. 예: \"~기능이 제공됩니다 (10000107223.pdf, p.94-95)\". 근거가 없는 내용에는 출처 표기 금지\n");
+
+        if ("gilseon".equalsIgnoreCase(tone)) {
+            sb.append("\n[길선체 스타일 지시]\n");
+            sb.append("다음은 '길선체'라 불리는 Bio-Rad 차길선 FAS의 이메일 작성 스타일이다. 반드시 이 스타일을 따라 작성하라:\n");
+            sb.append("1) 호칭: \"[고객명]께\" 로 시작. 고객명을 알 수 없으면 \"고객님께\" 사용\n");
+            sb.append("2) 인사: \"안녕하세요\" (별도 줄) + \"한국바이오래드 차길선 입니다.\" (별도 줄)\n");
+            sb.append("3) 맥락 연결: \"문의 주신 내용 바탕으로 하기와 같이 안내드립니다.\" 또는 \"보내주신 데이터 확인했습니다.\" 등\n");
+            sb.append("4) 본문 구조: #1), #2), #3) 형식의 번호 매기기로 포인트별 정리\n");
+            sb.append("5) 기술 설명: 원리부터 설명 후 결론 도출. 한영 혼용 기술 용어 자연스럽게 사용\n");
+            sb.append("6) 관찰/확인: \"~것을 확인했습니다\", \"~것으로 예상합니다\" 패턴 사용\n");
+            sb.append("7) 요청/지시: \"~해주십시오\", \"~부탁드리겠습니다\" 사용\n");
+            sb.append("8) 정보 제공: \"~안내드립니다\", \"~남겨드립니다\" 사용\n");
+            sb.append("9) 부가 설명: 괄호 안에 실용적 팁 추가 (예: \"(안그러면 lid temp으로 손에 화상 입을 수 있으니까요)\")\n");
+            sb.append("10) 추가 안내: \"추가 도움이 될 만한 내용이 생각이 난다면 연락 드리도록 하겠습니다.\" 또는 \"추가 문의 건 언제든 회신 주십시오.\"\n");
+            sb.append("11) 마무리: \"감사합니다.\" + \"차길선 드림.\" (각각 별도 줄)\n");
+            sb.append("12) 전체 톤: 격식체이면서도 친근한 느낌. 교육적이고 상세한 기술적 설명. \"하기와 같이\", \"상기\" 등 표현 사용\n");
+        }
 
         return sb.toString();
     }

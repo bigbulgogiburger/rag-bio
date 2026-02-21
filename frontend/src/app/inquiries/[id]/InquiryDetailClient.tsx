@@ -10,11 +10,27 @@ import InquiryHistoryTab from "@/components/inquiry/InquiryHistoryTab";
 import { TabErrorBoundary } from "@/components/error";
 import { getInquiry, type InquiryDetail } from "@/lib/api/client";
 
-export default function InquiryDetailClient() {
+function useInquiryId(): string {
   const params = useParams();
+  const paramId = params.id as string;
+  const [resolvedId, setResolvedId] = useState(paramId);
+
+  useEffect(() => {
+    // In static export, useParams() returns the pre-rendered placeholder "_".
+    // Read the actual inquiry ID from the current URL instead.
+    const match = window.location.pathname.match(/\/inquiries\/([^/]+)/);
+    if (match && match[1] && match[1] !== "_") {
+      setResolvedId(match[1]);
+    }
+  }, []);
+
+  return resolvedId !== "_" ? resolvedId : paramId;
+}
+
+export default function InquiryDetailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const inquiryId = params.id as string;
+  const inquiryId = useInquiryId();
 
   const [inquiry, setInquiry] = useState<InquiryDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -24,6 +40,7 @@ export default function InquiryDetailClient() {
   const defaultTab = tabParam && validTabs.includes(tabParam) ? tabParam : "info";
 
   useEffect(() => {
+    if (inquiryId === "_") return;
     getInquiry(inquiryId)
       .then(setInquiry)
       .catch((err) => setLoadError(err instanceof Error ? err.message : "문의를 불러올 수 없습니다."));

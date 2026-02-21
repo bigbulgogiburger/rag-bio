@@ -142,8 +142,8 @@ const SpinnerIcon = () => (
 );
 
 export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTabProps) {
-  const initialTone = (inquiry.preferredTone === "technical" || inquiry.preferredTone === "brief") ? inquiry.preferredTone : "professional";
-  const [answerTone, setAnswerTone] = useState<"professional" | "technical" | "brief">(initialTone);
+  const initialTone = (inquiry.preferredTone === "technical" || inquiry.preferredTone === "brief" || inquiry.preferredTone === "professional") ? inquiry.preferredTone : "gilseon";
+  const [answerTone, setAnswerTone] = useState<"professional" | "technical" | "brief" | "gilseon">(initialTone);
   const [answerChannel, setAnswerChannel] = useState<"email" | "messenger">("email");
   const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -601,11 +601,12 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
             <select
               className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
               value={answerTone}
-              onChange={(e) => setAnswerTone(e.target.value as "professional" | "technical" | "brief")}
+              onChange={(e) => setAnswerTone(e.target.value as "professional" | "technical" | "brief" | "gilseon")}
             >
               <option value="professional">{labelTone("professional")}</option>
               <option value="technical">{labelTone("technical")}</option>
               <option value="brief">{labelTone("brief")}</option>
+              <option value="gilseon">{labelTone("gilseon")}</option>
             </select>
           </label>
 

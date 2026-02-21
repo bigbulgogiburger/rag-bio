@@ -12,13 +12,13 @@ public class DefaultComposeStep implements ComposeStep {
 
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel) {
-        String normalizedTone = (tone == null || tone.isBlank()) ? "professional" : tone.trim().toLowerCase();
+        String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
         String draft = createDraftByTone(analysis, normalizedTone);
         draft = insertCitations(draft, analysis.evidences());
         draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
-        draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags());
+        draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags(), normalizedTone);
 
         return new ComposeStepResult(draft, validateFormatWarnings(draft, normalizedChannel));
     }
@@ -86,6 +86,11 @@ public class DefaultComposeStep implements ComposeStep {
                 case "REFUTED" -> "사내 자료를 참고한 결과, 현재 근거 점수 및 위험 신호 기준으로 문의 내용은 문서 근거와 충돌하는 것으로 확인됩니다.\n프로토콜 파라미터를 재검토하시고, 대체 워크플로우 적용을 검토하여 주시기 바랍니다.";
                 default -> "사내 자료를 참고한 결과, 근거 간 상충 또는 신뢰도 부족이 감지되었습니다.\n추가 데이터 확보(샘플 조건, 장비 설정, 대조군 결과) 후 재평가를 권장드립니다.";
             };
+            case "gilseon" -> switch (analysis.verdict()) {
+                case "SUPPORTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 하기와 같이 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 확보된 근거 기준으로 타당한 방향으로 판단됩니다.\n\n#1) 사내 자료 기반 확인 결과\n문의 주신 부분에 대하여 근거 자료가 확인되었으며, 해당 내용 바탕으로 진행에 문제가 없는 것을 확인했습니다.\n\n#2) 추가 확인 사항\n다만, 실제 적용 전 샘플 조건과 장비 설정에 대한 최종 점검을 권장드립니다.\n좀 더 구체적인 확인이 필요하시다면 유선으로 말씀해주십시오.";
+                case "REFUTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 하기와 같이 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 근거 기준으로 권장되지 않는 것으로 확인됩니다.\n\n#1) 확인 결과\n해당 조건에서는 기대하시는 결과를 얻기 어려울 것으로 예상합니다.\n\n#2) 대안 제안\n대안 프로토콜 또는 조건 재설정을 검토하여 주시기 바랍니다.\n해당 건에 대해서 좀 더 자세한 안내가 필요하시면 회신 주십시오.";
+                default -> "문의하여 주신 내용에 대하여 확인한 결과를 하기와 같이 안내드립니다.\n\n사내 자료를 참고한 결과, 일부 근거가 확인되었으나 조건 의존성이 있어 단정이 어려운 상황입니다.\n\n#1) 확인 결과\n현재까지 확인된 근거 바탕으로 말씀드리자면, 추가 데이터 확보 후 재평가가 필요할 것으로 판단됩니다.\n\n#2) 추가 확인 필요 항목\n하기 확인 항목을 점검하신 뒤 재문의 부탁드리겠습니다.";
+            };
             default -> switch (analysis.verdict()) {
                 case "SUPPORTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 확보된 근거 기준으로 타당한 방향으로 판단됩니다.\n다만, 실제 적용 전 샘플 조건과 장비 설정에 대한 최종 점검을 권장드립니다.";
                 case "REFUTED" -> "문의하여 주신 내용에 대하여 확인한 결과를 안내드립니다.\n\n사내 자료를 참고한 결과, 문의 내용은 현재 근거 기준으로 권장되지 않는 것으로 확인됩니다.\n대안 프로토콜 또는 조건 재설정을 검토하여 주시기 바랍니다.";
@@ -101,11 +106,17 @@ public class DefaultComposeStep implements ComposeStep {
         return notices.isEmpty() ? draft : String.join("\n", notices) + "\n\n" + draft;
     }
 
-    private String formatByChannel(String draft, String channel, List<String> riskFlags) {
+    private String formatByChannel(String draft, String channel, List<String> riskFlags, String tone) {
         String cautionLine = riskFlags.isEmpty() ? "" : "\n\n참고로, " + String.join(", ", riskFlags) + " 항목이 감지되었습니다.";
         return switch (channel) {
             case "messenger" -> "[요약]\n" + draft + cautionLine + "\n\n추가 확인이 필요하시면 말씀하여 주시기 바랍니다.";
-            default -> "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n" + draft + cautionLine + "\n\n추가 확인이 필요하신 사항이 있으시면 말씀하여 주시기 바랍니다.\n감사합니다.";
+            default -> {
+                if ("gilseon".equals(tone)) {
+                    yield "안녕하세요\n한국바이오래드 차길선 입니다.\n\n" + draft + cautionLine + "\n\n추가 문의 건 회신 주십시오.\n\n감사합니다.\n차길선 드림.";
+                } else {
+                    yield "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n" + draft + cautionLine + "\n\n추가 확인이 필요하신 사항이 있으시면 말씀하여 주시기 바랍니다.\n감사합니다.";
+                }
+            }
         };
     }
 }

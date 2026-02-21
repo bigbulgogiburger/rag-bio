@@ -303,7 +303,7 @@ export default function DashboardPage() {
           <DataTable
             columns={inquiryColumns}
             data={inquiries}
-            onRowClick={(item) => router.push(`/inquiries/${item.inquiryId}`)}
+            onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
             emptyMessage="등록된 문의가 없습니다"
           />
         </CardContent>

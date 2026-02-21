@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 const inquirySchema = z.object({
   question: z.string().min(1, "질문을 입력해 주세요").min(10, "최소 10자 이상 입력해 주세요"),
   customerChannel: z.enum(["email", "messenger", "portal"]),
-  answerTone: z.enum(["professional", "technical", "brief"]),
+  answerTone: z.enum(["professional", "technical", "brief", "gilseon"]),
 });
 
 type InquiryFormData = z.infer<typeof inquirySchema>;
@@ -33,7 +33,7 @@ export default function InquiryCreateForm() {
     formState: { errors, isSubmitting },
   } = useForm<InquiryFormData>({
     resolver: zodResolver(inquirySchema),
-    defaultValues: { question: "", customerChannel: "email", answerTone: "professional" },
+    defaultValues: { question: "", customerChannel: "email", answerTone: "gilseon" },
   });
 
   const onSubmit = async (data: InquiryFormData) => {
@@ -63,8 +63,8 @@ export default function InquiryCreateForm() {
       reset();
       setFile(null);
 
-      // Redirect immediately to answer tab
-      router.push(`/inquiries/${inquiry.inquiryId}?tab=answer`);
+      // Redirect immediately to answer tab (use window.location for static export)
+      window.location.href = `/inquiries/${inquiry.inquiryId}/?tab=answer`;
     } catch (error) {
       setToast({
         message: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
@@ -126,7 +126,7 @@ export default function InquiryCreateForm() {
                 className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
                 {...register("answerTone")}
               >
-                {(["professional", "technical", "brief"] as const).map((tone) => (
+                {(["professional", "technical", "brief", "gilseon"] as const).map((tone) => (
                   <option key={tone} value={tone}>
                     {labelTone(tone)}
                   </option>

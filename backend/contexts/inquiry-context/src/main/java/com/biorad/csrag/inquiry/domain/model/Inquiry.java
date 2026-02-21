@@ -34,7 +34,7 @@ public class Inquiry {
                 ? "unspecified"
                 : customerChannel.trim();
         String normalizedTone = (preferredTone == null || preferredTone.isBlank())
-                ? "professional"
+                ? "gilseon"
                 : preferredTone.trim().toLowerCase();
         return new Inquiry(InquiryId.newId(), normalizedQuestion, normalizedChannel, normalizedTone, InquiryStatus.RECEIVED, Instant.now());
     }
@@ -46,7 +46,7 @@ public class Inquiry {
             InquiryStatus status,
             Instant createdAt
     ) {
-        return reconstitute(id, question, customerChannel, "professional", status, createdAt);
+        return reconstitute(id, question, customerChannel, "gilseon", status, createdAt);
     }
 
     public static Inquiry reconstitute(
@@ -58,7 +58,7 @@ public class Inquiry {
             Instant createdAt
     ) {
         return new Inquiry(id, question, customerChannel,
-                preferredTone == null ? "professional" : preferredTone,
+                preferredTone == null ? "gilseon" : preferredTone,
                 status, createdAt);
     }
 

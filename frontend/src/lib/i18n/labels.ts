@@ -60,6 +60,7 @@ export const TONE_LABELS: Record<string, string> = {
   professional: "정중체",
   technical: "기술 상세",
   brief: "요약",
+  gilseon: "길선체",
 };
 
 // ===== 채널 =====

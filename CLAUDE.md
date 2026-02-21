@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bio-Rad CS Copilot — a RAG-based multi-agent consulting application for Bio-Rad customer service. CS agents submit technical questions with documents (PDF/Word), the system indexes them, runs a Retrieve → Verify → Compose pipeline, and generates answer drafts with citations for human-in-the-loop approval before sending via email/messenger. Additionally, a Knowledge Base module allows pre-registering reference documents (manuals, protocols, FAQ, spec sheets) that are searched alongside inquiry-attached documents during analysis.
+Bio-Rad CS 대응 허브 — a RAG-based multi-agent consulting application for Bio-Rad customer service. CS agents submit technical questions with documents (PDF/Word), the system indexes them, runs a Retrieve → Verify → Compose pipeline, and generates answer drafts with citations for human-in-the-loop approval before sending via email/messenger. Additionally, a Knowledge Base module allows pre-registering reference documents (manuals, protocols, FAQ, spec sheets) that are searched alongside inquiry-attached documents during analysis.
 
 ## Build & Run Commands
 

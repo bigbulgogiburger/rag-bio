@@ -247,7 +247,7 @@ export default function InquiriesPage() {
                 <DataTable
                   columns={columns}
                   data={response.content}
-                  onRowClick={(item) => router.push(`/inquiries/${item.inquiryId}`)}
+                  onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
                   emptyMessage="등록된 문의가 없습니다"
                 />
 
