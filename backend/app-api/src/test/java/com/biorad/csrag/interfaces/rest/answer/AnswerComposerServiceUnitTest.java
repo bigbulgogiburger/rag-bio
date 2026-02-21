@@ -1,13 +1,16 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
 import com.biorad.csrag.common.exception.ConflictException;
+import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.AnswerOrchestrationService;
 import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendResult;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +43,12 @@ class AnswerComposerServiceUnitTest {
     private SendAttemptJpaRepository sendAttemptRepository;
 
     @Mock
+    private AiReviewResultJpaRepository aiReviewResultRepository;
+
+    @Mock
+    private DocumentMetadataJpaRepository documentMetadataRepository;
+
+    @Mock
     private MessageSender emailSender;
 
     private AnswerComposerService service;
@@ -50,7 +59,10 @@ class AnswerComposerServiceUnitTest {
                 orchestrationService,
                 answerDraftRepository,
                 sendAttemptRepository,
-                List.of(emailSender)
+                List.of(emailSender),
+                aiReviewResultRepository,
+                documentMetadataRepository,
+                new ObjectMapper()
         );
     }
 

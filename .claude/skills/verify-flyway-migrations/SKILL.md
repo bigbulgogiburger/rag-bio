@@ -36,6 +36,10 @@ description: Flyway DB 마이그레이션 일관성 검증. 마이그레이션 �
 | `backend/app-api/src/main/resources/db/migration/V19__inquiry_preferred_tone.sql` | preferred_tone 컬럼 추가 |
 | `backend/app-api/src/main/resources/db/migration/V20__ai_workflow_columns.sql` | AI 워크플로우 컬럼 (review/approval) |
 | `backend/app-api/src/main/resources/db/migration/V21__answer_draft_text_columns.sql` | draft/citations VARCHAR→TEXT 변환 |
+| `backend/app-api/src/main/resources/db/migration/V22__users_and_roles.sql` | 사용자/역할 테이블 |
+| `backend/app-api/src/main/resources/db/migration/V23__hybrid_search_tsvector.sql` | tsvector 하이브리드 검색 |
+| `backend/app-api/src/main/resources/db/migration/V24__answer_draft_refinement.sql` | 답변 초안 보완 컬럼 |
+| `backend/app-api/src/main/resources/db/migration/V25__workflow_run_count.sql` | workflow_run_count 컬럼 추가 |
 
 ## Workflow
 
@@ -148,6 +152,7 @@ grep -n "CREATE.*INDEX" backend/app-api/src/main/resources/db/migration/V*__*.sq
 | 9 | page_start/page_end 동기화 | PASS/FAIL | INT vs Integer 일치 |
 | 10 | AI 워크플로우 컬럼 동기화 | PASS/FAIL | V20 컬럼 매핑 |
 | 11 | preferred_tone 동기화 | PASS/FAIL | V19 컬럼 매핑 |
+| 12 | workflow_run_count 동기화 | PASS/FAIL | V25 컬럼 매핑 |
 
 ### Step 9: page_start/page_end JPA 동기화 확인
 
@@ -187,6 +192,19 @@ grep -rn "preferred_tone\|preferredTone" backend/app-api/src/main/resources/db/m
 
 **PASS:** SQL VARCHAR 컬럼과 JPA String 필드 일치
 **FAIL:** JPA에 preferredTone 필드 없음
+
+### Step 12: workflow_run_count JPA 동기화 확인
+
+**파일:** `V25__workflow_run_count.sql`, `AnswerDraftJpaEntity.java`
+
+**검사:** V25 마이그레이션의 `workflow_run_count INT NOT NULL DEFAULT 0` 컬럼이 JPA에서 `workflowRunCount` int/Integer 필드로 매핑되는지 확인.
+
+```bash
+grep -n "workflow_run_count\|workflowRunCount" backend/app-api/src/main/resources/db/migration/V25__workflow_run_count.sql backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AnswerDraftJpaEntity.java
+```
+
+**PASS:** SQL `INT NOT NULL DEFAULT 0`과 JPA int 필드 일치, 기본값 0 설정
+**FAIL:** JPA에 workflowRunCount 필드 없음 또는 타입 불일치
 
 ## Exceptions
 

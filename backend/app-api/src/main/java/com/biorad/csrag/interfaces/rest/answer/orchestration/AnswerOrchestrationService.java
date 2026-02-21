@@ -4,6 +4,8 @@ import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRu
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
+import com.biorad.csrag.interfaces.rest.search.ProductExtractorService;
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.biorad.csrag.interfaces.rest.sse.SseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +13,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class AnswerOrchestrationService {
@@ -27,6 +31,8 @@ public class AnswerOrchestrationService {
     private final SelfReviewStep selfReviewStep;
     private final OrchestrationRunJpaRepository runRepository;
     private final SseService sseService;
+    private final QuestionDecomposerService questionDecomposerService;
+    private final ProductExtractorService productExtractorService;
 
     public AnswerOrchestrationService(
             RetrieveStep retrieveStep,
@@ -34,7 +40,9 @@ public class AnswerOrchestrationService {
             ComposeStep composeStep,
             SelfReviewStep selfReviewStep,
             OrchestrationRunJpaRepository runRepository,
-            SseService sseService
+            SseService sseService,
+            QuestionDecomposerService questionDecomposerService,
+            ProductExtractorService productExtractorService
     ) {
         this.retrieveStep = retrieveStep;
         this.verifyStep = verifyStep;
@@ -42,6 +50,8 @@ public class AnswerOrchestrationService {
         this.selfReviewStep = selfReviewStep;
         this.runRepository = runRepository;
         this.sseService = sseService;
+        this.questionDecomposerService = questionDecomposerService;
+        this.productExtractorService = productExtractorService;
     }
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel) {
@@ -50,20 +60,56 @@ public class AnswerOrchestrationService {
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel,
                                     String additionalInstructions, String previousAnswerDraft) {
-        emitPipelineEvent(inquiryId, "RETRIEVE", "STARTED", null);
-        List<EvidenceItem> evidences = executeWithRunLog(inquiryId, "RETRIEVE", () -> retrieveStep.execute(inquiryId, question, 5));
+
+        // ── DECOMPOSE ──────────────────────────────────────────────
+        emitPipelineEvent(inquiryId, "DECOMPOSE", "STARTED", null);
+        DecomposedQuestion decomposed = executeWithRunLog(inquiryId, "DECOMPOSE",
+                () -> questionDecomposerService.decompose(question));
+
+        ProductExtractorService.ExtractedProduct product = productExtractorService.extract(question);
+        SearchFilter filter = (product != null)
+                ? SearchFilter.forProduct(inquiryId, product.productFamily())
+                : SearchFilter.forInquiry(inquiryId);
+
+        List<SubQuestion> subQuestions = decomposed.subQuestions();
+        boolean isMultiQuestion = subQuestions.size() > 1;
+        emitPipelineEvent(inquiryId, "DECOMPOSE", "COMPLETED",
+                isMultiQuestion ? "하위 질문 " + subQuestions.size() + "개 분해" : null);
+
+        // ── RETRIEVE ───────────────────────────────────────────────
+        emitPipelineEvent(inquiryId, "RETRIEVE", "STARTED",
+                isMultiQuestion ? "하위 질문 " + subQuestions.size() + "개 개별 검색" : null);
+
+        List<EvidenceItem> allEvidences;
+        List<PerQuestionEvidence> perQuestionEvidences = null;
+
+        if (isMultiQuestion && retrieveStep instanceof DefaultRetrieveStep defaultStep) {
+            perQuestionEvidences = executeWithRunLog(inquiryId, "RETRIEVE",
+                    () -> defaultStep.executePerQuestion(inquiryId, subQuestions, 10, filter));
+
+            // Flat merge with deduplication by chunkId
+            allEvidences = deduplicateEvidences(perQuestionEvidences);
+        } else {
+            allEvidences = executeWithRunLog(inquiryId, "RETRIEVE",
+                    () -> retrieveStep.execute(inquiryId, question, 10));
+        }
         emitPipelineEvent(inquiryId, "RETRIEVE", "COMPLETED", null);
 
+        // ── VERIFY ─────────────────────────────────────────────────
         emitPipelineEvent(inquiryId, "VERIFY", "STARTED", null);
-        AnalyzeResponse analysis = executeWithRunLog(inquiryId, "VERIFY", () -> verifyStep.execute(inquiryId, question, evidences));
+        AnalyzeResponse analysis = executeWithRunLog(inquiryId, "VERIFY",
+                () -> verifyStep.execute(inquiryId, question, allEvidences));
         emitPipelineEvent(inquiryId, "VERIFY", "COMPLETED", null);
+
+        // ── COMPOSE ────────────────────────────────────────────────
+        String mergedInstructions = buildMergedInstructions(additionalInstructions, perQuestionEvidences);
 
         emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", null);
         ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE",
-                () -> composeStep.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft));
+                () -> composeStep.execute(analysis, tone, channel, mergedInstructions, previousAnswerDraft));
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
 
-        // Self-review with retry loop
+        // ── SELF_REVIEW ────────────────────────────────────────────
         String finalDraft = composed.draft();
         List<String> finalWarnings = composed.formatWarnings();
         List<SelfReviewStep.QualityIssue> selfReviewIssues = List.of();
@@ -116,7 +162,53 @@ public class AnswerOrchestrationService {
             // Fall through with original draft - self-review is non-blocking
         }
 
-        return new OrchestrationResult(analysis, finalDraft, finalWarnings, selfReviewIssues);
+        return new OrchestrationResult(analysis, finalDraft, finalWarnings, selfReviewIssues, perQuestionEvidences);
+    }
+
+    /**
+     * 하위 질문별 증거를 flat하게 합치면서 chunkId 기준 중복 제거.
+     */
+    private List<EvidenceItem> deduplicateEvidences(List<PerQuestionEvidence> perQuestionEvidences) {
+        LinkedHashMap<String, EvidenceItem> seen = new LinkedHashMap<>();
+        for (PerQuestionEvidence pqe : perQuestionEvidences) {
+            for (EvidenceItem ev : pqe.evidences()) {
+                seen.putIfAbsent(ev.chunkId(), ev);
+            }
+        }
+        return new ArrayList<>(seen.values());
+    }
+
+    /**
+     * 하위 질문별 증거 매핑 정보를 additionalInstructions에 구조화하여 추가.
+     */
+    private String buildMergedInstructions(String additionalInstructions,
+                                           List<PerQuestionEvidence> perQuestionEvidences) {
+        if (perQuestionEvidences == null || perQuestionEvidences.isEmpty()) {
+            return additionalInstructions;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (additionalInstructions != null && !additionalInstructions.isBlank()) {
+            sb.append(additionalInstructions).append("\n\n");
+        }
+
+        sb.append("[하위 질문별 증거 매핑]\n");
+        for (PerQuestionEvidence pqe : perQuestionEvidences) {
+            SubQuestion sq = pqe.subQuestion();
+            sb.append("질문 ").append(sq.index()).append(": ").append(sq.question()).append("\n");
+            sb.append("증거 충분: ").append(pqe.sufficient() ? "예" : "아니오").append("\n");
+            sb.append("증거: ");
+            if (pqe.evidences().isEmpty()) {
+                sb.append("없음");
+            } else {
+                sb.append(pqe.evidences().stream()
+                        .map(ev -> ev.chunkId() + "(score=" + String.format("%.2f", ev.score()) + ")")
+                        .collect(Collectors.joining(", ")));
+            }
+            sb.append("\n---\n");
+        }
+
+        return sb.toString();
     }
 
     private <T> T executeWithRunLog(UUID inquiryId, String step, StepSupplier<T> supplier) {
@@ -161,10 +253,18 @@ public class AnswerOrchestrationService {
             AnalyzeResponse analysis,
             String draft,
             List<String> formatWarnings,
-            List<SelfReviewStep.QualityIssue> selfReviewIssues
+            List<SelfReviewStep.QualityIssue> selfReviewIssues,
+            List<PerQuestionEvidence> perQuestionEvidences
     ) {
+        /** 하위 호환: selfReviewIssues 없이 생성 */
         public OrchestrationResult(AnalyzeResponse analysis, String draft, List<String> formatWarnings) {
-            this(analysis, draft, formatWarnings, List.of());
+            this(analysis, draft, formatWarnings, List.of(), null);
+        }
+
+        /** 하위 호환: perQuestionEvidences 없이 생성 */
+        public OrchestrationResult(AnalyzeResponse analysis, String draft,
+                                   List<String> formatWarnings, List<SelfReviewStep.QualityIssue> selfReviewIssues) {
+            this(analysis, draft, formatWarnings, selfReviewIssues, null);
         }
     }
 }

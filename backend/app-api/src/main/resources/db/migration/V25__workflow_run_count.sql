@@ -1,0 +1,1 @@
+ALTER TABLE answer_drafts ADD COLUMN IF NOT EXISTS workflow_run_count INT NOT NULL DEFAULT 0;

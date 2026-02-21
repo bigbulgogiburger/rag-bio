@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.vector;
 
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -63,6 +64,7 @@ public class QdrantVectorStore implements VectorStore {
         payload.put("documentId", documentId.toString());
         payload.put("content", content == null ? "" : content);
         payload.put("sourceType", sourceType == null ? "INQUIRY" : sourceType);
+        payload.put("productFamily", "");
 
         Map<String, Object> point = new HashMap<>();
         point.put("id", chunkId.toString());
@@ -82,13 +84,50 @@ public class QdrantVectorStore implements VectorStore {
 
     @Override
     public List<VectorSearchResult> search(List<Double> queryVector, int topK) {
+        return search(queryVector, topK, null);
+    }
+
+    @Override
+    public List<VectorSearchResult> search(List<Double> queryVector, int topK, SearchFilter filter) {
         ensureCollection(queryVector.size());
 
-        Map<String, Object> body = Map.of(
-                "vector", queryVector,
-                "limit", Math.max(1, topK),
-                "with_payload", true
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("vector", queryVector);
+        body.put("limit", Math.max(1, topK));
+        body.put("with_payload", true);
+
+        if (filter != null && !filter.isEmpty()) {
+            List<Map<String, Object>> mustClauses = new ArrayList<>();
+
+            if (filter.hasDocumentFilter()) {
+                List<String> docIdStrings = filter.documentIds().stream()
+                        .map(UUID::toString)
+                        .toList();
+                mustClauses.add(Map.of(
+                        "key", "documentId",
+                        "match", Map.of("any", docIdStrings)
+                ));
+            }
+
+            if (filter.hasProductFilter()) {
+                mustClauses.add(Map.of(
+                        "key", "productFamily",
+                        "match", Map.of("value", filter.productFamily())
+                ));
+            }
+
+            if (filter.hasSourceTypeFilter()) {
+                List<String> sourceTypeList = new ArrayList<>(filter.sourceTypes());
+                mustClauses.add(Map.of(
+                        "key", "sourceType",
+                        "match", Map.of("any", sourceTypeList)
+                ));
+            }
+
+            if (!mustClauses.isEmpty()) {
+                body.put("filter", Map.of("must", mustClauses));
+            }
+        }
 
         String response = restClient.post()
                 .uri("/collections/{collection}/points/search", collection)
@@ -205,16 +244,18 @@ public class QdrantVectorStore implements VectorStore {
                 }
             }
 
-            // deleteByDocumentId 필터가 동작하려면 payload 인덱스 필요
-            try {
-                restClient.put()
-                        .uri("/collections/{collection}/index", collection)
-                        .body(Map.of("field_name", "documentId", "field_schema", "keyword"))
-                        .retrieve()
-                        .toBodilessEntity();
-                log.info("qdrant.index.ready field=documentId");
-            } catch (Exception ex) {
-                log.info("qdrant.index.ensure skipped/exists field=documentId reason={}", ex.getMessage());
+            // payload 인덱스 생성 (필터 검색에 필요)
+            for (String field : List.of("documentId", "sourceType", "productFamily")) {
+                try {
+                    restClient.put()
+                            .uri("/collections/{collection}/index", collection)
+                            .body(Map.of("field_name", field, "field_schema", "keyword"))
+                            .retrieve()
+                            .toBodilessEntity();
+                    log.info("qdrant.index.ready field={}", field);
+                } catch (Exception ex) {
+                    log.info("qdrant.index.ensure skipped/exists field={} reason={}", field, ex.getMessage());
+                }
             }
 
             collectionReady = true;

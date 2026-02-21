@@ -147,7 +147,9 @@ class AnswerControllerWebMvcTest {
                 null,
                 null,
                 0,
-                List.of()
+                List.of(),
+                0,
+                null
         );
     }
 }

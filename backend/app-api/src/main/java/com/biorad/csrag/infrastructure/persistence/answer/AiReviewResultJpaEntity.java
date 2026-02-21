@@ -69,4 +69,8 @@ public class AiReviewResultJpaEntity {
     public String getIssues() { return issues; }
     public String getGateResults() { return gateResults; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public void setGateResults(String gateResults) {
+        this.gateResults = gateResults;
+    }
 }

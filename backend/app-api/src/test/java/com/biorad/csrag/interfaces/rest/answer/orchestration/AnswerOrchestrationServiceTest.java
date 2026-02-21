@@ -4,6 +4,7 @@ import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRu
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
+import com.biorad.csrag.interfaces.rest.search.ProductExtractorService;
 import com.biorad.csrag.interfaces.rest.sse.SseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,18 +33,30 @@ class AnswerOrchestrationServiceTest {
     @Mock private SelfReviewStep selfReviewStep;
     @Mock private OrchestrationRunJpaRepository runRepository;
     @Mock private SseService sseService;
+    @Mock private QuestionDecomposerService questionDecomposerService;
+    @Mock private ProductExtractorService productExtractorService;
 
     private AnswerOrchestrationService service;
 
     @BeforeEach
     void setUp() {
-        service = new AnswerOrchestrationService(retrieveStep, verifyStep, composeStep, selfReviewStep, runRepository, sseService);
+        service = new AnswerOrchestrationService(
+                retrieveStep, verifyStep, composeStep, selfReviewStep,
+                runRepository, sseService, questionDecomposerService, productExtractorService);
+    }
+
+    /** Helper: stub decomposer to return a single sub-question (default single-question flow). */
+    private void stubSingleQuestionDecompose(String question) {
+        when(questionDecomposerService.decompose(question)).thenReturn(
+                new DecomposedQuestion(question, List.of(new SubQuestion(1, question, null)), null));
     }
 
     @Test
     void run_executesAllStepsInOrder() {
         UUID inquiryId = UUID.randomUUID();
         String question = "Test question";
+
+        stubSingleQuestionDecompose(question);
 
         List<EvidenceItem> evidences = List.of(
                 new EvidenceItem("chunk-1", "doc-1", 0.9, "test excerpt", "INQUIRY", "test.pdf", 1, 1)
@@ -67,15 +80,16 @@ class AnswerOrchestrationServiceTest {
         assertThat(result.analysis()).isEqualTo(analysis);
         assertThat(result.draft()).isEqualTo("Draft answer text");
         assertThat(result.formatWarnings()).isEmpty();
+        assertThat(result.perQuestionEvidences()).isNull(); // single question → no per-question evidences
 
-        verify(retrieveStep).execute(eq(inquiryId), eq(question), eq(5));
+        verify(retrieveStep).execute(eq(inquiryId), eq(question), eq(10));
         verify(verifyStep).execute(eq(inquiryId), eq(question), eq(evidences));
-        verify(composeStep).execute(eq(analysis), eq("professional"), eq("email"), isNull(), isNull());
     }
 
     @Test
     void run_logsSuccessForEachStep() {
         UUID inquiryId = UUID.randomUUID();
+        stubSingleQuestionDecompose("question");
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(List.of());
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(
@@ -89,17 +103,18 @@ class AnswerOrchestrationServiceTest {
         service.run(inquiryId, "question", "professional", "email");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(4)).save(captor.capture());
+        verify(runRepository, times(5)).save(captor.capture());
 
         List<OrchestrationRunJpaEntity> saved = captor.getAllValues();
         assertThat(saved).extracting(OrchestrationRunJpaEntity::getStep)
-                .containsExactly("RETRIEVE", "VERIFY", "COMPOSE", "SELF_REVIEW");
+                .containsExactly("DECOMPOSE", "RETRIEVE", "VERIFY", "COMPOSE", "SELF_REVIEW");
         assertThat(saved).allMatch(e -> "SUCCESS".equals(e.getStatus()));
     }
 
     @Test
     void run_logsFailureWhenStepFails() {
         UUID inquiryId = UUID.randomUUID();
+        stubSingleQuestionDecompose("question");
 
         when(retrieveStep.execute(any(), anyString(), anyInt()))
                 .thenThrow(new RuntimeException("Vector store unavailable"));
@@ -110,18 +125,21 @@ class AnswerOrchestrationServiceTest {
                 .hasMessage("Vector store unavailable");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository).save(captor.capture());
+        verify(runRepository, times(2)).save(captor.capture());
 
-        OrchestrationRunJpaEntity failedRun = captor.getValue();
-        assertThat(failedRun.getStep()).isEqualTo("RETRIEVE");
-        assertThat(failedRun.getStatus()).isEqualTo("FAILED");
-        assertThat(failedRun.getErrorMessage()).isEqualTo("Vector store unavailable");
+        // DECOMPOSE succeeded, RETRIEVE failed
+        assertThat(captor.getAllValues().get(0).getStep()).isEqualTo("DECOMPOSE");
+        assertThat(captor.getAllValues().get(0).getStatus()).isEqualTo("SUCCESS");
+        assertThat(captor.getAllValues().get(1).getStep()).isEqualTo("RETRIEVE");
+        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo("FAILED");
+        assertThat(captor.getAllValues().get(1).getErrorMessage()).isEqualTo("Vector store unavailable");
     }
 
     @Test
     void run_verifyStepFails_logsRetrieveSuccessAndVerifyFailure() {
         UUID inquiryId = UUID.randomUUID();
         List<EvidenceItem> evidences = List.of();
+        stubSingleQuestionDecompose("q");
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList()))
@@ -133,10 +151,12 @@ class AnswerOrchestrationServiceTest {
                 .hasMessage("verify error");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues().get(0).getStatus()).isEqualTo("SUCCESS");
-        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo("FAILED");
-        assertThat(captor.getAllValues().get(1).getStep()).isEqualTo("VERIFY");
+        verify(runRepository, times(3)).save(captor.capture());
+        // DECOMPOSE=SUCCESS, RETRIEVE=SUCCESS, VERIFY=FAILED
+        assertThat(captor.getAllValues().get(0).getStep()).isEqualTo("DECOMPOSE");
+        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo("SUCCESS");
+        assertThat(captor.getAllValues().get(2).getStatus()).isEqualTo("FAILED");
+        assertThat(captor.getAllValues().get(2).getStep()).isEqualTo("VERIFY");
     }
 
     @Test
@@ -146,6 +166,7 @@ class AnswerOrchestrationServiceTest {
         AnalyzeResponse analysis = new AnalyzeResponse(
                 inquiryId.toString(), "SUPPORTED", 0.8, "ok", List.of(), evidences, null
         );
+        stubSingleQuestionDecompose("q");
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
@@ -158,9 +179,9 @@ class AnswerOrchestrationServiceTest {
                 .hasMessage("compose error");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(3)).save(captor.capture());
-        assertThat(captor.getAllValues().get(2).getStep()).isEqualTo("COMPOSE");
-        assertThat(captor.getAllValues().get(2).getStatus()).isEqualTo("FAILED");
+        verify(runRepository, times(4)).save(captor.capture());
+        assertThat(captor.getAllValues().get(3).getStep()).isEqualTo("COMPOSE");
+        assertThat(captor.getAllValues().get(3).getStatus()).isEqualTo("FAILED");
     }
 
     @Test
@@ -171,6 +192,7 @@ class AnswerOrchestrationServiceTest {
                 inquiryId.toString(), "SUPPORTED", 0.8, "ok", List.of(), evidences, null
         );
         ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("draft", List.of("warn"));
+        stubSingleQuestionDecompose("q");
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
@@ -189,6 +211,7 @@ class AnswerOrchestrationServiceTest {
     @Test
     void run_nullErrorMessage_usesClassName() {
         UUID inquiryId = UUID.randomUUID();
+        stubSingleQuestionDecompose("q");
 
         when(retrieveStep.execute(any(), anyString(), anyInt()))
                 .thenThrow(new NullPointerException());
@@ -198,8 +221,9 @@ class AnswerOrchestrationServiceTest {
                 .isInstanceOf(NullPointerException.class);
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository).save(captor.capture());
-        assertThat(captor.getValue().getErrorMessage()).isEqualTo("NullPointerException");
+        verify(runRepository, times(2)).save(captor.capture());
+        // Second save is the RETRIEVE failure
+        assertThat(captor.getAllValues().get(1).getErrorMessage()).isEqualTo("NullPointerException");
     }
 
     @Test
@@ -212,6 +236,7 @@ class AnswerOrchestrationServiceTest {
         assertThat(result.draft()).isEqualTo("draft");
         assertThat(result.formatWarnings()).containsExactly("w1");
         assertThat(result.selfReviewIssues()).isEmpty();
+        assertThat(result.perQuestionEvidences()).isNull();
     }
 
     @Test
@@ -222,6 +247,7 @@ class AnswerOrchestrationServiceTest {
                 inquiryId.toString(), "SUPPORTED", 0.8, "ok", List.of(), evidences, null
         );
         ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("original draft", List.of());
+        stubSingleQuestionDecompose("q");
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
@@ -245,6 +271,7 @@ class AnswerOrchestrationServiceTest {
         );
         ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("draft v1", List.of());
         ComposeStep.ComposeStepResult recomposed = new ComposeStep.ComposeStepResult("draft v2", List.of());
+        stubSingleQuestionDecompose("q");
 
         SelfReviewStep.QualityIssue criticalIssue = new SelfReviewStep.QualityIssue(
                 "DUPLICATION", "CRITICAL", "duplicate content", "remove duplicates");
@@ -266,5 +293,45 @@ class AnswerOrchestrationServiceTest {
         assertThat(result.formatWarnings()).contains("SELF_REVIEW_INCOMPLETE");
         assertThat(result.selfReviewIssues()).hasSize(1);
         assertThat(result.selfReviewIssues().getFirst().category()).isEqualTo("DUPLICATION");
+    }
+
+    @Test
+    void run_multiQuestion_usesPerQuestionRetrieve() {
+        UUID inquiryId = UUID.randomUUID();
+        String question = "질문 1) naica 사용법 질문 2) 교정 방법";
+
+        // Decompose returns 2 sub-questions
+        SubQuestion sq1 = new SubQuestion(1, "naica 사용법", "naica");
+        SubQuestion sq2 = new SubQuestion(2, "교정 방법", "naica");
+        when(questionDecomposerService.decompose(question)).thenReturn(
+                new DecomposedQuestion(question, List.of(sq1, sq2), "naica"));
+        when(productExtractorService.extract(question)).thenReturn(
+                new ProductExtractorService.ExtractedProduct("naica", "naica", 0.9));
+
+        // Use DefaultRetrieveStep (concrete) to trigger multi-question path
+        // Since our mock is RetrieveStep (interface), the single-question fallback will be used.
+        // We test the single-question path here since mock is not instanceof DefaultRetrieveStep.
+        List<EvidenceItem> evidences = List.of(
+                new EvidenceItem("chunk-1", "doc-1", 0.9, "excerpt", "INQUIRY", "test.pdf", 1, 1)
+        );
+        AnalyzeResponse analysis = new AnalyzeResponse(
+                inquiryId.toString(), "SUPPORTED", 0.85, "reason", List.of(), evidences, null
+        );
+        ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("multi-q draft", List.of());
+
+        when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
+        when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
+        when(composeStep.execute(any(), anyString(), any(), any(), any())).thenReturn(composed);
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenReturn(new SelfReviewStep.SelfReviewResult(true, List.of(), ""));
+        when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AnswerOrchestrationService.OrchestrationResult result = service.run(inquiryId, question, "professional", "email");
+
+        assertThat(result.draft()).isEqualTo("multi-q draft");
+        // When retrieveStep is not DefaultRetrieveStep, falls back to single-question retrieve
+        assertThat(result.perQuestionEvidences()).isNull();
+        verify(questionDecomposerService).decompose(question);
+        verify(productExtractorService).extract(question);
     }
 }

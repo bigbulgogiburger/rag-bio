@@ -36,6 +36,7 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 | `frontend/src/components/upload/FileQueueItem.tsx` | 파일 큐 아이템 (cn + status 기반 스타일) |
 | `frontend/src/lib/api/client.ts` | API 클라이언트 (타입 정의 + 헬퍼 함수) |
 | `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 함수 (labelReviewDecision, labelApprovalDecision 포함) |
+| `frontend/src/components/inquiry/WorkflowResultCard.tsx` | 워크플로우 결과 공유 컴포넌트 (showActions prop, 리뷰 이슈/게이트 결과 표시) |
 
 ## Workflow
 
@@ -295,6 +296,62 @@ grep -n "translatedQuery" frontend/src/components/inquiry/InquiryAnswerTab.tsx
 | 13 | sendRequestId 고유성 | PASS/FAIL | Date.now() 사용 |
 | 14 | preferredTone 초기값 | PASS/FAIL | 타입 정의 + 자동 적용 |
 | 15 | translatedQuery 표시 | PASS/FAIL | 조건부 표시 + italic 스타일 |
+| 16 | WorkflowResultCard 공유 | PASS/FAIL | AnswerTab + HistoryTab 사용 |
+| 17 | CITATION/HALLUCINATION 카테고리 | PASS/FAIL | labels + WorkflowResultCard |
+| 18 | workflowRunCount 표시 | PASS/FAIL | HistoryTab 재실행 횟수 |
+| 19 | history-detail API 사용 | PASS/FAIL | HistoryTab listAnswerDraftHistoryDetail |
+
+### Step 16: WorkflowResultCard 공유 컴포넌트 사용 확인
+
+**파일:** `InquiryAnswerTab.tsx`, `InquiryHistoryTab.tsx`, `WorkflowResultCard.tsx`
+
+**검사:** 워크플로우 결과 표시가 공유 컴포넌트 `WorkflowResultCard`를 통해 렌더링되고, AnswerTab은 `showActions=true`, HistoryTab은 `showActions=false`로 사용하는지 확인.
+
+```bash
+grep -rn "WorkflowResultCard\|showActions" frontend/src/components/inquiry/InquiryAnswerTab.tsx frontend/src/components/inquiry/InquiryHistoryTab.tsx frontend/src/components/inquiry/WorkflowResultCard.tsx
+```
+
+**PASS:** 양쪽 모두 `WorkflowResultCard` import + 사용, AnswerTab에 `showActions`, HistoryTab에 readOnly(showActions=false) 모드
+**FAIL:** 인라인 워크플로우 결과 렌더링 존재 또는 WorkflowResultCard 미사용
+
+### Step 17: CITATION/HALLUCINATION 이슈 카테고리 표시 확인
+
+**파일:** `WorkflowResultCard.tsx`, `frontend/src/lib/i18n/labels.ts`
+
+**검사:** WorkflowResultCard에서 CITATION/HALLUCINATION 카테고리가 올바르게 표시되고, labels.ts에 한국어 매핑이 있는지 확인.
+
+```bash
+grep -n "CITATION\|HALLUCINATION\|인용 검증\|환각 탐지" frontend/src/components/inquiry/WorkflowResultCard.tsx frontend/src/lib/i18n/labels.ts
+```
+
+**PASS:** labels.ts에 `CITATION: "인용 검증"`, `HALLUCINATION: "환각 탐지"` 매핑 + WorkflowResultCard에서 labelIssueCategory 사용
+**FAIL:** 카테고리 라벨 누락 또는 영문 직접 표시
+
+### Step 18: workflowRunCount 재실행 횟수 표시 확인
+
+**파일:** `InquiryHistoryTab.tsx`
+
+**검사:** 이력탭에서 워크플로우 재실행 횟수(`workflowRunCount`)가 표시되고, 5회 제한 조건이 UI에 반영되는지 확인.
+
+```bash
+grep -n "workflowRunCount\|실행됨\|재실행" frontend/src/components/inquiry/InquiryHistoryTab.tsx
+```
+
+**PASS:** `workflowRunCount` 표시 (예: `{n}/5 실행됨`) + `workflowRunCount < 5 && status !== "SENT"` 조건으로 재실행 버튼 표시
+**FAIL:** 실행 횟수 미표시 또는 무제한 재실행 허용
+
+### Step 19: listAnswerDraftHistoryDetail API 사용 확인
+
+**파일:** `InquiryHistoryTab.tsx`, `frontend/src/lib/api/client.ts`
+
+**검사:** 이력탭이 `listAnswerDraftHistoryDetail` API를 사용하여 AI 리뷰 이력을 포함한 상세 데이터를 조회하는지 확인.
+
+```bash
+grep -n "listAnswerDraftHistoryDetail\|AnswerHistoryDetailResult\|aiReviewHistory" frontend/src/components/inquiry/InquiryHistoryTab.tsx frontend/src/lib/api/client.ts
+```
+
+**PASS:** client.ts에 `listAnswerDraftHistoryDetail` 함수 + `AnswerHistoryDetailResult` 타입 정의, HistoryTab에서 사용
+**FAIL:** 기존 `listAnswerDraftHistory` 사용 (AI 리뷰 이력 미포함)
 
 ## Exceptions
 
@@ -303,3 +360,4 @@ grep -n "translatedQuery" frontend/src/components/inquiry/InquiryAnswerTab.tsx
 1. **3단계 폴백 표시** — fileName → documentId.slice(0,8) → chunkId.slice(0,8) 순서는 레거시 호환
 2. **SmartUploadModal의 category 기본값** — 기본값이 빈 문자열인 것은 의도된 동작 (사용자 선택 유도)
 3. **InquiryCreateForm의 file useState** — react-hook-form 외부에서 파일 상태를 관리하는 것은 File 객체의 직렬화 제한 때문
+4. **WorkflowResultCard의 유틸리티 함수 export** — getSeverityIcon, getScoreBadgeVariant 등 유틸리티 함수가 WorkflowResultCard에서 export되어 외부에서 사용되는 것은 정상

@@ -29,7 +29,9 @@ public record AnswerDraftResponse(
         String translatedQuery,
         String previousAnswerId,
         int refinementCount,
-        List<SelfReviewIssueResponse> selfReviewIssues
+        List<SelfReviewIssueResponse> selfReviewIssues,
+        int workflowRunCount,
+        String additionalInstructions
 ) {
     public record SelfReviewIssueResponse(
             String category,

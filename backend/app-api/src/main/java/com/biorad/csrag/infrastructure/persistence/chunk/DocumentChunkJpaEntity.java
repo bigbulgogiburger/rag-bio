@@ -42,6 +42,9 @@ public class DocumentChunkJpaEntity {
     @Column(name = "page_end")
     private Integer pageEnd;                   // PDF 끝 페이지 (1-based, nullable)
 
+    @Column(name = "product_family", length = 100)
+    private String productFamily;              // 제품 패밀리 (예: "naica", "vericheck", "QX700")
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -108,6 +111,14 @@ public class DocumentChunkJpaEntity {
 
     public Integer getPageEnd() {
         return pageEnd;
+    }
+
+    public String getProductFamily() {
+        return productFamily;
+    }
+
+    public void setProductFamily(String productFamily) {
+        this.productFamily = productFamily;
     }
 
     public Instant getCreatedAt() {

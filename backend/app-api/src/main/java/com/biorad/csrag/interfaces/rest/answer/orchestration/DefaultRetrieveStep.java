@@ -2,6 +2,7 @@ package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
 import com.biorad.csrag.interfaces.rest.analysis.AnalysisService;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -19,5 +20,13 @@ public class DefaultRetrieveStep implements RetrieveStep {
     @Override
     public List<EvidenceItem> execute(UUID inquiryId, String question, int topK) {
         return analysisService.retrieve(inquiryId, question, topK);
+    }
+
+    public List<EvidenceItem> execute(UUID inquiryId, String question, int topK, SearchFilter filter) {
+        return analysisService.retrieve(inquiryId, question, topK, filter);
+    }
+
+    public List<PerQuestionEvidence> executePerQuestion(UUID inquiryId, List<SubQuestion> subQuestions, int topK, SearchFilter filter) {
+        return analysisService.retrievePerQuestion(inquiryId, subQuestions, topK, filter);
     }
 }

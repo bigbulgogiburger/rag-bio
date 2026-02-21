@@ -138,6 +138,19 @@ public class AnswerController {
         return answerComposerService.history(inquiryUuid);
     }
 
+    @Operation(summary = "답변 이력 상세 조회", description = "답변 이력과 AI 리뷰 상세를 함께 조회합니다")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
+    @GetMapping("/history-detail")
+    @ResponseStatus(HttpStatus.OK)
+    public List<AnswerHistoryDetailResponse> historyDetail(
+            @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId
+    ) {
+        UUID inquiryUuid = parseInquiryId(inquiryId);
+        ensureInquiryExists(inquiryUuid);
+        return answerComposerService.historyWithDetail(inquiryUuid);
+    }
+
     @Operation(summary = "답변 초안 검토", description = "답변 초안을 검토합니다 (REVIEWER/ADMIN 권한 필요)")
     @ApiResponse(responseCode = "200", description = "검토 성공")
     @ApiResponse(responseCode = "403", description = "권한 없음")
@@ -298,11 +311,27 @@ public class AnswerController {
         ensureInquiryExists(inquiryUuid);
         UUID answerUuid = parseAnswerId(answerId);
 
+        // Pre-validation: check status and run count
+        AnswerDraftJpaEntity draft = answerDraftRepository.findByIdAndInquiryId(answerUuid, inquiryUuid)
+                .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
+
+        if ("SENT".equals(draft.getStatus())) {
+            throw new ConflictException("ANSWER_ALREADY_SENT", "이미 발송된 답변은 재실행할 수 없습니다.");
+        }
+        if (draft.getWorkflowRunCount() >= 5) {
+            throw new ValidationException("WORKFLOW_RUN_LIMIT", "워크플로우 실행은 최대 5회까지 가능합니다.");
+        }
+        if (!"DRAFT".equals(draft.getStatus())) {
+            draft.resetForReReview();
+        }
+        draft.incrementWorkflowRunCount();
+        answerDraftRepository.save(draft);
+
         // Step 1: AI Review
         AiReviewResponse reviewResponse = reviewAgentService.review(inquiryUuid, answerUuid);
 
         // Step 2: AI Approval
-        AnswerDraftJpaEntity draft = answerDraftRepository.findByIdAndInquiryId(answerUuid, inquiryUuid)
+        draft = answerDraftRepository.findByIdAndInquiryId(answerUuid, inquiryUuid)
                 .orElseThrow(() -> new NotFoundException("ANSWER_DRAFT_NOT_FOUND", "답변 초안을 찾을 수 없습니다."));
 
         AiReviewResultJpaEntity reviewEntity = aiReviewResultRepository.findByAnswerIdOrderByCreatedAtDesc(answerUuid)
@@ -313,6 +342,18 @@ public class AnswerController {
         ApprovalResult approvalResult = approvalAgentService.evaluate(draft, review);
 
         draft.markAiApproved(approvalResult.decision(), approvalResult.reason());
+
+        // Save gate results to review entity
+        if (approvalResult.gateResults() != null) {
+            try {
+                String gateResultsJson = objectMapper.writeValueAsString(approvalResult.gateResults());
+                reviewEntity.setGateResults(gateResultsJson);
+                aiReviewResultRepository.save(reviewEntity);
+            } catch (Exception e) {
+                // gate results serialization failure is non-critical
+            }
+        }
+
         answerDraftRepository.save(draft);
 
         AiApprovalResponse approvalResponse = new AiApprovalResponse(

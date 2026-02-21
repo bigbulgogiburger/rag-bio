@@ -41,8 +41,14 @@ public class HybridSearchService {
     }
 
     public List<HybridSearchResult> search(String query, int topK) {
+        return search(query, topK, null);
+    }
+
+    public List<HybridSearchResult> search(String query, int topK, SearchFilter filter) {
         List<Double> queryVector = embeddingService.embed(query);
-        List<VectorSearchResult> vectorResults = vectorStore.search(queryVector, topK * 2);
+        List<VectorSearchResult> vectorResults = (filter != null && !filter.isEmpty())
+                ? vectorStore.search(queryVector, topK * 2, filter)
+                : vectorStore.search(queryVector, topK * 2);
 
         if (!hybridEnabled) {
             log.info("hybrid.search query={} vector={} keyword=0 fused={} (vector-only mode)",
@@ -56,7 +62,9 @@ public class HybridSearchService {
                     .toList();
         }
 
-        List<KeywordSearchResult> keywordResults = keywordSearchService.search(query, topK * 2);
+        List<KeywordSearchResult> keywordResults = (filter != null && !filter.isEmpty())
+                ? keywordSearchService.search(query, topK * 2, filter)
+                : keywordSearchService.search(query, topK * 2);
 
         Map<UUID, RrfEntry> rrfMap = new LinkedHashMap<>();
 
@@ -87,8 +95,8 @@ public class HybridSearchService {
                         e.sourceType, e.getMatchSource()))
                 .collect(Collectors.toList());
 
-        log.info("hybrid.search query={} vector={} keyword={} fused={}",
-                query, vectorResults.size(), keywordResults.size(), fused.size());
+        log.info("hybrid.search query={} vector={} keyword={} fused={} filter={}",
+                query, vectorResults.size(), keywordResults.size(), fused.size(), filter);
 
         return fused;
     }

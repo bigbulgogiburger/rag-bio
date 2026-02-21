@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface AiReviewResultJpaRepository extends JpaRepository<AiReviewResultJpaEntity, UUID> {
     List<AiReviewResultJpaEntity> findByAnswerIdOrderByCreatedAtDesc(UUID answerId);
+    List<AiReviewResultJpaEntity> findByInquiryIdOrderByCreatedAtDesc(UUID inquiryId);
 }

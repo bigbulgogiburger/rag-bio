@@ -1,9 +1,12 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.AnswerOrchestrationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -28,7 +31,10 @@ class AnswerComposerServiceFallbackTest {
         when(repository.findTopByInquiryIdOrderByVersionDesc(inquiryId)).thenReturn(Optional.empty());
         when(repository.save(any(AnswerDraftJpaEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        AnswerComposerService service = new AnswerComposerService(orchestrationService, repository, sendAttemptRepository, java.util.List.of());
+        AiReviewResultJpaRepository aiReviewResultRepository = mock(AiReviewResultJpaRepository.class);
+        DocumentMetadataJpaRepository documentMetadataRepository = mock(DocumentMetadataJpaRepository.class);
+        when(documentMetadataRepository.findByInquiryIdOrderByCreatedAtDesc(any())).thenReturn(java.util.List.of());
+        AnswerComposerService service = new AnswerComposerService(orchestrationService, repository, sendAttemptRepository, java.util.List.of(), aiReviewResultRepository, documentMetadataRepository, new ObjectMapper());
 
         AnswerDraftResponse response = service.compose(inquiryId, "test question", "professional", "email");
 

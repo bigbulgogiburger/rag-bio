@@ -5,6 +5,8 @@ import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class DefaultComposeStep implements ComposeStep {
@@ -24,6 +26,12 @@ public class DefaultComposeStep implements ComposeStep {
         if (previousAnswerDraft != null && !previousAnswerDraft.isBlank()
                 && additionalInstructions != null && !additionalInstructions.isBlank()) {
             draft = createRefinedDraft(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel);
+        } else if (additionalInstructions != null && additionalInstructions.contains("[하위 질문별 증거 매핑]")
+                && (previousAnswerDraft == null || previousAnswerDraft.isBlank())) {
+            draft = createPerQuestionDraft(additionalInstructions, analysis, normalizedTone);
+            draft = insertCitations(draft, analysis.evidences());
+            draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
+            draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags(), normalizedTone);
         } else {
             draft = createDraftByTone(analysis, normalizedTone);
             draft = insertCitations(draft, analysis.evidences());
@@ -203,6 +211,96 @@ public class DefaultComposeStep implements ComposeStep {
             core = core.substring("[요약]\n".length());
         }
         return core.trim();
+    }
+
+    private String createPerQuestionDraft(String additionalInstructions, AnalyzeResponse analysis, String tone) {
+        List<SubQuestionMapping> mappings = parseSubQuestions(additionalInstructions);
+        if (mappings.isEmpty()) {
+            return createDraftByTone(analysis, tone);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("문의하여 주신 내용에 대하여 확인한 결과를 하기와 같이 안내드립니다.\n\n");
+        sb.append("사내 자료를 참고한 결과, 각 문의 사항에 대하여 아래와 같이 안내드립니다.\n\n");
+
+        for (int i = 0; i < mappings.size(); i++) {
+            SubQuestionMapping m = mappings.get(i);
+            sb.append("#").append(i + 1).append(") ").append(m.question).append("\n");
+
+            if (m.sufficient) {
+                sb.append(extractAnswerFromEvidence(m.evidence, tone));
+            } else {
+                sb.append("해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.");
+            }
+
+            if (i < mappings.size() - 1) {
+                sb.append("\n\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String extractAnswerFromEvidence(String evidence, String tone) {
+        if (evidence == null || evidence.isBlank()) {
+            return "해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.";
+        }
+        // Extract file/page citation if present: (filename, p.XX)
+        String citation = "";
+        Matcher citationMatcher = Pattern.compile("\\(([^,]+),\\s*p\\.(\\d+)\\)").matcher(evidence);
+        if (citationMatcher.find()) {
+            citation = " (" + citationMatcher.group(1).trim() + ", p." + citationMatcher.group(2) + ")";
+        }
+
+        // Extract the content after the citation prefix
+        String content = evidence.replaceAll("^\\([^)]+\\)\\s*", "").trim();
+        if (content.isEmpty()) {
+            content = evidence.trim();
+        }
+
+        return "사내 자료를 확인한 결과" + citation + ", " + content;
+    }
+
+    record SubQuestionMapping(String question, boolean sufficient, String evidence) {}
+
+    List<SubQuestionMapping> parseSubQuestions(String additionalInstructions) {
+        List<SubQuestionMapping> result = new ArrayList<>();
+        if (additionalInstructions == null || !additionalInstructions.contains("[하위 질문별 증거 매핑]")) {
+            return result;
+        }
+
+        String mappingSection = additionalInstructions.substring(
+                additionalInstructions.indexOf("[하위 질문별 증거 매핑]") + "[하위 질문별 증거 매핑]".length()
+        ).trim();
+
+        // Split by "---" separator
+        String[] blocks = mappingSection.split("---");
+        Pattern questionPattern = Pattern.compile("질문\\s*\\d+:\\s*(.+)");
+        Pattern sufficientPattern = Pattern.compile("증거 충분:\\s*(예|아니오|true|false)");
+        Pattern evidencePattern = Pattern.compile("증거:\\s*(.+)", Pattern.DOTALL);
+
+        for (String block : blocks) {
+            String trimmed = block.trim();
+            if (trimmed.isEmpty()) continue;
+
+            Matcher qm = questionPattern.matcher(trimmed);
+            Matcher sm = sufficientPattern.matcher(trimmed);
+            Matcher em = evidencePattern.matcher(trimmed);
+
+            String question = qm.find() ? qm.group(1).trim() : null;
+            boolean sufficient = sm.find() && ("true".equals(sm.group(1)) || "예".equals(sm.group(1)));
+            String evidence = em.find() ? em.group(1).trim() : null;
+
+            if (evidence != null && (evidence.equals("없음") || evidence.equals("(없음)"))) {
+                evidence = null;
+            }
+
+            if (question != null) {
+                result.add(new SubQuestionMapping(question, sufficient, evidence));
+            }
+        }
+
+        return result;
     }
 
     private String createDraftByTone(AnalyzeResponse analysis, String tone) {

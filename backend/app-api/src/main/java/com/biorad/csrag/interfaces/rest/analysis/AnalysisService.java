@@ -8,9 +8,12 @@ import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJp
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaRepository;
+import com.biorad.csrag.interfaces.rest.answer.orchestration.PerQuestionEvidence;
+import com.biorad.csrag.interfaces.rest.answer.orchestration.SubQuestion;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchResult;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchService;
 import com.biorad.csrag.interfaces.rest.search.QueryTranslationService;
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.biorad.csrag.interfaces.rest.search.TranslatedQuery;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.biorad.csrag.interfaces.rest.vector.VectorStore;
@@ -54,7 +57,7 @@ public class AnalysisService {
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
         TranslatedQuery tq = queryTranslationService.translate(question);
-        List<EvidenceItem> evidences = doRetrieve(inquiryId, tq.translated(), topK);
+        List<EvidenceItem> evidences = doRetrieve(inquiryId, tq.translated(), topK, SearchFilter.none());
         AnalyzeResponse response = verify(inquiryId, question, evidences);
         return new AnalyzeResponse(
                 response.inquiryId(),
@@ -69,11 +72,25 @@ public class AnalysisService {
 
     public List<EvidenceItem> retrieve(UUID inquiryId, String question, int topK) {
         TranslatedQuery tq = queryTranslationService.translate(question);
-        return doRetrieve(inquiryId, tq.translated(), topK);
+        return doRetrieve(inquiryId, tq.translated(), topK, SearchFilter.none());
     }
 
-    private List<EvidenceItem> doRetrieve(UUID inquiryId, String searchQuery, int topK) {
-        List<HybridSearchResult> searchResults = hybridSearchService.search(searchQuery, topK);
+    public List<EvidenceItem> retrieve(UUID inquiryId, String question, int topK, SearchFilter filter) {
+        TranslatedQuery tq = queryTranslationService.translate(question);
+        return doRetrieve(inquiryId, tq.translated(), topK, filter);
+    }
+
+    public List<PerQuestionEvidence> retrievePerQuestion(UUID inquiryId, List<SubQuestion> subQuestions, int topK, SearchFilter filter) {
+        List<PerQuestionEvidence> results = new ArrayList<>();
+        for (SubQuestion sq : subQuestions) {
+            List<EvidenceItem> evidences = retrieve(inquiryId, sq.question(), topK, filter);
+            results.add(PerQuestionEvidence.of(sq, evidences));
+        }
+        return results;
+    }
+
+    private List<EvidenceItem> doRetrieve(UUID inquiryId, String searchQuery, int topK, SearchFilter filter) {
+        List<HybridSearchResult> searchResults = hybridSearchService.search(searchQuery, topK, filter);
 
         // 배치 조회로 N+1 방지
         Set<UUID> chunkIds = searchResults.stream().map(HybridSearchResult::chunkId).collect(Collectors.toSet());

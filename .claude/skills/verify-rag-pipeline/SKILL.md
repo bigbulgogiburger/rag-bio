@@ -38,6 +38,8 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/ReviewResult.java` | AI 리뷰 결과 record |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/ApprovalResult.java` | AI 승인 결과 record |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/GateResult.java` | 게이트 결과 record |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/AnswerDraftResponse.java` | 답변 초안 응답 record (workflowRunCount 포함) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/AnswerHistoryDetailResponse.java` | 답변 이력 상세 응답 (AI 리뷰 이력 포함) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/EvidenceItem.java` | 근거 데이터 record |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalysisService.java` | 근거 검색 + 판정 + 배치 조인 + 번역 + 하이브리드 검색 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalyzeResponse.java` | 분석 결과 record (translatedQuery 포함) |
@@ -418,6 +420,62 @@ grep -n "classifyQuestionPrior\|QuestionPrior" backend/app-api/src/main/java/com
 | 22 | 프롬프트 verdict 미노출 | PASS/FAIL | verdict/confidence 포함 |
 | 23 | Guardrails 조건부 적용 | PASS/FAIL | confidence 기반 삽입 |
 | 24 | classifyQuestionPrior 미존재 | PASS/FAIL | 선판정 메서드 존재 |
+| 25 | history-detail 엔드포인트 | PASS/FAIL | GET history-detail 존재 |
+| 26 | autoWorkflow 재실행 제한 | PASS/FAIL | 5회 제한 + SENT 가드 |
+| 27 | 리뷰 7개 카테고리 | PASS/FAIL | CITATION/HALLUCINATION 포함 |
+| 28 | 리뷰 고객 질문 전달 | PASS/FAIL | 프롬프트에 질문 포함 |
+
+### Step 25: history-detail 엔드포인트 확인
+
+**파일:** `AnswerController.java`
+
+**검사:** `GET /history-detail` 엔드포인트가 존재하고 `AnswerHistoryDetailResponse` 목록을 반환하는지 확인.
+
+```bash
+grep -n "history-detail\|AnswerHistoryDetailResponse" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/AnswerController.java
+```
+
+**PASS:** `@GetMapping("/history-detail")` + 반환 타입 `List<AnswerHistoryDetailResponse>` 존재
+**FAIL:** 엔드포인트 누락 또는 반환 타입 불일치
+
+### Step 26: autoWorkflow 재실행 제한 확인
+
+**파일:** `AnswerController.java`
+
+**검사:** `autoWorkflow()` 엔드포인트에 SENT 상태 거부(ConflictException)와 5회 실행 제한(ValidationException)이 있는지 확인.
+
+```bash
+grep -n "SENT\|workflowRunCount\|>= 5\|resetForReReview\|incrementWorkflowRunCount" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/AnswerController.java
+```
+
+**PASS:** SENT 상태 → 409 Conflict, workflowRunCount >= 5 → 400 Validation, 비-DRAFT 상태 시 resetForReReview() 호출
+**FAIL:** SENT 가드 없음 또는 실행 횟수 제한 없음
+
+### Step 27: ReviewAgentService 7개 리뷰 카테고리 확인
+
+**파일:** `ReviewAgentService.java`
+
+**검사:** 시스템 프롬프트에 ACCURACY, COMPLETENESS, CITATION, HALLUCINATION, TONE, RISK, FORMAT 7개 카테고리가 정의되어 있는지 확인.
+
+```bash
+grep -n "ACCURACY\|COMPLETENESS\|CITATION\|HALLUCINATION\|TONE\|RISK\|FORMAT" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/ReviewAgentService.java
+```
+
+**PASS:** 7개 카테고리 모두 시스템 프롬프트에 존재 (특히 CITATION, HALLUCINATION 신규 추가)
+**FAIL:** 5개 카테고리만 존재 (CITATION/HALLUCINATION 누락)
+
+### Step 28: ReviewAgentService 고객 질문 전달 확인
+
+**파일:** `ReviewAgentService.java`
+
+**검사:** `buildPrompt()`에서 고객 질문 원문이 포함되고, `InquiryRepository`에서 질문을 조회하는지 확인.
+
+```bash
+grep -n "고객 질문\|customerQuestion\|InquiryRepository\|inquiryRepository" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/ReviewAgentService.java
+```
+
+**PASS:** `inquiryRepository`를 통해 고객 질문 조회 + 프롬프트에 `## 고객 질문` 섹션 포함
+**FAIL:** 고객 질문 전달 없이 답변 초안만으로 리뷰
 
 ## Exceptions
 
@@ -426,3 +484,4 @@ grep -n "classifyQuestionPrior\|QuestionPrior" backend/app-api/src/main/java/com
 1. **테스트 코드의 간략화** — 테스트에서 citations 형식을 단순화하거나 mock 값 사용은 허용
 2. **OpenAI 비활성화 시 DefaultComposeStep 사용** — `OPENAI_ENABLED=false`에서 DefaultComposeStep이 primary로 동작하는 것은 정상
 3. **비-PDF 파일의 페이지 정보 null** — Word/TXT 파일에서 pageStart/pageEnd가 null인 것은 정상 동작
+4. **workflowRunCount 0** — 초기값 0은 워크플로우 미실행 상태를 나타내며 정상

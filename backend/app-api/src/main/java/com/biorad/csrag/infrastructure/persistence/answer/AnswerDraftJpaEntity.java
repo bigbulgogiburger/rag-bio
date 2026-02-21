@@ -99,6 +99,9 @@ public class AnswerDraftJpaEntity {
     @Column(name = "additional_instructions", length = 2000)
     private String additionalInstructions;
 
+    @Column(name = "workflow_run_count", nullable = false)
+    private int workflowRunCount;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -119,6 +122,7 @@ public class AnswerDraftJpaEntity {
         this.draft = draft;
         this.citations = citations;
         this.riskFlags = riskFlags;
+        this.workflowRunCount = 0;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -152,6 +156,7 @@ public class AnswerDraftJpaEntity {
     public UUID getPreviousAnswerId() { return previousAnswerId; }
     public int getRefinementCount() { return refinementCount; }
     public String getAdditionalInstructions() { return additionalInstructions; }
+    public int getWorkflowRunCount() { return workflowRunCount; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -203,6 +208,26 @@ public class AnswerDraftJpaEntity {
 
     public void updateDraft(String newDraft) {
         this.draft = newDraft;
+        this.updatedAt = Instant.now();
+    }
+
+    public void resetForReReview() {
+        this.status = "DRAFT";
+        this.reviewedBy = null;
+        this.reviewComment = null;
+        this.reviewedAt = null;
+        this.reviewScore = null;
+        this.reviewDecision = null;
+        this.approvedBy = null;
+        this.approveComment = null;
+        this.approvedAt = null;
+        this.approvalDecision = null;
+        this.approvalReason = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void incrementWorkflowRunCount() {
+        this.workflowRunCount++;
         this.updatedAt = Instant.now();
     }
 

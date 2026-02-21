@@ -1,7 +1,11 @@
 package com.biorad.csrag.interfaces.rest.answer;
 
+import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
@@ -10,6 +14,10 @@ import com.biorad.csrag.interfaces.rest.answer.orchestration.SelfReviewStep;
 import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendCommand;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendResult;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.biorad.csrag.common.exception.NotFoundException;
@@ -24,21 +32,32 @@ import java.util.UUID;
 @Transactional
 public class AnswerComposerService {
 
+    private static final Logger log = LoggerFactory.getLogger(AnswerComposerService.class);
+
     private final AnswerOrchestrationService orchestrationService;
     private final AnswerDraftJpaRepository answerDraftRepository;
     private final SendAttemptJpaRepository sendAttemptRepository;
     private final List<MessageSender> messageSenders;
+    private final AiReviewResultJpaRepository aiReviewResultRepository;
+    private final DocumentMetadataJpaRepository documentMetadataRepository;
+    private final ObjectMapper objectMapper;
 
     public AnswerComposerService(
             AnswerOrchestrationService orchestrationService,
             AnswerDraftJpaRepository answerDraftRepository,
             SendAttemptJpaRepository sendAttemptRepository,
-            List<MessageSender> messageSenders
+            List<MessageSender> messageSenders,
+            AiReviewResultJpaRepository aiReviewResultRepository,
+            DocumentMetadataJpaRepository documentMetadataRepository,
+            ObjectMapper objectMapper
     ) {
         this.orchestrationService = orchestrationService;
         this.answerDraftRepository = answerDraftRepository;
         this.sendAttemptRepository = sendAttemptRepository;
         this.messageSenders = messageSenders;
+        this.aiReviewResultRepository = aiReviewResultRepository;
+        this.documentMetadataRepository = documentMetadataRepository;
+        this.objectMapper = objectMapper;
     }
 
     public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel) {
@@ -49,6 +68,17 @@ public class AnswerComposerService {
                                         String additionalInstructions, String previousAnswerId) {
         String normalizedTone = (tone == null || tone.isBlank()) ? "professional" : tone.trim().toLowerCase();
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
+
+        // 인덱싱 가드: 미인덱싱 문서로 답변 생성 방지
+        List<DocumentMetadataJpaEntity> docs = documentMetadataRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
+        if (!docs.isEmpty()) {
+            boolean anyIndexed = docs.stream()
+                    .anyMatch(d -> "INDEXED".equals(d.getStatus()));
+            if (!anyIndexed) {
+                throw new ValidationException("NOT_INDEXED",
+                        "첨부 문서의 인덱싱이 완료되지 않았습니다. 인덱싱 완료 후 답변 생성을 진행해 주세요.");
+            }
+        }
 
         // 보완 모드: 이전 답변 조회 및 보완 횟수 검증
         UUID prevId = parseUuidOrNull(previousAnswerId);
@@ -228,6 +258,56 @@ public class AnswerComposerService {
         ));
     }
 
+    @Transactional(readOnly = true)
+    public List<AnswerHistoryDetailResponse> historyWithDetail(UUID inquiryId) {
+        List<AnswerDraftJpaEntity> drafts = answerDraftRepository.findByInquiryIdOrderByVersionDesc(inquiryId);
+        return drafts.stream().map(draft -> {
+            AnswerDraftResponse response = toResponse(draft, List.of());
+            List<AiReviewResultJpaEntity> reviews = aiReviewResultRepository.findByAnswerIdOrderByCreatedAtDesc(draft.getId());
+            List<AnswerHistoryDetailResponse.AiReviewHistoryItem> reviewItems = reviews.stream().map(r -> {
+                List<AnswerHistoryDetailResponse.ReviewIssueItem> issues = parseIssues(r.getIssues());
+                List<AnswerHistoryDetailResponse.GateResultItem> gates = parseGateResults(r.getGateResults());
+                return new AnswerHistoryDetailResponse.AiReviewHistoryItem(
+                    r.getId().toString(), r.getDecision(), r.getScore(), r.getSummary(),
+                    r.getRevisedDraft(), issues, gates, r.getCreatedAt().toString()
+                );
+            }).toList();
+            return new AnswerHistoryDetailResponse(response, reviewItems);
+        }).toList();
+    }
+
+    private List<AnswerHistoryDetailResponse.ReviewIssueItem> parseIssues(String issuesJson) {
+        if (issuesJson == null || issuesJson.isBlank()) return List.of();
+        try {
+            List<java.util.Map<String, String>> items = objectMapper.readValue(issuesJson, new TypeReference<>() {});
+            return items.stream().map(m -> new AnswerHistoryDetailResponse.ReviewIssueItem(
+                    m.getOrDefault("category", ""),
+                    m.getOrDefault("severity", ""),
+                    m.getOrDefault("description", ""),
+                    m.getOrDefault("suggestion", "")
+            )).toList();
+        } catch (Exception e) {
+            log.warn("Failed to parse review issues JSON: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<AnswerHistoryDetailResponse.GateResultItem> parseGateResults(String gateResultsJson) {
+        if (gateResultsJson == null || gateResultsJson.isBlank()) return List.of();
+        try {
+            List<java.util.Map<String, Object>> items = objectMapper.readValue(gateResultsJson, new TypeReference<>() {});
+            return items.stream().map(m -> new AnswerHistoryDetailResponse.GateResultItem(
+                    String.valueOf(m.getOrDefault("gate", "")),
+                    Boolean.TRUE.equals(m.get("passed")),
+                    String.valueOf(m.getOrDefault("actualValue", "")),
+                    String.valueOf(m.getOrDefault("threshold", ""))
+            )).toList();
+        } catch (Exception e) {
+            log.warn("Failed to parse gate results JSON: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
     private String fallbackDraftByChannel(String channel) {
         return "messenger".equals(channel)
                 ? "[요약]\n현재 자동 판정 단계 일부에 제한이 발생하여 보수적 안내를 제공드립니다.\n추가 자료 확인 후 답변 재생성을 요청하여 주시기 바랍니다."
@@ -290,7 +370,9 @@ public class AnswerComposerService {
                 translatedQuery,
                 entity.getPreviousAnswerId() != null ? entity.getPreviousAnswerId().toString() : null,
                 entity.getRefinementCount(),
-                issueResponses
+                issueResponses,
+                entity.getWorkflowRunCount(),
+                entity.getAdditionalInstructions()
         );
     }
 

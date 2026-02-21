@@ -5,6 +5,9 @@ import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaEntit
 import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.inquiry.domain.model.Inquiry;
+import com.biorad.csrag.inquiry.domain.model.InquiryId;
+import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ class ReviewAgentServiceTest {
 
     @Mock private AnswerDraftJpaRepository answerDraftRepository;
     @Mock private AiReviewResultJpaRepository aiReviewResultRepository;
+    @Mock private InquiryRepository inquiryRepository;
 
     @Captor private ArgumentCaptor<AiReviewResultJpaEntity> reviewCaptor;
     @Captor private ArgumentCaptor<AnswerDraftJpaEntity> draftCaptor;
@@ -38,7 +42,8 @@ class ReviewAgentServiceTest {
         // openaiEnabled=false -> uses mock review
         service = new ReviewAgentService(
                 false, "", "https://api.openai.com/v1", "gpt-4",
-                new ObjectMapper(), answerDraftRepository, aiReviewResultRepository
+                new ObjectMapper(), answerDraftRepository, aiReviewResultRepository,
+                inquiryRepository
         );
     }
 
@@ -61,6 +66,7 @@ class ReviewAgentServiceTest {
         when(draft.getStatus()).thenReturn("REVIEWED");
         when(answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId))
                 .thenReturn(Optional.of(draft));
+        when(inquiryRepository.findById(any())).thenReturn(Optional.empty());
         when(aiReviewResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(answerDraftRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -81,6 +87,7 @@ class ReviewAgentServiceTest {
         when(draft.getStatus()).thenReturn("REVIEWED");
         when(answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId))
                 .thenReturn(Optional.of(draft));
+        when(inquiryRepository.findById(any())).thenReturn(Optional.empty());
         when(aiReviewResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(answerDraftRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -102,6 +109,7 @@ class ReviewAgentServiceTest {
         when(draft.getStatus()).thenReturn("REVIEWED");
         when(answerDraftRepository.findByIdAndInquiryId(answerId, inquiryId))
                 .thenReturn(Optional.of(draft));
+        when(inquiryRepository.findById(any())).thenReturn(Optional.empty());
         when(aiReviewResultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(answerDraftRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

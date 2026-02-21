@@ -19,7 +19,7 @@ public class SelfReviewStep {
             "(?i)(CFX\\s*\\d+|QX\\s*\\d+|ddPCR|iQ\\s*\\d*|SsoAdvanced|iTaq|" +
             "Clarity\\s*Western|Mini-PROTEAN|Trans-Blot|ChemiDoc|Gel\\s*Doc|" +
             "NGC\\s*\\d*|Bio-Plex|Aurum|Chelex|InstaGene|Precision\\s*Melt|" +
-            "SYBR\\s*Green|EvaGreen)"
+            "SYBR\\s*Green|EvaGreen|naica|vericheck|Vericheck)"
     );
 
     private static final Pattern NUMERIC_VALUE_PATTERN = Pattern.compile(
@@ -41,6 +41,7 @@ public class SelfReviewStep {
         checkConsistency(draft, evidences, issues);
         checkProcedureCompleteness(draft, question, issues);
         checkCitationAccuracy(draft, evidences, issues);
+        checkSubQuestionCompleteness(draft, question, issues);
 
         boolean passed = issues.stream().noneMatch(i -> "CRITICAL".equals(i.severity()));
         String feedback = buildFeedback(issues);
@@ -206,6 +207,53 @@ public class SelfReviewStep {
                 ));
             }
         }
+    }
+
+    private void checkSubQuestionCompleteness(String draft, String question, List<QualityIssue> issues) {
+        if (draft == null || question == null) return;
+
+        // 질문에서 하위 질문 수 감지
+        // 패턴: "질문 ?N)", "N)", "N.", "#N)" 등
+        Pattern subQPattern = Pattern.compile("(?:질문\\s*)?(?:#)?(\\d+)[).:]");
+        Matcher qMatcher = subQPattern.matcher(question);
+        Set<Integer> questionNumbers = new TreeSet<>();
+        while (qMatcher.find()) {
+            questionNumbers.add(Integer.parseInt(qMatcher.group(1)));
+        }
+
+        if (questionNumbers.size() <= 1) return; // 단일 질문이면 검증 불필요
+
+        // 답변에서 하위 답변 수 감지
+        Pattern subAPattern = Pattern.compile("(?:#)?(\\d+)[).]");
+        Matcher aMatcher = subAPattern.matcher(draft);
+        Set<Integer> answerNumbers = new TreeSet<>();
+        while (aMatcher.find()) {
+            answerNumbers.add(Integer.parseInt(aMatcher.group(1)));
+        }
+
+        // "확인 후 답변" 패턴도 답변으로 카운트
+        int dontKnowCount = countOccurrences(draft, "확인 후");
+
+        int totalAnswered = answerNumbers.size() + dontKnowCount;
+        int questionCount = questionNumbers.size();
+
+        if (totalAnswered < questionCount) {
+            issues.add(new QualityIssue(
+                    "SUB_QUESTION_INCOMPLETE", "CRITICAL",
+                    "질문에 " + questionCount + "개의 하위 질문이 있지만 답변에는 " + totalAnswered + "개만 답변되었습니다",
+                    "모든 하위 질문에 대해 답변하거나, 답변할 수 없는 경우 '확인 후 답변드리겠습니다'를 포함하세요"
+            ));
+        }
+    }
+
+    private int countOccurrences(String text, String target) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.indexOf(target, idx)) != -1) {
+            count++;
+            idx += target.length();
+        }
+        return count;
     }
 
     private double computeSimilarity(String a, String b) {

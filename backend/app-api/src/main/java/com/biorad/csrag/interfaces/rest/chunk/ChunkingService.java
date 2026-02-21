@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 @Service
 public class ChunkingService {
 
-    private static final int CHUNK_SIZE = 1000;
-    private static final int OVERLAP_SENTENCES = 2;
+    private static final int CHUNK_SIZE = 1500;
+    private static final int OVERLAP_CHARS = 100;
 
     // 문장 분리: 마침표/느낌표/물음표 + 공백, 또는 줄바꿈
     private static final Pattern SENTENCE_SPLIT = Pattern.compile(
@@ -92,7 +92,7 @@ public class ChunkingService {
                     pos = end;
                 }
                 globalOffset += content.length();
-                sentenceStart = Math.max(sentenceStart + 1, sentenceEnd - OVERLAP_SENTENCES);
+                sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
                 continue;
             }
 
@@ -118,8 +118,8 @@ public class ChunkingService {
                 break;
             }
 
-            // 오버랩: 마지막 N개 문장을 다음 청크에 포함
-            sentenceStart = Math.max(sentenceStart + 1, sentenceEnd - OVERLAP_SENTENCES);
+            // 오버랩: 끝에서 ~100자에 해당하는 문장들을 다음 청크에 포함
+            sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
         chunkRepository.saveAll(chunks);
@@ -188,7 +188,7 @@ public class ChunkingService {
                     pos = end;
                 }
                 globalOffset += content.length();
-                sentenceStart = Math.max(sentenceStart + 1, sentenceEnd - OVERLAP_SENTENCES);
+                sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
                 continue;
             }
 
@@ -212,7 +212,7 @@ public class ChunkingService {
                 break;
             }
 
-            sentenceStart = Math.max(sentenceStart + 1, sentenceEnd - OVERLAP_SENTENCES);
+            sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
         chunkRepository.saveAll(chunks);
@@ -247,7 +247,7 @@ public class ChunkingService {
         if (pageStart == 0 && pageEnd != 0) pageStart = pageEnd;
         if (pageEnd == 0 && pageStart != 0) pageEnd = pageStart;
         if (pageStart != 0 && pageEnd != 0 && pageEnd < pageStart) pageEnd = pageStart;
-        // 1000자 chunk가 MAX_PAGE_SPAN 페이지 이상 걸칠 수 없음 — 중복 텍스트 오매칭 보정
+        // 1500자 chunk가 MAX_PAGE_SPAN 페이지 이상 걸칠 수 없음 — 중복 텍스트 오매칭 보정
         if (pageStart != 0 && pageEnd != 0 && (pageEnd - pageStart) >= MAX_PAGE_SPAN) {
             pageEnd = pageStart;
         }
@@ -277,6 +277,25 @@ public class ChunkingService {
             }
         }
         return 0;
+    }
+
+    /**
+     * 청크 끝에서 ~OVERLAP_CHARS(100자)에 해당하는 문장 수를 역산하여
+     * 다음 청크의 시작 인덱스를 반환한다.
+     * 이렇게 하면 인접 청크가 양쪽 100자씩 겹치게 된다.
+     */
+    private int overlapSentencesForChars(List<String> sentences, int sentenceStart, int sentenceEnd) {
+        int overlapLen = 0;
+        int newStart = sentenceEnd;
+        for (int k = sentenceEnd - 1; k > sentenceStart; k--) {
+            overlapLen += sentences.get(k).length() + 1; // +1 for space
+            if (overlapLen >= OVERLAP_CHARS) {
+                newStart = k;
+                break;
+            }
+            newStart = k;
+        }
+        return newStart;
     }
 
     List<String> splitIntoSentences(String text) {

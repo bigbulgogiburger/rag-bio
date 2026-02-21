@@ -63,26 +63,40 @@ public class OpenAiComposeStep implements ComposeStep {
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel,
                                       String additionalInstructions, String previousAnswerDraft) {
-        if (previousAnswerDraft == null || previousAnswerDraft.isBlank()
-                || additionalInstructions == null || additionalInstructions.isBlank()) {
-            return execute(analysis, tone, channel);
+        // Refinement mode: has previous draft + instructions
+        if (previousAnswerDraft != null && !previousAnswerDraft.isBlank()
+                && additionalInstructions != null && !additionalInstructions.isBlank()) {
+            try {
+                String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
+                String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
+
+                String systemPrompt = buildRefinementSystemPrompt(normalizedTone);
+                String userPrompt = buildRefinementUserPrompt(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel);
+
+                String refined = callLlm(systemPrompt, userPrompt);
+
+                List<String> warnings = fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft).formatWarnings();
+                return new ComposeStepResult(refined, warnings);
+            } catch (Exception ex) {
+                log.warn("openai.compose.refine.failed -> fallback to default compose: {}", ex.getMessage());
+                return fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+            }
         }
 
-        try {
-            String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
-            String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
-
-            String systemPrompt = buildRefinementSystemPrompt(normalizedTone);
-            String userPrompt = buildRefinementUserPrompt(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel);
-
-            String refined = callLlm(systemPrompt, userPrompt);
-
-            List<String> warnings = fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft).formatWarnings();
-            return new ComposeStepResult(refined, warnings);
-        } catch (Exception ex) {
-            log.warn("openai.compose.refine.failed -> fallback to default compose: {}", ex.getMessage());
-            return fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+        // Per-question compose: has sub-question mapping
+        if (additionalInstructions != null && additionalInstructions.contains("[하위 질문별 증거 매핑]")) {
+            try {
+                String prompt = buildPerQuestionPrompt(additionalInstructions, analysis, tone, channel);
+                String content = callLlm(SYSTEM_PROMPT, prompt);
+                return new ComposeStepResult(content, fallback.execute(analysis, tone, channel).formatWarnings());
+            } catch (Exception ex) {
+                log.warn("openai.compose.perQuestion.failed -> fallback: {}", ex.getMessage());
+                return fallback.execute(analysis, tone, channel, additionalInstructions, null);
+            }
         }
+
+        // Default single-question compose
+        return execute(analysis, tone, channel);
     }
 
     private String callLlm(String systemPrompt, String userPrompt) {
@@ -266,16 +280,70 @@ public class OpenAiComposeStep implements ComposeStep {
         return sb.toString();
     }
 
+    private String buildPerQuestionPrompt(String subQuestionMapping, AnalyzeResponse analysis,
+                                          String tone, String channel) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("아래 하위 질문별 증거 매핑과 참고 자료를 바탕으로 고객 답변 초안을 한국어 격식체로 작성해줘.\n\n");
+        sb.append(subQuestionMapping).append("\n\n");
+
+        sb.append("[분석 결과]\n");
+        sb.append("- tone: ").append(tone == null ? "gilseon" : tone).append("\n");
+        sb.append("- channel: ").append(channel == null ? "email" : channel).append("\n\n");
+
+        List<EvidenceItem> evidences = analysis.evidences();
+        if (evidences != null && !evidences.isEmpty()) {
+            sb.append("[전체 참고 자료] (").append(evidences.size()).append("건)\n");
+            int limit = Math.min(7, evidences.size());
+            for (int i = 0; i < limit; i++) {
+                var ev = evidences.get(i);
+                sb.append("- (");
+                if (ev.fileName() != null) {
+                    sb.append("파일명: ").append(ev.fileName());
+                    if (ev.pageStart() != null) {
+                        sb.append(", p.").append(ev.pageStart());
+                        if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
+                            sb.append("-").append(ev.pageEnd());
+                        }
+                    }
+                    sb.append(", ");
+                }
+                sb.append("유사도: ")
+                        .append(String.format("%.3f", ev.score()))
+                        .append(")\n")
+                        .append(ev.excerpt()).append("\n\n");
+            }
+        }
+
+        sb.append("[지시]\n");
+        sb.append("각 하위 질문에 대해 해당 증거를 활용하여 답변하라.\n");
+        sb.append("증거가 충분하지 않은 질문에는 '해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.'로 응답하라.\n");
+        sb.append("복수 질문이므로 #1), #2), #3) 형식으로 구분하여 답변하라.\n\n");
+
+        sb.append("[요구사항]\n");
+        sb.append("1) 번호 인용([1], [2]) 금지. 자연스러운 문맥 인용 사용\n");
+        sb.append("2) 마크다운 서식 절대 금지. 순수 텍스트만 작성\n");
+        sb.append("3) 이모지, 과도한 느낌표 금지\n");
+        sb.append("4) 과장/단정 금지, 근거에 없는 내용 추측 금지\n");
+        sb.append("5) 참고 자료 인용 시 파일명과 페이지 번호를 괄호 안에 자연스럽게 표기\n");
+        sb.append("6) channel=email이면 인사/마무리 포함, messenger면 간결하게\n");
+
+        if ("gilseon".equalsIgnoreCase(tone)) {
+            sb.append("\n[길선체 스타일 지시]\n");
+            sb.append("길선체 스타일을 따라 작성하라. #1), #2) 번호 매기기, 인사/마무리 포함.\n");
+        }
+
+        return sb.toString();
+    }
+
     private static final String SYSTEM_PROMPT =
             "너는 Bio-Rad 고객 서비스팀의 한국어 비즈니스 이메일 작성 전문가이다.\n"
                     + "반드시 다음 규칙을 지켜라:\n"
                     + "1. 격식체 존댓말 사용 (~드립니다, ~바랍니다, ~겠습니다)\n"
-                    + "2. email 채널: 인사(\"안녕하세요.\") → 맥락 → 본론 → 마무리(\"감사합니다.\")\n"
-                    + "3. messenger 채널: [요약] 태그로 시작, 260자 이내, 간결하게\n"
-                    + "4. 한 문장에 하나의 의미만 담아 짧고 명확하게 작성\n"
-                    + "5. 마크다운 서식(##, **, -, 등) 절대 사용 금지. 순수 텍스트만 작성\n"
-                    + "6. 각 주장의 근거가 되는 참고 자료의 출처를 본문 내에 자연스럽게 포함할 것. "
-                    + "형식: (파일명, p.XX) 또는 (파일명, p.XX-YY). [1], [2] 같은 번호 인용은 금지\n"
-                    + "7. 이모지, 과도한 느낌표 사용 금지\n"
-                    + "8. 과장/단정 금지, 근거에 없는 내용 추측 금지";
+                    + "2. 반드시 제공된 근거 자료의 내용만 사용하여 답변하라\n"
+                    + "3. 근거에 없는 수치, 절차, 제품명을 절대 추측하지 마라\n"
+                    + "4. 구체적인 수치(농도, 온도, 범위 등)가 근거에 있으면 반드시 포함하라\n"
+                    + "5. 근거가 불충분한 질문에는 '해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.'로 응답하라\n"
+                    + "6. 인용은 (파일명, p.XX) 형식으로 본문 내 자연스럽게 표기\n"
+                    + "7. 마크다운 서식 절대 금지. 순수 텍스트만\n"
+                    + "8. 복수 질문 시 #1), #2), #3) 형식으로 구분하여 답변\n";
 }

@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.vector;
 
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 @Component
 @Primary
@@ -28,13 +30,37 @@ public class MockVectorStore implements VectorStore {
 
     @Override
     public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
-        records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content, sourceType));
+        records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content, sourceType, null));
         log.info("vector.upsert.success chunkId={} documentId={} sourceType={} dim={}", chunkId, documentId, sourceType, vector.size());
+    }
+
+    public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType, String productFamily) {
+        records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content, sourceType, productFamily));
+        log.info("vector.upsert.success chunkId={} documentId={} sourceType={} productFamily={} dim={}", chunkId, documentId, sourceType, productFamily, vector.size());
     }
 
     @Override
     public List<VectorSearchResult> search(List<Double> queryVector, int topK) {
-        return records.values().stream()
+        return search(queryVector, topK, null);
+    }
+
+    @Override
+    public List<VectorSearchResult> search(List<Double> queryVector, int topK, SearchFilter filter) {
+        Stream<VectorRecord> stream = records.values().stream();
+
+        if (filter != null && !filter.isEmpty()) {
+            if (filter.hasDocumentFilter()) {
+                stream = stream.filter(r -> filter.documentIds().contains(r.documentId()));
+            }
+            if (filter.hasProductFilter()) {
+                stream = stream.filter(r -> filter.productFamily().equalsIgnoreCase(r.productFamily()));
+            }
+            if (filter.hasSourceTypeFilter()) {
+                stream = stream.filter(r -> r.sourceType() != null && filter.sourceTypes().contains(r.sourceType()));
+            }
+        }
+
+        return stream
                 .map(record -> new VectorSearchResult(
                         record.chunkId(),
                         record.documentId(),
@@ -79,6 +105,6 @@ public class MockVectorStore implements VectorStore {
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-    private record VectorRecord(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
+    private record VectorRecord(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType, String productFamily) {
     }
 }

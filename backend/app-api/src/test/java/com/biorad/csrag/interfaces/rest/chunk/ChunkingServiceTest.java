@@ -95,9 +95,9 @@ class ChunkingServiceTest {
     @Test
     void chunkAndStore_splitsLongTextIntoMultipleChunks() {
         UUID docId = UUID.randomUUID();
-        // CHUNK_SIZE(1000) 초과하는 긴 텍스트 생성
+        // CHUNK_SIZE(1500) 초과하는 긴 텍스트 생성
         StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= 30; i++) {
+        for (int i = 1; i <= 50; i++) {
             sb.append("This is sentence number ").append(i).append(" with some padding text to make it longer. ");
         }
         String text = sb.toString();
@@ -110,7 +110,7 @@ class ChunkingServiceTest {
         assertThat(count).isGreaterThan(1);
         // 각 청크가 CHUNK_SIZE를 크게 초과하지 않아야 함
         for (DocumentChunkJpaEntity chunk : chunks) {
-            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1100); // 약간의 여유
+            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1600); // 약간의 여유
         }
     }
 
@@ -150,9 +150,9 @@ class ChunkingServiceTest {
     @Test
     void chunkAndStore_overlapsLastSentences() {
         UUID docId = UUID.randomUUID();
-        // 긴 문장들로 청크가 2개 이상 되도록 구성
+        // 긴 문장들로 청크가 2개 이상 되도록 구성 (CHUNK_SIZE=1500 기준)
         StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= 20; i++) {
+        for (int i = 1; i <= 40; i++) {
             sb.append("Sentence ").append(i).append(" is about topic ").append(i).append(" and has plenty of detail. ");
         }
         String text = sb.toString();
@@ -217,8 +217,8 @@ class ChunkingServiceTest {
     @Test
     void chunkAndStore_forceSplitsLongSentence() {
         UUID docId = UUID.randomUUID();
-        // Single sentence > CHUNK_SIZE(1000) chars
-        String longSentence = "A".repeat(1500);
+        // Single sentence > CHUNK_SIZE(1500) chars
+        String longSentence = "A".repeat(2000);
         int count = chunkingService.chunkAndStore(docId, longSentence);
 
         verify(chunkRepository).saveAll(chunksCaptor.capture());
@@ -226,7 +226,7 @@ class ChunkingServiceTest {
 
         assertThat(count).isGreaterThan(1);
         for (DocumentChunkJpaEntity chunk : chunks) {
-            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1000);
+            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1500);
         }
     }
 }

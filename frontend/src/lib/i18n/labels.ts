@@ -210,6 +210,8 @@ const ISSUE_CATEGORY_LABELS: Record<string, string> = {
   INCONSISTENCY: "일관성",
   INCOMPLETE_PROCEDURE: "절차 누락",
   CITATION_MISMATCH: "인용 불일치",
+  CITATION: "인용 검증",
+  HALLUCINATION: "환각 탐지",
 };
 
 export function labelIssueCategory(c: string): string {

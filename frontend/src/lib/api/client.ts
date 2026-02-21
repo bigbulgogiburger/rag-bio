@@ -139,12 +139,13 @@ export interface AnswerDraftResult {
   previousAnswerId?: string | null;
   additionalInstructions?: string | null;
   selfReviewIssues?: SelfReviewIssue[];
+  workflowRunCount?: number;
 }
 
 // ===== AI Review / Approval =====
 
 export interface ReviewIssue {
-  category: "ACCURACY" | "COMPLETENESS" | "TONE" | "RISK" | "FORMAT";
+  category: "ACCURACY" | "COMPLETENESS" | "TONE" | "RISK" | "FORMAT" | "CITATION" | "HALLUCINATION";
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
   description: string;
   suggestion: string;
@@ -181,6 +182,22 @@ export interface AutoWorkflowResult {
   finalStatus: string;
   requiresHumanAction: boolean;
   summary: string;
+}
+
+export interface AiReviewHistoryItem {
+  reviewId: string;
+  decision: "PASS" | "REVISE" | "REJECT";
+  score: number;
+  summary: string;
+  revisedDraft: string | null;
+  issues: ReviewIssue[];
+  gateResults: GateResult[];
+  createdAt: string;
+}
+
+export interface AnswerHistoryDetailResult {
+  answer: AnswerDraftResult;
+  aiReviewHistory: AiReviewHistoryItem[];
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
@@ -485,6 +502,14 @@ export async function listAnswerDraftHistory(inquiryId: string): Promise<AnswerD
     throw new Error(`Failed to fetch answer history: ${response.status}`);
   }
   return (await response.json()) as AnswerDraftResult[];
+}
+
+export async function listAnswerDraftHistoryDetail(inquiryId: string): Promise<AnswerHistoryDetailResult[]> {
+  const response = await authFetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/history-detail`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch answer history detail: ${response.status}`);
+  }
+  return (await response.json()) as AnswerHistoryDetailResult[];
 }
 
 export async function reviewAnswerDraft(
