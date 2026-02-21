@@ -142,7 +142,7 @@ const SpinnerIcon = () => (
 );
 
 export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTabProps) {
-  const initialTone = (inquiry.preferredTone === "technical" || inquiry.preferredTone === "brief" || inquiry.preferredTone === "professional") ? inquiry.preferredTone : "gilseon";
+  const initialTone = (inquiry.preferredTone === "technical" || inquiry.preferredTone === "brief" || inquiry.preferredTone === "gilseon") ? inquiry.preferredTone : "gilseon";
   const [answerTone, setAnswerTone] = useState<"professional" | "technical" | "brief" | "gilseon">(initialTone);
   const [answerChannel, setAnswerChannel] = useState<"email" | "messenger">("email");
   const [answerDraft, setAnswerDraft] = useState<AnswerDraftResult | null>(null);
