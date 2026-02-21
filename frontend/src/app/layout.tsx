@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
 
-          <main id="main-content" className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+          <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 flex-1 w-full">{children}</main>
 
           <footer className="border-t border-border/50 bg-slate-900 text-slate-400 dark:bg-slate-950 dark:text-slate-500" role="contentinfo">
             <div className="mx-auto flex max-w-7xl gap-8 px-6 py-8 text-xs">

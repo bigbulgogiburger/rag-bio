@@ -223,26 +223,45 @@ public class ChunkingService {
      * 청크의 내용이 어떤 페이지에 걸치는지 텍스트 매칭으로 결정한다.
      * 오프셋 기반 대신 콘텐츠 매칭을 사용하여 문장 분리/재결합 오프셋 드리프트 문제를 해결.
      */
+    private static final int MAX_PAGE_SPAN = 3;
+
     private int[] resolvePageRange(String chunkContent, List<PageText> pageTexts, List<String> normalizedPages) {
         if (chunkContent == null || chunkContent.isBlank() || pageTexts.isEmpty()) {
             return new int[]{0, 0};
         }
 
         String normalized = chunkContent.replaceAll("\\s+", " ").trim();
-        int pageStart = findMatchingPage(normalized, true, pageTexts, normalizedPages);
-        int pageEnd = findMatchingPage(normalized, false, pageTexts, normalizedPages);
+        int pageStart = findMatchingPage(normalized, true, pageTexts, normalizedPages, 0);
+        // pageEnd는 pageStart 인덱스 이후부터만 검색하여 중복 텍스트 오매칭 방지
+        int searchFromIndex = 0;
+        if (pageStart != 0) {
+            for (int i = 0; i < pageTexts.size(); i++) {
+                if (pageTexts.get(i).pageNumber() == pageStart) {
+                    searchFromIndex = i;
+                    break;
+                }
+            }
+        }
+        int pageEnd = findMatchingPage(normalized, false, pageTexts, normalizedPages, searchFromIndex);
 
         if (pageStart == 0 && pageEnd != 0) pageStart = pageEnd;
         if (pageEnd == 0 && pageStart != 0) pageEnd = pageStart;
+        if (pageStart != 0 && pageEnd != 0 && pageEnd < pageStart) pageEnd = pageStart;
+        // 1000자 chunk가 MAX_PAGE_SPAN 페이지 이상 걸칠 수 없음 — 중복 텍스트 오매칭 보정
+        if (pageStart != 0 && pageEnd != 0 && (pageEnd - pageStart) >= MAX_PAGE_SPAN) {
+            pageEnd = pageStart;
+        }
         return new int[]{pageStart, pageEnd};
     }
 
     /**
      * 청크 텍스트의 시작 또는 끝 부분을 프로브로 사용하여 매칭되는 페이지를 찾는다.
      * 프로브 길이를 점진적으로 줄여 페이지 경계를 걸치는 텍스트도 처리.
+     * searchFromIndex: 이 인덱스 이후의 페이지부터만 검색 (중복 텍스트 대응)
      */
     private int findMatchingPage(String normalized, boolean fromStart,
-                                 List<PageText> pageTexts, List<String> normalizedPages) {
+                                 List<PageText> pageTexts, List<String> normalizedPages,
+                                 int searchFromIndex) {
         int textLen = normalized.length();
         if (textLen < 10) return 0;
 
@@ -251,7 +270,7 @@ public class ChunkingService {
                     ? normalized.substring(0, probeLen)
                     : normalized.substring(textLen - probeLen);
 
-            for (int i = 0; i < normalizedPages.size(); i++) {
+            for (int i = searchFromIndex; i < normalizedPages.size(); i++) {
                 if (normalizedPages.get(i).contains(probe)) {
                     return pageTexts.get(i).pageNumber();
                 }

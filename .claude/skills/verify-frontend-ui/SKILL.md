@@ -43,6 +43,7 @@ description: 프론트엔드 UI 컴포넌트 품질 검증 (shadcn/ui + Tailwind
 | `frontend/src/components/ui/index.ts` | 배럴 export (PdfViewer 제외) |
 | `frontend/src/components/theme-provider.tsx` | next-themes ThemeProvider 래퍼 |
 | `frontend/src/components/theme-toggle.tsx` | 다크/라이트 모드 토글 버튼 |
+| `frontend/src/app/layout.tsx` | 루트 레이아웃 (sticky footer, header/main/footer 구조) |
 
 ## Workflow
 
@@ -140,7 +141,21 @@ grep -n 'darkMode\|ThemeProvider\|suppressHydrationWarning' frontend/tailwind.co
 **PASS:** darkMode: ["class"] + ThemeProvider attribute="class" + suppressHydrationWarning
 **FAIL:** 다크 모드 설정 불완전
 
-### Step 7: globals.css 최소화 확인
+### Step 7: Sticky Footer 레이아웃 확인
+
+**파일:** `frontend/src/app/globals.css`, `frontend/src/app/layout.tsx`
+
+**검사:** body에 `min-h-screen flex flex-col`이 적용되고, main에 `flex-1`이 있어 콘텐츠가 짧아도 footer가 뷰포트 하단에 고정되는지 확인.
+
+```bash
+grep -n 'min-h-screen\|flex-col' frontend/src/app/globals.css
+grep -n 'flex-1' frontend/src/app/layout.tsx
+```
+
+**PASS:** body에 `min-h-screen flex flex-col` + main에 `flex-1` 존재
+**FAIL:** sticky footer 레이아웃 클래스 누락 (콘텐츠 짧을 때 footer가 위로 떠오름)
+
+### Step 8: globals.css 최소화 확인
 
 **파일:** `frontend/src/app/globals.css`
 
@@ -154,7 +169,7 @@ grep -c '^\.' frontend/src/app/globals.css
 **PASS:** 120줄 이하, 컴포넌트 CSS 클래스 없음 (.dark만 허용)
 **FAIL:** 레거시 CSS 클래스 잔존 (.btn, .card, .badge 등)
 
-### Step 8: shadcn 컴포넌트 패턴 확인
+### Step 9: shadcn 컴포넌트 패턴 확인
 
 **파일:** `frontend/src/components/ui/button.tsx`, `card.tsx`, `input.tsx`
 
@@ -167,7 +182,7 @@ grep -rn "forwardRef\|displayName\|cva\|VariantProps" frontend/src/components/ui
 **PASS:** forwardRef + displayName + cva (button) 존재
 **FAIL:** shadcn 패턴 불완전
 
-### Step 9: PdfViewer SSR 배럴 export 제한 확인
+### Step 10: PdfViewer SSR 배럴 export 제한 확인
 
 **파일:** `frontend/src/components/ui/index.ts`
 
@@ -181,7 +196,7 @@ grep -rn "dynamic.*PdfViewer\|dynamic.*PdfExpandModal\|ssr.*false" frontend/src/
 **PASS:** index.ts에 PdfViewer/PdfExpandModal export 없음 + 사용처에서 dynamic + ssr: false
 **FAIL:** 배럴 export에 포함 또는 직접 import
 
-### Step 10: 배럴 export 완전성 확인
+### Step 11: 배럴 export 완전성 확인
 
 **파일:** `frontend/src/components/ui/index.ts`
 
@@ -204,10 +219,11 @@ grep -c "export" frontend/src/components/ui/index.ts
 | 4 | aria-label/hidden/live | PASS/FAIL | 누락 속성 |
 | 5 | 키보드 내비게이션 | PASS/FAIL | 미구현 핸들러 |
 | 6 | 다크 모드 설정 | PASS/FAIL | 설정 불완전 항목 |
-| 7 | globals.css 최소화 | PASS/FAIL | 라인 수, 레거시 클래스 |
-| 8 | shadcn 컴포넌트 패턴 | PASS/FAIL | 누락 패턴 |
-| 9 | PdfViewer SSR 제한 | PASS/FAIL | import 방식 |
-| 10 | 배럴 export 완전성 | PASS/FAIL | 누락 export |
+| 7 | Sticky Footer 레이아웃 | PASS/FAIL | body min-h-screen + main flex-1 |
+| 8 | globals.css 최소화 | PASS/FAIL | 라인 수, 레거시 클래스 |
+| 9 | shadcn 컴포넌트 패턴 | PASS/FAIL | 누락 패턴 |
+| 10 | PdfViewer SSR 제한 | PASS/FAIL | import 방식 |
+| 11 | 배럴 export 완전성 | PASS/FAIL | 누락 export |
 
 ## Exceptions
 

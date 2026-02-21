@@ -87,7 +87,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased tracking-tight;
+    @apply bg-background text-foreground font-sans antialiased tracking-tight min-h-screen flex flex-col;
   }
 }
 

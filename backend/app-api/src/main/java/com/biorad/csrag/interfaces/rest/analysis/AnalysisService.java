@@ -155,31 +155,25 @@ public class AnalysisService {
         String reason;
         List<String> riskFlags = new ArrayList<>();
 
-        String questionPrior = classifyQuestionPrior(question);
-        if (questionPrior != null) {
-            verdict = questionPrior;
-            reason = switch (questionPrior) {
-                case "SUPPORTED" -> "질문 문맥의 긍정 신호가 우세하여 우선적으로 적합 판단했습니다.";
-                case "REFUTED" -> "질문 문맥의 부정/금지 신호가 우세하여 우선적으로 반박 판단했습니다.";
-                default -> "질문 문맥의 조건/불확실 신호가 우세하여 조건부 판단했습니다.";
-            };
-        } else if (avg >= 0.82) {
+        if (avg >= 0.70) {
             verdict = "SUPPORTED";
             reason = "상위 근거 점수가 높아 질문 내용이 문서와 일치합니다.";
-        } else if (avg >= 0.64) {
+        } else if (avg >= 0.45) {
             verdict = "CONDITIONAL";
             reason = "관련 근거는 있으나 신뢰도가 충분히 높지 않습니다.";
-            riskFlags.add("LOW_CONFIDENCE");
         } else {
             verdict = "REFUTED";
             reason = "근거 점수가 낮아 질문 주장과 문서 일치도가 낮습니다.";
             riskFlags.add("WEAK_EVIDENCE_MATCH");
+            if (avg < 0.50) {
+                riskFlags.add("LOW_CONFIDENCE");
+            }
         }
 
         boolean conflictingBySpread = false;
         if (evidences.size() >= 2) {
             double spread = Math.abs(evidences.get(0).score() - evidences.get(evidences.size() - 1).score());
-            conflictingBySpread = spread > 0.25;
+            conflictingBySpread = spread > 0.35;
         }
 
         boolean conflictingByPolarity = hasPolarityConflict(question, evidences);
@@ -200,46 +194,6 @@ public class AnalysisService {
                 evidences,
                 null
         );
-    }
-
-    private String classifyQuestionPrior(String question) {
-        if (question == null || question.isBlank()) {
-            return null;
-        }
-
-        String q = question.toLowerCase();
-
-        String[] conditionalHints = {
-                "depends", "however", "but", "missing", "only if", "partially", "uncertain",
-                "mixed", "subset", "condition", "coexist", "safer", "risk", "may be"
-        };
-        for (String hint : conditionalHints) {
-            if (q.contains(hint)) {
-                return "CONDITIONAL";
-            }
-        }
-
-        String[] negativeHints = {
-                "contradict", "incorrect", "prohibited", "not supported", "not recommended",
-                "violates", "rejected", "avoid", "inconsistent", "conflicts"
-        };
-        for (String hint : negativeHints) {
-            if (q.contains(hint)) {
-                return "REFUTED";
-            }
-        }
-
-        String[] positiveHints = {
-                "supported", "validated", "aligned", "consistent", "recommended", "approved",
-                "strong", "followed correctly", "fully validated"
-        };
-        for (String hint : positiveHints) {
-            if (q.contains(hint)) {
-                return "SUPPORTED";
-            }
-        }
-
-        return null;
     }
 
     private boolean hasPolarityConflict(String question, List<EvidenceItem> evidences) {
@@ -287,8 +241,7 @@ public class AnalysisService {
         if (content == null || content.isBlank()) {
             return "";
         }
-        String normalized = content.replaceAll("\\s+", " ").trim();
-        return normalized.length() > 160 ? normalized.substring(0, 160) + "..." : normalized;
+        return content.replaceAll("\\s+", " ").trim();
     }
 
     private double round(double value) {

@@ -47,7 +47,7 @@ class DefaultComposeStepTest {
     @Test
     void compose_professionalTone_inconclusive() {
         var result = composeStep.execute(makeAnalysis("INCONCLUSIVE", 0.9, List.of()), "professional", "email");
-        assertThat(result.draft()).contains("조건 의존성");
+        assertThat(result.draft()).contains("관련 사내 자료를 바탕으로 확인한 내용을 안내드립니다");
     }
 
     // ===== Tone: brief =====
@@ -67,7 +67,7 @@ class DefaultComposeStepTest {
     @Test
     void compose_briefTone_inconclusive() {
         var result = composeStep.execute(makeAnalysis("INCONCLUSIVE", 0.9, List.of()), "brief", "email");
-        assertThat(result.draft()).contains("단정이 어려운");
+        assertThat(result.draft()).contains("확인한 내용을 안내드립니다");
     }
 
     // ===== Tone: technical =====
@@ -87,7 +87,7 @@ class DefaultComposeStepTest {
     @Test
     void compose_technicalTone_inconclusive() {
         var result = composeStep.execute(makeAnalysis("INCONCLUSIVE", 0.9, List.of()), "technical", "email");
-        assertThat(result.draft()).contains("상충 또는 신뢰도 부족");
+        assertThat(result.draft()).contains("관련 사내 자료를 바탕으로 확인한 결과를 안내드립니다");
     }
 
     // ===== Channel: messenger =====
@@ -111,23 +111,36 @@ class DefaultComposeStepTest {
     // ===== Guardrails =====
 
     @Test
-    void compose_lowConfidence_addsNotice() {
+    void compose_lowConfidence_noNotice() {
         var result = composeStep.execute(makeAnalysis("SUPPORTED", 0.5, List.of()), "professional", "email");
-        assertThat(result.draft()).contains("근거 신뢰도가 충분히 높지 않아");
+        assertThat(result.draft()).doesNotContain("근거 신뢰도가 충분히 높지 않아");
     }
 
     @Test
-    void compose_riskFlags_addsNotice() {
+    void compose_nonSafetyRiskFlags_noNotice() {
         var result = composeStep.execute(makeAnalysis("SUPPORTED", 0.9, List.of("SAMPLE_CONDITION_MISMATCH")), "professional", "email");
-        assertThat(result.draft()).contains("위험 신호가 감지");
-        assertThat(result.draft()).contains("SAMPLE_CONDITION_MISMATCH");
+        assertThat(result.draft()).doesNotContain("위험 신호가 감지");
+        assertThat(result.draft()).doesNotContain("SAMPLE_CONDITION_MISMATCH");
     }
 
     @Test
-    void compose_lowConfidence_and_riskFlags() {
+    void compose_safetyRiskFlag_addsNotice() {
+        var result = composeStep.execute(makeAnalysis("SUPPORTED", 0.9, List.of("SAFETY_CONCERN")), "professional", "email");
+        assertThat(result.draft()).contains("안전 또는 규제 관련 위험 신호가 감지되어 보수적으로 안내드립니다");
+        assertThat(result.draft()).contains("안전/규제 관련 위험 신호가 감지되었습니다");
+    }
+
+    @Test
+    void compose_regulatoryRiskFlag_addsNotice() {
+        var result = composeStep.execute(makeAnalysis("SUPPORTED", 0.9, List.of("REGULATORY_RISK")), "professional", "email");
+        assertThat(result.draft()).contains("안전 또는 규제 관련 위험 신호가 감지되어 보수적으로 안내드립니다");
+    }
+
+    @Test
+    void compose_lowConfidence_and_nonSafetyRiskFlags_noNotice() {
         var result = composeStep.execute(makeAnalysis("SUPPORTED", 0.3, List.of("EXPIRED_DOCUMENT")), "professional", "email");
-        assertThat(result.draft()).contains("근거 신뢰도가 충분히 높지 않아");
-        assertThat(result.draft()).contains("위험 신호가 감지");
+        assertThat(result.draft()).doesNotContain("근거 신뢰도가 충분히 높지 않아");
+        assertThat(result.draft()).doesNotContain("위험 신호가 감지");
     }
 
     // ===== Null/blank tone and channel defaults =====

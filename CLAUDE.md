@@ -207,6 +207,7 @@ src/lib/
 - **백엔드**: Spring Boot JAR → Docker 컨테이너 (포트 8081)
 - **TLS**: Let's Encrypt via Certbot (자동 갱신)
 - **CORS**: `CORS_ALLOWED_ORIGINS` 환경변수 (`/opt/app/.env`)
+- **로그인**: ID `bunh` / PW `ghGHgh123@`
 
 ### Deploy Commands
 
