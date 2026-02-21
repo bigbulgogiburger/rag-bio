@@ -53,6 +53,7 @@ export const RISK_FLAG_LABELS: Record<string, string> = {
   INSUFFICIENT_EVIDENCE: "근거 부족",
   FALLBACK_DRAFT_USED: "대체 초안 사용됨",
   ORCHESTRATION_FALLBACK: "처리 중 오류 발생",
+  SELF_REVIEW_INCOMPLETE: "자체 검증 미완료",
 };
 
 // ===== 톤 =====
@@ -190,6 +191,8 @@ const ISSUE_SEVERITY_LABELS: Record<string, string> = {
   HIGH: "높음",
   MEDIUM: "보통",
   LOW: "낮음",
+  WARNING: "경고",
+  INFO: "정보",
 };
 
 export function labelIssueSeverity(s: string): string {
@@ -203,6 +206,10 @@ const ISSUE_CATEGORY_LABELS: Record<string, string> = {
   TONE: "톤/형식",
   RISK: "리스크",
   FORMAT: "포맷",
+  DUPLICATION: "중복",
+  INCONSISTENCY: "일관성",
+  INCOMPLETE_PROCEDURE: "절차 누락",
+  CITATION_MISMATCH: "인용 불일치",
 };
 
 export function labelIssueCategory(c: string): string {

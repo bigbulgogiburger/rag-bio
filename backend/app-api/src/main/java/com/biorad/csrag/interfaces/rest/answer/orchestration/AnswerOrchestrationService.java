@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,10 +19,12 @@ import java.util.UUID;
 public class AnswerOrchestrationService {
 
     private static final Logger log = LoggerFactory.getLogger(AnswerOrchestrationService.class);
+    private static final int MAX_RECOMPOSE_ATTEMPTS = 2;
 
     private final RetrieveStep retrieveStep;
     private final VerifyStep verifyStep;
     private final ComposeStep composeStep;
+    private final SelfReviewStep selfReviewStep;
     private final OrchestrationRunJpaRepository runRepository;
     private final SseService sseService;
 
@@ -29,17 +32,24 @@ public class AnswerOrchestrationService {
             RetrieveStep retrieveStep,
             VerifyStep verifyStep,
             ComposeStep composeStep,
+            SelfReviewStep selfReviewStep,
             OrchestrationRunJpaRepository runRepository,
             SseService sseService
     ) {
         this.retrieveStep = retrieveStep;
         this.verifyStep = verifyStep;
         this.composeStep = composeStep;
+        this.selfReviewStep = selfReviewStep;
         this.runRepository = runRepository;
         this.sseService = sseService;
     }
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel) {
+        return run(inquiryId, question, tone, channel, null, null);
+    }
+
+    public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel,
+                                    String additionalInstructions, String previousAnswerDraft) {
         emitPipelineEvent(inquiryId, "RETRIEVE", "STARTED", null);
         List<EvidenceItem> evidences = executeWithRunLog(inquiryId, "RETRIEVE", () -> retrieveStep.execute(inquiryId, question, 5));
         emitPipelineEvent(inquiryId, "RETRIEVE", "COMPLETED", null);
@@ -49,10 +59,64 @@ public class AnswerOrchestrationService {
         emitPipelineEvent(inquiryId, "VERIFY", "COMPLETED", null);
 
         emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", null);
-        ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE", () -> composeStep.execute(analysis, tone, channel));
+        ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE",
+                () -> composeStep.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft));
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
 
-        return new OrchestrationResult(analysis, composed.draft(), composed.formatWarnings());
+        // Self-review with retry loop
+        String finalDraft = composed.draft();
+        List<String> finalWarnings = composed.formatWarnings();
+        List<SelfReviewStep.QualityIssue> selfReviewIssues = List.of();
+
+        emitPipelineEvent(inquiryId, "SELF_REVIEW", "STARTED", null);
+        try {
+            SelfReviewStep.SelfReviewResult reviewResult = executeWithRunLog(
+                    inquiryId, "SELF_REVIEW",
+                    () -> selfReviewStep.review(composed.draft(), analysis.evidences(), question)
+            );
+
+            if (reviewResult.passed()) {
+                selfReviewIssues = reviewResult.issues();
+            } else {
+                String currentDraft = composed.draft();
+                SelfReviewStep.SelfReviewResult latestReview = reviewResult;
+
+                for (int attempt = 1; attempt <= MAX_RECOMPOSE_ATTEMPTS; attempt++) {
+                    log.info("self-review retry attempt={} inquiryId={}", attempt, inquiryId);
+                    emitPipelineEvent(inquiryId, "SELF_REVIEW", "RETRY",
+                            "재작성 시도 " + attempt + "/" + MAX_RECOMPOSE_ATTEMPTS);
+
+                    String feedback = latestReview.feedback();
+                    ComposeStep.ComposeStepResult recomposed = composeStep.execute(
+                            analysis, tone, channel, feedback, currentDraft);
+
+                    latestReview = selfReviewStep.review(recomposed.draft(), analysis.evidences(), question);
+                    currentDraft = recomposed.draft();
+                    finalWarnings = recomposed.formatWarnings();
+
+                    if (latestReview.passed()) {
+                        break;
+                    }
+                }
+
+                finalDraft = currentDraft;
+                selfReviewIssues = latestReview.issues();
+
+                if (!latestReview.passed()) {
+                    finalWarnings = new ArrayList<>(finalWarnings);
+                    finalWarnings.add("SELF_REVIEW_INCOMPLETE");
+                    log.warn("self-review did not pass after {} retries inquiryId={}",
+                            MAX_RECOMPOSE_ATTEMPTS, inquiryId);
+                }
+            }
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "COMPLETED", null);
+        } catch (Exception e) {
+            log.warn("self-review failed, using original draft inquiryId={}", inquiryId, e);
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "FAILED", e.getMessage());
+            // Fall through with original draft - self-review is non-blocking
+        }
+
+        return new OrchestrationResult(analysis, finalDraft, finalWarnings, selfReviewIssues);
     }
 
     private <T> T executeWithRunLog(UUID inquiryId, String step, StepSupplier<T> supplier) {
@@ -96,6 +160,11 @@ public class AnswerOrchestrationService {
     public record OrchestrationResult(
             AnalyzeResponse analysis,
             String draft,
-            List<String> formatWarnings
-    ) {}
+            List<String> formatWarnings,
+            List<SelfReviewStep.QualityIssue> selfReviewIssues
+    ) {
+        public OrchestrationResult(AnalyzeResponse analysis, String draft, List<String> formatWarnings) {
+            this(analysis, draft, formatWarnings, List.of());
+        }
+    }
 }

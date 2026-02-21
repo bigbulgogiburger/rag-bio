@@ -47,7 +47,7 @@ class AnswerFallbackIntegrationTest {
 
         String inquiryId = objectMapper.readTree(createResponse).path("inquiryId").asText();
 
-        when(orchestrationService.run(any(), any(), any(), any()))
+        when(orchestrationService.run(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("forced-orchestration-failure"));
 
         mockMvc.perform(post("/api/v1/inquiries/{inquiryId}/answers/draft", inquiryId)

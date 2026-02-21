@@ -4,21 +4,32 @@ import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Component
 public class DefaultComposeStep implements ComposeStep {
 
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel) {
+        return execute(analysis, tone, channel, null, null);
+    }
+
+    @Override
+    public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel,
+                                      String additionalInstructions, String previousAnswerDraft) {
         String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
 
-        String draft = createDraftByTone(analysis, normalizedTone);
-        draft = insertCitations(draft, analysis.evidences());
-        draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
-        draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags(), normalizedTone);
+        String draft;
+        if (previousAnswerDraft != null && !previousAnswerDraft.isBlank()
+                && additionalInstructions != null && !additionalInstructions.isBlank()) {
+            draft = createRefinedDraft(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel);
+        } else {
+            draft = createDraftByTone(analysis, normalizedTone);
+            draft = insertCitations(draft, analysis.evidences());
+            draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
+            draft = formatByChannel(draft, normalizedChannel, analysis.riskFlags(), normalizedTone);
+        }
 
         return new ComposeStepResult(draft, validateFormatWarnings(draft, normalizedChannel));
     }
@@ -42,9 +53,11 @@ public class DefaultComposeStep implements ComposeStep {
             return draft;
         }
 
-        List<String> citations = evidences.stream()
+        // Cluster evidences by documentId to merge duplicate document references
+        List<EvidenceItem> clustered = clusterEvidences(evidences);
+
+        List<String> citations = clustered.stream()
                 .filter(ev -> ev.fileName() != null)
-                .limit(2)
                 .map(this::formatCitation)
                 .toList();
 
@@ -63,6 +76,62 @@ public class DefaultComposeStep implements ComposeStep {
         return draft;
     }
 
+    /**
+     * Cluster evidences by documentId: merge page ranges from the same document.
+     */
+    List<EvidenceItem> clusterEvidences(List<EvidenceItem> evidences) {
+        if (evidences == null || evidences.size() <= 1) {
+            return evidences == null ? List.of() : evidences;
+        }
+
+        // Group by documentId
+        Map<String, List<EvidenceItem>> byDoc = new LinkedHashMap<>();
+        for (EvidenceItem ev : evidences) {
+            String key = ev.documentId() != null ? ev.documentId() : ev.chunkId();
+            byDoc.computeIfAbsent(key, k -> new ArrayList<>()).add(ev);
+        }
+
+        List<EvidenceItem> result = new ArrayList<>();
+        for (List<EvidenceItem> group : byDoc.values()) {
+            if (group.size() == 1) {
+                result.add(group.getFirst());
+                continue;
+            }
+
+            // Merge: take the highest-scoring item, expand page range
+            EvidenceItem best = group.stream()
+                    .max(Comparator.comparingDouble(EvidenceItem::score))
+                    .orElse(group.getFirst());
+
+            Integer minPage = group.stream()
+                    .map(EvidenceItem::pageStart)
+                    .filter(Objects::nonNull)
+                    .min(Integer::compareTo)
+                    .orElse(best.pageStart());
+
+            Integer maxPage = group.stream()
+                    .map(EvidenceItem::pageEnd)
+                    .filter(Objects::nonNull)
+                    .max(Integer::compareTo)
+                    .orElse(best.pageEnd());
+
+            // Merge excerpts: take unique key info
+            String mergedExcerpt = group.stream()
+                    .map(EvidenceItem::excerpt)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .reduce((a, b) -> a + " | " + b)
+                    .orElse(best.excerpt());
+
+            result.add(new EvidenceItem(
+                    best.chunkId(), best.documentId(), best.score(),
+                    mergedExcerpt, best.sourceType(), best.fileName(),
+                    minPage, maxPage
+            ));
+        }
+        return result;
+    }
+
     private String formatCitation(EvidenceItem ev) {
         StringBuilder sb = new StringBuilder(ev.fileName());
         if (ev.pageStart() != null) {
@@ -72,6 +141,68 @@ public class DefaultComposeStep implements ComposeStep {
             }
         }
         return sb.toString();
+    }
+
+    private String createRefinedDraft(String previousDraft, String instructions,
+                                        AnalyzeResponse analysis, String tone, String channel) {
+        StringBuilder sb = new StringBuilder();
+
+        // 보완 안내 헤더
+        if ("gilseon".equals(tone)) {
+            sb.append("문의하여 주신 내용에 대하여 보완 확인한 결과를 하기와 같이 안내드립니다.\n\n");
+        } else {
+            sb.append("이전 답변을 보완하여 안내드립니다.\n\n");
+        }
+
+        // 보완 지시사항 반영
+        sb.append("[보완 사항]\n");
+        sb.append(instructions.trim());
+        sb.append("\n\n");
+
+        // 기존 답변 본문 유지 (채널 래핑 제거 후 핵심만 추출)
+        String core = extractCoreContent(previousDraft);
+        sb.append("[기존 답변 기반 내용]\n");
+        sb.append(core);
+
+        // 새 근거 기반 추가 내용
+        if (analysis.evidences() != null && !analysis.evidences().isEmpty()) {
+            sb.append("\n\n[추가 확인된 근거]\n");
+            sb.append("사내 자료를 참고한 결과, 추가로 확인된 내용을 포함하여 안내드립니다.");
+            String citationDraft = insertCitations("사내 자료를 참고한 결과", analysis.evidences());
+            sb.append("\n").append(citationDraft);
+        }
+
+        String draft = sb.toString();
+        draft = applyGuardrails(draft, analysis.confidence(), analysis.riskFlags());
+        draft = formatByChannel(draft, channel, analysis.riskFlags(), tone);
+        return draft;
+    }
+
+    private String extractCoreContent(String previousDraft) {
+        String core = previousDraft;
+        // 이메일 인사/마무리 래핑 제거
+        String[] greetings = {"안녕하세요\n한국바이오래드 차길선 입니다.\n\n",
+                "안녕하세요.\nBio-Rad CS 기술지원팀입니다.\n\n"};
+        for (String g : greetings) {
+            if (core.startsWith(g)) {
+                core = core.substring(g.length());
+                break;
+            }
+        }
+        String[] closings = {"\n\n추가 문의 건 회신 주십시오.\n\n감사합니다.\n차길선 드림.",
+                "\n\n추가 확인이 필요하신 사항이 있으시면 말씀하여 주시기 바랍니다.\n감사합니다.",
+                "\n\n추가 확인이 필요하시면 말씀하여 주시기 바랍니다."};
+        for (String c : closings) {
+            if (core.endsWith(c)) {
+                core = core.substring(0, core.length() - c.length());
+                break;
+            }
+        }
+        // 메신저 래핑 제거
+        if (core.startsWith("[요약]\n")) {
+            core = core.substring("[요약]\n".length());
+        }
+        return core.trim();
     }
 
     private String createDraftByTone(AnalyzeResponse analysis, String tone) {

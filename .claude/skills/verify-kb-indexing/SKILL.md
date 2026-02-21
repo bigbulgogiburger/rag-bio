@@ -244,6 +244,32 @@ grep -n "findMatchingPage\|normalizedPages\|resolvePageRange" backend/app-api/sr
 **PASS:** `findMatchingPage` 메서드 존재, `normalizedPages` 사전 계산, `resolvePageRange`가 문자열 콘텐츠를 받음
 **FAIL:** 오프셋 기반 `resolvePageRange(int chunkStart, int chunkEnd, ...)` 사용
 
+### Step 14: ChunkingService MAX_PAGE_SPAN 제한 확인
+
+**파일:** `ChunkingService.java`
+
+**검사:** `resolvePageRange()`에서 `MAX_PAGE_SPAN` 상수를 사용하여 chunk가 비정상적으로 넓은 페이지 범위에 걸리는 것을 방지하는지 확인. 중복 텍스트가 있는 PDF에서 오매칭 방지.
+
+```bash
+grep -n "MAX_PAGE_SPAN\|pageEnd - pageStart" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `MAX_PAGE_SPAN = 3` 상수 존재, `(pageEnd - pageStart) >= MAX_PAGE_SPAN` 검증 후 `pageEnd = pageStart` 보정
+**FAIL:** MAX_PAGE_SPAN 제한 없음 또는 과도한 span 허용
+
+### Step 15: ChunkingService pageEnd 역전 검증 확인
+
+**파일:** `ChunkingService.java`
+
+**검사:** `resolvePageRange()`에서 `pageEnd < pageStart`인 경우 `pageEnd = pageStart`로 보정하는지 확인. 중복 텍스트로 인해 끝 페이지가 시작 페이지보다 앞으로 매칭되는 오류 방지.
+
+```bash
+grep -n "pageEnd < pageStart\|searchFromIndex" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `pageEnd < pageStart` → `pageEnd = pageStart` 보정 + `searchFromIndex`로 pageEnd 검색을 pageStart 인덱스부터 시작
+**FAIL:** 역전 검증 없음 또는 searchFromIndex 미사용
+
 ### Step 12: QdrantVectorStore deleteByDocumentId 컬렉션 미존재 안전 처리
 
 **파일:** `QdrantVectorStore.java`
@@ -291,6 +317,8 @@ grep -n "corePoolSize\|maxPoolSize\|queueCapacity\|threadNamePrefix\|waitForTask
 | 11 | 콘텐츠 기반 페이지 매핑 | PASS/FAIL | findMatchingPage 존재 |
 | 12 | 컬렉션 미존재 안전 처리 | PASS/FAIL | doesn't exist 처리 |
 | 13 | 스레드 풀 설정 | PASS/FAIL | 설정값 적절성 |
+| 14 | MAX_PAGE_SPAN 제한 | PASS/FAIL | 과도한 span 허용 |
+| 15 | pageEnd 역전/span 검증 | PASS/FAIL | 역전 보정 + searchFromIndex |
 
 ## Exceptions
 

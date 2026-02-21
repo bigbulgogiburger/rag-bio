@@ -26,6 +26,15 @@ public record AnswerDraftResponse(
         String reviewDecision,
         String approvalDecision,
         String approvalReason,
-        String translatedQuery
+        String translatedQuery,
+        String previousAnswerId,
+        int refinementCount,
+        List<SelfReviewIssueResponse> selfReviewIssues
 ) {
+    public record SelfReviewIssueResponse(
+            String category,
+            String severity,
+            String description,
+            String suggestion
+    ) {}
 }

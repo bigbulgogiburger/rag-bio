@@ -102,6 +102,13 @@ export interface AnalyzeResult {
 export type AnswerTone = "professional" | "technical" | "brief" | "gilseon";
 export type AnswerChannel = "email" | "messenger";
 
+export interface SelfReviewIssue {
+  category: "DUPLICATION" | "INCONSISTENCY" | "INCOMPLETE_PROCEDURE" | "CITATION_MISMATCH";
+  severity: "CRITICAL" | "WARNING" | "INFO";
+  description: string;
+  suggestion: string;
+}
+
 export interface AnswerDraftResult {
   answerId: string;
   inquiryId: string;
@@ -128,6 +135,10 @@ export interface AnswerDraftResult {
   reviewDecision?: string;
   approvalDecision?: string;
   approvalReason?: string;
+  refinementCount?: number;
+  previousAnswerId?: string | null;
+  additionalInstructions?: string | null;
+  selfReviewIssues?: SelfReviewIssue[];
 }
 
 // ===== AI Review / Approval =====
@@ -439,12 +450,18 @@ export async function draftInquiryAnswer(
   inquiryId: string,
   question: string,
   tone: AnswerTone = "professional",
-  channel: AnswerChannel = "email"
+  channel: AnswerChannel = "email",
+  additionalInstructions?: string,
+  previousAnswerId?: string
 ): Promise<AnswerDraftResult> {
+  const payload: Record<string, unknown> = { question, tone, channel };
+  if (additionalInstructions) payload.additionalInstructions = additionalInstructions;
+  if (previousAnswerId) payload.previousAnswerId = previousAnswerId;
+
   const response = await authFetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, tone, channel })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {

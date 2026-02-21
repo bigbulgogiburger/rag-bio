@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   listAnswerDraftHistory,
   getDocumentDownloadUrl,
   getDocumentPagesUrl,
   type AnswerDraftResult,
+  type AnalyzeEvidenceItem,
 } from "@/lib/api/client";
 import {
   labelAnswerStatus,
@@ -70,6 +71,17 @@ function isPdf(fileName: string | null): boolean {
   return fileName != null && fileName.toLowerCase().endsWith(".pdf");
 }
 
+function evidenceToCitationView(ev: AnalyzeEvidenceItem): CitationView {
+  return {
+    chunkId: ev.chunkId,
+    score: ev.score,
+    documentId: ev.documentId,
+    fileName: ev.fileName ?? null,
+    pageStart: ev.pageStart ?? null,
+    pageEnd: ev.pageEnd ?? null,
+  };
+}
+
 interface InquiryHistoryTabProps {
   inquiryId: string;
 }
@@ -103,6 +115,63 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
     } finally {
       setLoading(false);
     }
+  };
+
+  // Build evidence list from selected version
+  const evidenceItems: CitationView[] = selected
+    ? selected.evidences
+      ? selected.evidences.map(evidenceToCitationView)
+      : selected.citations.map(parseCitation)
+    : [];
+
+  // Render answer body with clickable citation links
+  const renderDraftWithCitations = (text: string): ReactNode => {
+    const citationRegex = /\(([^,]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = citationRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+
+      const matchedFileName = match[1].trim();
+      const pageStart = parseInt(match[2], 10);
+      const pageEnd = match[3] ? parseInt(match[3], 10) : pageStart;
+      const fullMatch = match[0];
+
+      const matchingEvidence = evidenceItems.find((ev) => {
+        if (!ev.fileName) return false;
+        const nameMatch = ev.fileName.toLowerCase() === matchedFileName.toLowerCase();
+        if (!nameMatch) return false;
+        if (ev.pageStart == null) return true;
+        return ev.pageStart === pageStart || (ev.pageStart <= pageStart && (ev.pageEnd ?? ev.pageStart) >= pageEnd);
+      });
+
+      if (matchingEvidence) {
+        parts.push(
+          <button
+            key={`citation-${match.index}`}
+            type="button"
+            className="text-primary underline cursor-pointer hover:text-primary/80"
+            onClick={() => setSelectedEvidence(matchingEvidence)}
+          >
+            {fullMatch}
+          </button>
+        );
+      } else {
+        parts.push(fullMatch);
+      }
+
+      lastIndex = match.index + fullMatch.length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
   };
 
   const getAnswerStatusBadgeVariant = (status: string): "info" | "success" | "warn" | "danger" | "neutral" => {
@@ -253,8 +322,8 @@ export default function InquiryHistoryTab({ inquiryId }: InquiryHistoryTabProps)
                 <>
                   <hr className="border-t border-border" />
                   <h4 className="text-base font-semibold">답변 초안</h4>
-                  <div className="rounded-lg border border-border/50 bg-muted/30 p-4 whitespace-pre-wrap">
-                    {selected.draft}
+                  <div className="rounded-lg border border-border/50 bg-muted/30 p-4 whitespace-pre-wrap text-sm leading-relaxed">
+                    {renderDraftWithCitations(selected.draft)}
                   </div>
                 </>
               )}

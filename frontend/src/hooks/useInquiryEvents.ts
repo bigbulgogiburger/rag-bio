@@ -27,8 +27,8 @@ export interface IndexingProgressData {
 }
 
 export interface DraftStepData {
-  step: "RETRIEVE" | "VERIFY" | "COMPOSE";
-  status: "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  step: "RETRIEVE" | "VERIFY" | "COMPOSE" | "SELF_REVIEW";
+  status: "IN_PROGRESS" | "COMPLETED" | "FAILED" | "RETRY";
   message?: string;
 }
 

@@ -23,7 +23,7 @@ class AnswerComposerServiceFallbackTest {
         SendAttemptJpaRepository sendAttemptRepository = mock(SendAttemptJpaRepository.class);
 
         UUID inquiryId = UUID.randomUUID();
-        when(orchestrationService.run(any(), any(), any(), any()))
+        when(orchestrationService.run(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("forced-failure"));
         when(repository.findTopByInquiryIdOrderByVersionDesc(inquiryId)).thenReturn(Optional.empty());
         when(repository.save(any(AnswerDraftJpaEntity.class))).thenAnswer(inv -> inv.getArgument(0));

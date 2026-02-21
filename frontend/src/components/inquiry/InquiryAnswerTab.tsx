@@ -185,6 +185,10 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
   const [approveActor, setApproveActor] = useState("cs-lead");
   const [approveComment, setApproveComment] = useState("");
 
+  // Refinement request
+  const MAX_REFINEMENTS = 5;
+  const [refinementInstructions, setRefinementInstructions] = useState("");
+
   // Initialize channel from inquiry
   useEffect(() => {
     if (inquiry.customerChannel === "messenger") {
@@ -371,6 +375,38 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
     }
   };
 
+  const handleRefineDraft = async () => {
+    if (!answerDraft || !refinementInstructions.trim()) return;
+    setLoading(true);
+    setError(null);
+    setSelectedEvidence(null);
+    setEvidenceExpanded(false);
+    setWorkflowResult(null);
+    setReviewDetailExpanded(false);
+    setDraftSteps([]);
+    setDraftGenerating(true);
+
+    try {
+      const draft = await draftInquiryAnswer(
+        inquiryId,
+        draftQuestion,
+        answerTone,
+        answerChannel,
+        refinementInstructions.trim(),
+        answerDraft.answerId
+      );
+      setAnswerDraft(draft);
+      setRefinementInstructions("");
+      setDraftGenerating(false);
+      showToast(`보완 답변 v${draft.version} 생성 완료 (이력 탭에서 확인 가능)`, "success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "보완 답변 생성 중 오류가 발생했습니다.");
+      setDraftGenerating(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getAnswerStatusBadgeVariant = (status: string): "info" | "success" | "warn" | "danger" | "neutral" => {
     if (["SENT", "APPROVED"].includes(status)) return "success";
     if (status === "REVIEWED") return "warn";
@@ -460,6 +496,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
       case "RETRIEVE": return "검색 중";
       case "VERIFY": return "검증 중";
       case "COMPOSE": return "작성 중";
+      case "SELF_REVIEW": return "자체 검증";
       default: return step;
     }
   };
@@ -481,28 +518,29 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
             답변 생성 중...
           </div>
           <div className="flex items-center gap-4">
-            {(["RETRIEVE", "VERIFY", "COMPOSE"] as const).map((step) => {
+            {(["RETRIEVE", "VERIFY", "COMPOSE", "SELF_REVIEW"] as const).map((step) => {
               const stepData = draftSteps.find((s) => s.step === step);
               const currentStep = draftSteps.filter((s) => s.status === "IN_PROGRESS")[0];
               const isActive = currentStep?.step === step;
               const isDone = stepData?.status === "COMPLETED";
               const isFailed = stepData?.status === "FAILED";
+              const isRetrying = stepData?.status === "RETRY";
               return (
                 <div
                   key={step}
                   className={cn(
                     "flex items-center gap-2 text-sm",
                     isDone && "text-emerald-600 dark:text-emerald-400",
-                    isActive && "text-primary font-semibold",
+                    (isActive || isRetrying) && "text-primary font-semibold",
                     isFailed && "text-destructive",
-                    !isDone && !isActive && !isFailed && "text-muted-foreground"
+                    !isDone && !isActive && !isFailed && !isRetrying && "text-muted-foreground"
                   )}
                 >
                   {isDone ? (
                     <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                     </svg>
-                  ) : isActive ? (
+                  ) : isActive || isRetrying ? (
                     <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -514,7 +552,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                   ) : (
                     <span className="h-4 w-4 rounded-full border-2 border-current" aria-hidden="true" />
                   )}
-                  <span>{draftStepLabel(step)}</span>
+                  <span>{draftStepLabel(step)}{isRetrying ? " (재시도)" : ""}</span>
                 </div>
               );
             })}
@@ -864,7 +902,30 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
               {/* Format Warnings */}
               {answerDraft.formatWarnings.length > 0 && (
                 <div className="rounded-lg border border-warning/30 bg-warning-light px-4 py-3 text-sm text-warning-foreground">
-                  <b>형식 경고:</b> {answerDraft.formatWarnings.join(", ")}
+                  <b>형식 경고:</b> {answerDraft.formatWarnings.map(w => labelRiskFlag(w) || w).join(", ")}
+                </div>
+              )}
+
+              {/* Self-Review Issues */}
+              {answerDraft.selfReviewIssues && answerDraft.selfReviewIssues.length > 0 && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    자체 검증 결과 ({answerDraft.selfReviewIssues.length}건)
+                  </p>
+                  {answerDraft.selfReviewIssues.map((issue, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-sm">
+                      <Badge variant={issue.severity === "CRITICAL" ? "danger" : issue.severity === "WARNING" ? "warn" : "info"}>
+                        {labelIssueSeverity(issue.severity)}
+                      </Badge>
+                      <div>
+                        <span className="font-medium">[{labelIssueCategory(issue.category)}]</span>{" "}
+                        <span className="text-muted-foreground">{issue.description}</span>
+                        {issue.suggestion && (
+                          <p className="text-xs text-muted-foreground mt-0.5">제안: {issue.suggestion}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1288,6 +1349,48 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                   </div>
                 )}
               </div>
+
+              {/* Refinement Request Section */}
+              {answerDraft.status !== "SENT" && (
+                <>
+                  <hr className="border-t border-border" />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-base font-semibold">보완 요청</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {answerDraft.refinementCount ?? 0}/{MAX_REFINEMENTS}회 사용
+                      </span>
+                    </div>
+                    <textarea
+                      className="w-full min-h-[80px] rounded-lg border border-input bg-transparent p-3 text-sm leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={refinementInstructions}
+                      onChange={(e) => setRefinementInstructions(e.target.value)}
+                      placeholder="추가 요청사항을 입력하세요 (예: 더 간결하게, 특정 제품에 대한 내용 추가, 톤 변경 등)"
+                      aria-label="보완 요청사항 입력"
+                      disabled={(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS || loading}
+                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleRefineDraft}
+                        disabled={
+                          loading ||
+                          !refinementInstructions.trim() ||
+                          (answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS
+                        }
+                        aria-busy={loading}
+                      >
+                        {loading && <SpinnerIcon />}
+                        {loading ? "보완 답변 생성 중..." : "보완 답변 생성"}
+                      </Button>
+                      {(answerDraft.refinementCount ?? 0) >= MAX_REFINEMENTS && (
+                        <p className="text-xs text-destructive">
+                          보완 요청 횟수를 모두 사용했습니다
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +29,7 @@ class AnswerOrchestrationServiceTest {
     @Mock private RetrieveStep retrieveStep;
     @Mock private VerifyStep verifyStep;
     @Mock private ComposeStep composeStep;
+    @Mock private SelfReviewStep selfReviewStep;
     @Mock private OrchestrationRunJpaRepository runRepository;
     @Mock private SseService sseService;
 
@@ -35,7 +37,7 @@ class AnswerOrchestrationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AnswerOrchestrationService(retrieveStep, verifyStep, composeStep, runRepository, sseService);
+        service = new AnswerOrchestrationService(retrieveStep, verifyStep, composeStep, selfReviewStep, runRepository, sseService);
     }
 
     @Test
@@ -55,7 +57,9 @@ class AnswerOrchestrationServiceTest {
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
-        when(composeStep.execute(any(), anyString(), any())).thenReturn(composed);
+        when(composeStep.execute(any(), anyString(), any(), any(), any())).thenReturn(composed);
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenReturn(new SelfReviewStep.SelfReviewResult(true, List.of(), ""));
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AnswerOrchestrationService.OrchestrationResult result = service.run(inquiryId, question, "professional", "email");
@@ -66,7 +70,7 @@ class AnswerOrchestrationServiceTest {
 
         verify(retrieveStep).execute(eq(inquiryId), eq(question), eq(5));
         verify(verifyStep).execute(eq(inquiryId), eq(question), eq(evidences));
-        verify(composeStep).execute(eq(analysis), eq("professional"), eq("email"));
+        verify(composeStep).execute(eq(analysis), eq("professional"), eq("email"), isNull(), isNull());
     }
 
     @Test
@@ -76,18 +80,20 @@ class AnswerOrchestrationServiceTest {
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(List.of());
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(
                 new AnalyzeResponse(inquiryId.toString(), "SUPPORTED", 0.8, "", List.of(), List.of(), null));
-        when(composeStep.execute(any(), anyString(), any())).thenReturn(
+        when(composeStep.execute(any(), anyString(), any(), any(), any())).thenReturn(
                 new ComposeStep.ComposeStepResult("Draft", List.of()));
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenReturn(new SelfReviewStep.SelfReviewResult(true, List.of(), ""));
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.run(inquiryId, "question", "professional", "email");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(3)).save(captor.capture());
+        verify(runRepository, times(4)).save(captor.capture());
 
         List<OrchestrationRunJpaEntity> saved = captor.getAllValues();
         assertThat(saved).extracting(OrchestrationRunJpaEntity::getStep)
-                .containsExactly("RETRIEVE", "VERIFY", "COMPOSE");
+                .containsExactly("RETRIEVE", "VERIFY", "COMPOSE", "SELF_REVIEW");
         assertThat(saved).allMatch(e -> "SUCCESS".equals(e.getStatus()));
     }
 
@@ -143,7 +149,7 @@ class AnswerOrchestrationServiceTest {
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
-        when(composeStep.execute(any(), anyString(), any()))
+        when(composeStep.execute(any(), anyString(), any(), any(), any()))
                 .thenThrow(new RuntimeException("compose error"));
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -168,7 +174,9 @@ class AnswerOrchestrationServiceTest {
 
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
-        when(composeStep.execute(any(), anyString(), any())).thenReturn(composed);
+        when(composeStep.execute(any(), anyString(), any(), any(), any())).thenReturn(composed);
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenReturn(new SelfReviewStep.SelfReviewResult(true, List.of(), ""));
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doThrow(new RuntimeException("sse fail")).when(sseService).send(any(), any(), any());
 
@@ -203,5 +211,60 @@ class AnswerOrchestrationServiceTest {
         assertThat(result.analysis()).isEqualTo(analysis);
         assertThat(result.draft()).isEqualTo("draft");
         assertThat(result.formatWarnings()).containsExactly("w1");
+        assertThat(result.selfReviewIssues()).isEmpty();
+    }
+
+    @Test
+    void run_selfReviewFails_usesOriginalDraft() {
+        UUID inquiryId = UUID.randomUUID();
+        List<EvidenceItem> evidences = List.of();
+        AnalyzeResponse analysis = new AnalyzeResponse(
+                inquiryId.toString(), "SUPPORTED", 0.8, "ok", List.of(), evidences, null
+        );
+        ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("original draft", List.of());
+
+        when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
+        when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
+        when(composeStep.execute(any(), anyString(), any(), any(), any())).thenReturn(composed);
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenThrow(new RuntimeException("review failed"));
+        when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AnswerOrchestrationService.OrchestrationResult result = service.run(inquiryId, "q", "professional", "email");
+
+        assertThat(result.draft()).isEqualTo("original draft");
+        assertThat(result.selfReviewIssues()).isEmpty();
+    }
+
+    @Test
+    void run_selfReviewNotPassed_retriesAndReturnsWarning() {
+        UUID inquiryId = UUID.randomUUID();
+        List<EvidenceItem> evidences = List.of();
+        AnalyzeResponse analysis = new AnalyzeResponse(
+                inquiryId.toString(), "SUPPORTED", 0.8, "ok", List.of(), evidences, null
+        );
+        ComposeStep.ComposeStepResult composed = new ComposeStep.ComposeStepResult("draft v1", List.of());
+        ComposeStep.ComposeStepResult recomposed = new ComposeStep.ComposeStepResult("draft v2", List.of());
+
+        SelfReviewStep.QualityIssue criticalIssue = new SelfReviewStep.QualityIssue(
+                "DUPLICATION", "CRITICAL", "duplicate content", "remove duplicates");
+        SelfReviewStep.SelfReviewResult failedReview = new SelfReviewStep.SelfReviewResult(
+                false, List.of(criticalIssue), "fix duplicates");
+
+        when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
+        when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
+        when(composeStep.execute(any(AnalyzeResponse.class), anyString(), anyString(), isNull(), isNull()))
+                .thenReturn(composed);
+        when(composeStep.execute(any(AnalyzeResponse.class), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(recomposed);
+        when(selfReviewStep.review(anyString(), anyList(), anyString())).thenReturn(failedReview);
+        when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AnswerOrchestrationService.OrchestrationResult result = service.run(inquiryId, "q", "professional", "email");
+
+        assertThat(result.draft()).isEqualTo("draft v2");
+        assertThat(result.formatWarnings()).contains("SELF_REVIEW_INCOMPLETE");
+        assertThat(result.selfReviewIssues()).hasSize(1);
+        assertThat(result.selfReviewIssues().getFirst().category()).isEqualTo("DUPLICATION");
     }
 }

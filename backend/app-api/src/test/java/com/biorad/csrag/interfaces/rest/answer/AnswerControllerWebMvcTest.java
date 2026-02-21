@@ -144,7 +144,10 @@ class AnswerControllerWebMvcTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                0,
+                List.of()
         );
     }
 }

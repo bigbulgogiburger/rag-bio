@@ -11,6 +11,10 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 4. **EvidenceItem 필드 완전성** — record 필드 (chunkId, documentId, score, excerpt, sourceType, fileName, pageStart, pageEnd) 확인
 5. **N+1 방지 배치 조인** — AnalysisService에서 findAllById 배치 조회 + sourceId fallback 조회 사용 확인
 6. **다운로드 API 안전성** — DocumentDownloadController 엔드포인트 경로, Content-Disposition, 페이지 범위 검증 확인
+7. **Verdict 임계값 정확성** — SUPPORTED ≥ 0.70, CONDITIONAL ≥ 0.45, REFUTED < 0.45 임계값 확인
+8. **Evidence 전문 전달** — summarize()가 chunk 내용을 절단하지 않고 전문 전달하는지 확인
+9. **LLM 프롬프트 중립성** — OpenAiComposeStep 프롬프트에 verdict/confidence/riskFlags가 노출되지 않는지 확인
+10. **Guardrails 조건부 적용** — DefaultComposeStep guardrails가 SAFETY_CONCERN/REGULATORY_RISK에서만 작동하는지 확인
 
 ## When to Run
 
@@ -319,6 +323,71 @@ grep -n "ConditionalOnProperty\|Primary" backend/app-api/src/main/java/com/biora
 **PASS:** OpenAi에 `@ConditionalOnProperty(prefix = "openai", name = "enabled", havingValue = "true")` + `@Primary`
 **FAIL:** 조건 어노테이션 누락
 
+### Step 20: AnalysisService Verdict 임계값 확인
+
+**파일:** `AnalysisService.java`
+
+**검사:** SUPPORTED 임계값이 0.70, CONDITIONAL 임계값이 0.45인지 확인. 이전 과도한 임계값(0.82, 0.64)이 아닌지 검증.
+
+```bash
+grep -n "avg >= 0\.\|>= 0\." backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalysisService.java
+```
+
+**PASS:** `avg >= 0.70` → SUPPORTED, `avg >= 0.45` → CONDITIONAL 존재
+**FAIL:** 0.82 또는 0.64 등 과도한 임계값 사용
+
+### Step 21: AnalysisService summarize() 비절단 확인
+
+**파일:** `AnalysisService.java`
+
+**검사:** `summarize()` 메서드가 chunk 내용을 절단(substring)하지 않고 공백 정규화만 수행하는지 확인. 160자 절단은 LLM에 불충분한 컨텍스트를 전달하여 hedging 답변 유발.
+
+```bash
+grep -n "summarize\|substring\|160\|Math.min.*length" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalysisService.java
+```
+
+**PASS:** `summarize()`가 `replaceAll("\\s+", " ").trim()`만 수행, substring/절단 없음
+**FAIL:** substring 호출 또는 문자수 제한 로직 존재
+
+### Step 22: OpenAiComposeStep 프롬프트 verdict/confidence 미노출 확인
+
+**파일:** `OpenAiComposeStep.java`
+
+**검사:** `buildPrompt()`에서 verdict, confidence, riskFlags를 LLM에 전달하지 않는지 확인. 이 값들이 프롬프트에 포함되면 LLM이 자체 hedging하여 답변 품질 저하.
+
+```bash
+grep -n "verdict\|confidence\|riskFlags" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiComposeStep.java
+```
+
+**PASS:** buildPrompt 내에 verdict/confidence/riskFlags 관련 문자열 없음
+**FAIL:** 프롬프트에 verdict, confidence, riskFlags 중 하나라도 노출
+
+### Step 23: DefaultComposeStep Guardrails 조건부 적용 확인
+
+**파일:** `DefaultComposeStep.java`
+
+**검사:** `applyGuardrails()`가 SAFETY_CONCERN 또는 REGULATORY_RISK riskFlag가 있을 때만 면책 문구를 삽입하는지 확인. confidence 임계값 기반 삽입은 불필요한 hedging 유발.
+
+```bash
+grep -n "SAFETY_CONCERN\|REGULATORY_RISK\|confidence.*0\.75\|applyGuardrails" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/DefaultComposeStep.java
+```
+
+**PASS:** SAFETY_CONCERN/REGULATORY_RISK 조건만 존재, `confidence < 0.75` 조건 없음
+**FAIL:** `confidence < 0.75` 등 점수 기반 면책 문구 삽입 로직 존재
+
+### Step 24: AnalysisService classifyQuestionPrior 미존재 확인
+
+**파일:** `AnalysisService.java`
+
+**검사:** 키워드 기반 verdict 선판정 메서드 `classifyQuestionPrior()`가 제거되었는지 확인. 고객 질문에 "risk", "condition" 같은 단어가 포함되면 내용과 무관하게 CONDITIONAL로 판정하는 오판 위험.
+
+```bash
+grep -n "classifyQuestionPrior\|QuestionPrior" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalysisService.java
+```
+
+**PASS:** `classifyQuestionPrior` 문자열 없음 (메서드 제거됨)
+**FAIL:** `classifyQuestionPrior` 메서드 또는 호출 존재
+
 ## Output Format
 
 | # | 검사 항목 | 결과 | 상세 |
@@ -344,6 +413,11 @@ grep -n "ConditionalOnProperty\|Primary" backend/app-api/src/main/java/com/biora
 | 17 | AnalyzeResponse translatedQuery | PASS/FAIL | 필드 존재 |
 | 18 | HybridSearch RRF 결합 | PASS/FAIL | matchSource 구분 |
 | 19 | QueryTranslation ConditionalOnProperty | PASS/FAIL | 조건 어노테이션 |
+| 20 | Verdict 임계값 (0.70/0.45) | PASS/FAIL | 과도한 임계값 사용 |
+| 21 | summarize() 비절단 | PASS/FAIL | substring/절단 로직 |
+| 22 | 프롬프트 verdict 미노출 | PASS/FAIL | verdict/confidence 포함 |
+| 23 | Guardrails 조건부 적용 | PASS/FAIL | confidence 기반 삽입 |
+| 24 | classifyQuestionPrior 미존재 | PASS/FAIL | 선판정 메서드 존재 |
 
 ## Exceptions
 

@@ -106,8 +106,10 @@ public class AnswerController {
                 ? request.tone()
                 : inquiry.getPreferredTone();
         String channel = request != null ? request.channel() : null;
+        String additionalInstructions = request != null ? request.additionalInstructions() : null;
+        String previousAnswerId = request != null ? request.previousAnswerId() : null;
 
-        return answerComposerService.compose(inquiryUuid, question, tone, channel);
+        return answerComposerService.compose(inquiryUuid, question, tone, channel, additionalInstructions, previousAnswerId);
     }
 
     @Operation(summary = "최신 답변 초안 조회", description = "가장 최근 답변 초안을 조회합니다")

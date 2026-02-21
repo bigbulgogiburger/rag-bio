@@ -90,6 +90,15 @@ public class AnswerDraftJpaEntity {
     @Column(name = "approval_reason", length = 2000)
     private String approvalReason;
 
+    @Column(name = "previous_answer_id")
+    private UUID previousAnswerId;
+
+    @Column(name = "refinement_count", nullable = false)
+    private int refinementCount;
+
+    @Column(name = "additional_instructions", length = 2000)
+    private String additionalInstructions;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -140,8 +149,17 @@ public class AnswerDraftJpaEntity {
     public String getReviewDecision() { return reviewDecision; }
     public String getApprovalDecision() { return approvalDecision; }
     public String getApprovalReason() { return approvalReason; }
+    public UUID getPreviousAnswerId() { return previousAnswerId; }
+    public int getRefinementCount() { return refinementCount; }
+    public String getAdditionalInstructions() { return additionalInstructions; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public void setRefinementInfo(UUID previousAnswerId, int refinementCount, String additionalInstructions) {
+        this.previousAnswerId = previousAnswerId;
+        this.refinementCount = refinementCount;
+        this.additionalInstructions = additionalInstructions;
+    }
 
     public void markAiReviewed(String reviewer, int score, String decision, String comment) {
         this.status = "REVIEWED";

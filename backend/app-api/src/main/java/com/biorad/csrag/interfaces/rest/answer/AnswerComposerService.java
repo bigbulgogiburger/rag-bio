@@ -6,6 +6,7 @@ import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaEnt
 import com.biorad.csrag.infrastructure.persistence.sendattempt.SendAttemptJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.AnswerOrchestrationService;
+import com.biorad.csrag.interfaces.rest.answer.orchestration.SelfReviewStep;
 import com.biorad.csrag.interfaces.rest.answer.sender.MessageSender;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendCommand;
 import com.biorad.csrag.interfaces.rest.answer.sender.SendResult;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.biorad.csrag.common.exception.NotFoundException;
 import com.biorad.csrag.common.exception.ConflictException;
+import com.biorad.csrag.common.exception.ValidationException;
 
 import java.time.Instant;
 import java.util.List;
@@ -40,8 +42,27 @@ public class AnswerComposerService {
     }
 
     public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel) {
+        return compose(inquiryId, question, tone, channel, null, null);
+    }
+
+    public AnswerDraftResponse compose(UUID inquiryId, String question, String tone, String channel,
+                                        String additionalInstructions, String previousAnswerId) {
         String normalizedTone = (tone == null || tone.isBlank()) ? "professional" : tone.trim().toLowerCase();
         String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
+
+        // 보완 모드: 이전 답변 조회 및 보완 횟수 검증
+        UUID prevId = parseUuidOrNull(previousAnswerId);
+        String previousAnswerDraft = null;
+        int refinementCount = 0;
+        if (prevId != null) {
+            AnswerDraftJpaEntity previousAnswer = answerDraftRepository.findByIdAndInquiryId(prevId, inquiryId)
+                    .orElseThrow(() -> new NotFoundException("PREVIOUS_ANSWER_NOT_FOUND", "이전 답변을 찾을 수 없습니다."));
+            previousAnswerDraft = previousAnswer.getDraft();
+            refinementCount = previousAnswer.getRefinementCount() + 1;
+            if (refinementCount > 5) {
+                throw new ValidationException("REFINEMENT_LIMIT_EXCEEDED", "보완 요청은 최대 5회까지 가능합니다.");
+            }
+        }
 
         AnswerOrchestrationService.OrchestrationResult orchestration;
         AnalyzeResponse analysis;
@@ -49,7 +70,8 @@ public class AnswerComposerService {
         List<String> formatWarnings;
 
         try {
-            orchestration = orchestrationService.run(inquiryId, question, normalizedTone, normalizedChannel);
+            orchestration = orchestrationService.run(inquiryId, question, normalizedTone, normalizedChannel,
+                    additionalInstructions, previousAnswerDraft);
             analysis = orchestration.analysis();
             citations = analysis.evidences().stream()
                     .map(ev -> {
@@ -87,7 +109,7 @@ public class AnswerComposerService {
                 .map(x -> x.getVersion() + 1)
                 .orElse(1);
 
-        AnswerDraftJpaEntity saved = answerDraftRepository.save(new AnswerDraftJpaEntity(
+        AnswerDraftJpaEntity entity = new AnswerDraftJpaEntity(
                 UUID.randomUUID(),
                 inquiryId,
                 nextVersion,
@@ -101,9 +123,23 @@ public class AnswerComposerService {
                 String.join(",", analysis.riskFlags()),
                 Instant.now(),
                 Instant.now()
-        ));
+        );
 
-        return toResponse(saved, orchestration.formatWarnings(), analysis.translatedQuery());
+        if (prevId != null) {
+            entity.setRefinementInfo(prevId, refinementCount, additionalInstructions);
+        }
+
+        AnswerDraftJpaEntity saved = answerDraftRepository.save(entity);
+        return toResponse(saved, orchestration.formatWarnings(), analysis.translatedQuery(), orchestration.selfReviewIssues());
+    }
+
+    private UUID parseUuidOrNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("INVALID_PREVIOUS_ANSWER_ID", "Invalid previousAnswerId format");
+        }
     }
 
     public AnswerDraftResponse review(UUID inquiryId, UUID answerId, String actor, String comment) {
@@ -203,10 +239,11 @@ public class AnswerComposerService {
     }
 
     private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride) {
-        return toResponse(entity, formatWarningsOverride, null);
+        return toResponse(entity, formatWarningsOverride, null, List.of());
     }
 
-    private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride, String translatedQuery) {
+    private AnswerDraftResponse toResponse(AnswerDraftJpaEntity entity, List<String> formatWarningsOverride,
+                                            String translatedQuery, List<SelfReviewStep.QualityIssue> selfReviewIssues) {
         List<String> citations = entity.getCitations() == null || entity.getCitations().isBlank()
                 ? List.of()
                 : List.of(entity.getCitations().split("\\s*\\|\\s*"));
@@ -218,6 +255,13 @@ public class AnswerComposerService {
         List<String> formatWarnings = formatWarningsOverride.isEmpty()
                 ? List.of()
                 : formatWarningsOverride;
+
+        List<AnswerDraftResponse.SelfReviewIssueResponse> issueResponses = selfReviewIssues == null
+                ? List.of()
+                : selfReviewIssues.stream()
+                    .map(i -> new AnswerDraftResponse.SelfReviewIssueResponse(
+                            i.category(), i.severity(), i.description(), i.suggestion()))
+                    .toList();
 
         return new AnswerDraftResponse(
                 entity.getId().toString(),
@@ -243,7 +287,10 @@ public class AnswerComposerService {
                 entity.getReviewDecision(),
                 entity.getApprovalDecision(),
                 entity.getApprovalReason(),
-                translatedQuery
+                translatedQuery,
+                entity.getPreviousAnswerId() != null ? entity.getPreviousAnswerId().toString() : null,
+                entity.getRefinementCount(),
+                issueResponses
         );
     }
 
