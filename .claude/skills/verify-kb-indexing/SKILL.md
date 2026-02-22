@@ -10,6 +10,7 @@ description: KB 비동기 인덱싱 파이프라인 검증. 인덱싱 관련 코
 3. **텍스트 추출 안전성** — DocumentTextExtractor를 사용하며, raw bytes 읽기를 하지 않는지 확인
 4. **에러 핸들링** — 워커에서 예외를 잡아 FAILED 상태로 마킹하는지 검증
 5. **HTTP 응답 코드** — 비동기 인덱싱 엔드포인트가 202 Accepted를 반환하는지 확인
+6. **제품군 전파** — ChunkingService.chunkAndStore()에 productFamily 파라미터 전파 확인
 
 ## When to Run
 
@@ -33,6 +34,7 @@ description: KB 비동기 인덱싱 파이프라인 검증. 인덱싱 관련 코
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java` | 문의 문서 인덱싱 서비스 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java` | Qdrant 벡터 스토어 (컬렉션 자동 생성 + 벡터 삭제) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/MockVectorStore.java` | Mock 벡터 스토어 (동시성 안전 삭제) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/VectorizingService.java` | 청크 벡터화 서비스 (KB 청크의 productFamily를 부모 문서에서 조회) |
 
 ## Workflow
 
@@ -140,18 +142,18 @@ grep -n "DocumentTextExtractor\|extractText\|extractByPage\|new String.*bytes" b
 **PASS:** DocumentTextExtractor 의존성 주입 및 extractText()/extractByPage() 호출
 **FAIL:** `new String(bytes, UTF-8)` 등 raw bytes 변환 존재
 
-### Step 8b: 페이지별 추출 경로 확인
+### Step 8b: 페이지별 추출 경로 확인 (fileName 포함)
 
 **파일:** `KnowledgeIndexingWorker.java`, `DocumentIndexingService.java`
 
-**검사:** OCR 불필요 경로에서 `extractByPage()` → `chunkAndStore(docId, pageTexts, sourceType, sourceId)` 4-arg 오버로드를 호출하는지 확인.
+**검사:** OCR 불필요 경로에서 `extractByPage()` → `chunkAndStore(docId, pageTexts, sourceType, sourceId, fileName)` 5-arg 오버로드를 호출하는지 확인. RF-03에서 파일명 프리픽스를 위해 5번째 인자 `fileName`이 추가됨.
 
 ```bash
-grep -n "extractByPage\|chunkAndStore.*pageTexts\|PageText" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java
+grep -n "extractByPage\|chunkAndStore.*pageTexts\|PageText\|getFileName" backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/KnowledgeIndexingWorker.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/document/DocumentIndexingService.java
 ```
 
-**PASS:** 비-OCR 경로에서 `extractByPage()` 호출 후 `chunkAndStore(docId, pageTexts, ...)` 사용
-**FAIL:** 비-OCR 경로에서도 `extractText()` + 2-arg `chunkAndStore()` 사용 (페이지 정보 누락)
+**PASS:** 비-OCR 경로에서 `extractByPage()` 호출 후 `chunkAndStore(docId, pageTexts, sourceType, sourceId, fileName)` 5-arg 사용, `doc.getFileName()` 전달
+**FAIL:** `fileName` 인자 누락 (4-arg 오버로드 사용) 또는 null 전달
 
 ### Step 9: 워커 에러 핸들링 확인
 
@@ -296,6 +298,19 @@ grep -n "corePoolSize\|maxPoolSize\|queueCapacity\|threadNamePrefix\|waitForTask
 **PASS:** core=2, max=4, queue=50, prefix="kb-indexing-", waitForTasks=true
 **FAIL:** 설정값 누락 또는 graceful shutdown 미설정
 
+### Step 16: VectorizingService KB productFamily 부모 조회 확인
+
+**파일:** `VectorizingService.java`
+
+**검사:** KB 청크(`sourceType = "KNOWLEDGE_BASE"`)의 `productFamily`를 청크 자체에서 읽지 않고, `KnowledgeDocumentJpaRepository.findById(documentId)`를 통해 부모 문서에서 조회하는지 확인. ChunkingService가 청크에 productFamily를 설정하지 않으므로 청크에서 읽으면 항상 null이 됨.
+
+```bash
+grep -n "kbDocRepository\|KnowledgeDocumentJpaRepository\|KNOWLEDGE_BASE.*resolvedProductFamily\|getProductFamily" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/VectorizingService.java
+```
+
+**PASS:** `kbDocRepository.findById(documentId).map(KnowledgeDocumentJpaEntity::getProductFamily)` 호출 존재, KNOWLEDGE_BASE 타입 체크 후 부모 문서에서 productFamily 조회
+**FAIL:** `chunk.getProductFamily()` 직접 호출 (항상 null 반환) 또는 productFamily 조회 로직 없음
+
 ## Output Format
 
 | # | 검사 항목 | 결과 | 상세 |
@@ -319,6 +334,63 @@ grep -n "corePoolSize\|maxPoolSize\|queueCapacity\|threadNamePrefix\|waitForTask
 | 13 | 스레드 풀 설정 | PASS/FAIL | 설정값 적절성 |
 | 14 | MAX_PAGE_SPAN 제한 | PASS/FAIL | 과도한 span 허용 |
 | 15 | pageEnd 역전/span 검증 | PASS/FAIL | 역전 보정 + searchFromIndex |
+| 16 | KB productFamily 부모 조회 | PASS/FAIL | VectorizingService → kbDocRepository |
+| 17 | 파일명 프리픽스 (RF-03) | PASS/FAIL | applyFileNamePrefix + 오프셋 드리프트 방지 |
+| 18 | 헤딩 인식 청킹 (RF-05) | PASS/FAIL | HEADING_PATTERN + isHeading() |
+| 19 | 오버랩 300자 (RF-02) | PASS/FAIL | OVERLAP_CHARS = 300 |
+| 20 | productFamily 파라미터 전파 | PASS/FAIL | chunkAndStore 오버로드 + setProductFamily |
+
+### Step 17: ChunkingService 파일명 프리픽스 확인 (RF-03)
+
+**파일:** `ChunkingService.java`
+
+**검사:** `applyFileNamePrefix()` 헬퍼가 존재하고, 청크 콘텐츠 앞에 `[fileName] ` 프리픽스를 추가하는지 확인. 오프셋 계산에는 `rawContent`(프리픽스 미포함)를 사용하고, 저장 시에만 프리픽스를 적용하는지 확인 (globalOffset 드리프트 방지).
+
+```bash
+grep -n "applyFileNamePrefix\|rawContent\|globalOffset" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `applyFileNamePrefix(rawContent, fileName)` 존재, 오프셋은 `rawContent.length()`로 계산, `globalOffset`에 프리픽스 길이 미포함
+**FAIL:** 프리픽스 적용 후 오프셋 계산 (드리프트 발생) 또는 applyFileNamePrefix 메서드 없음
+
+### Step 18: ChunkingService 헤딩 인식 청킹 확인 (RF-05)
+
+**파일:** `ChunkingService.java`
+
+**검사:** `HEADING_PATTERN` 정규식과 `isHeading()` 메서드가 존재하고, 청크 병합 루프에서 제목 감지 시 새 청크를 시작하는지 확인.
+
+```bash
+grep -n "HEADING_PATTERN\|isHeading\|heading" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `HEADING_PATTERN` (Markdown heading, 번호 리스트, 대문자 제목) + `isHeading()` + 병합 루프에서 `isHeading(nextSentence)` 체크 후 break
+**FAIL:** 헤딩 인식 없이 문장을 무조건 병합
+
+### Step 19: ChunkingService 오버랩 300자 확인 (RF-02)
+
+**파일:** `ChunkingService.java`
+
+**검사:** `OVERLAP_CHARS` 상수가 300인지 확인. 100에서 300으로 증가하여 인접 청크 간 문맥 연속성 강화.
+
+```bash
+grep -n "OVERLAP_CHARS" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `OVERLAP_CHARS = 300`
+**FAIL:** `OVERLAP_CHARS = 100` 또는 다른 값
+
+### Step 20: ChunkingService productFamily 파라미터 전파 확인
+
+**파일:** `ChunkingService.java`
+
+**검사:** `chunkAndStore()` 오버로드에 `String productFamily` 파라미터가 존재하고, chunk 엔티티에 `setProductFamily(productFamily)` 호출이 있는지 확인.
+
+```bash
+grep -n "productFamily\|setProductFamily" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+```
+
+**PASS:** `chunkAndStore(..., String productFamily)` 오버로드 + `chunk.setProductFamily(productFamily)` 호출
+**FAIL:** productFamily 파라미터 없음 또는 setProductFamily 미호출
 
 ## Exceptions
 

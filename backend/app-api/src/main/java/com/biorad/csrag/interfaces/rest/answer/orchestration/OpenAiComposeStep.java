@@ -23,6 +23,7 @@ import java.util.Map;
 public class OpenAiComposeStep implements ComposeStep {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiComposeStep.class);
+    private static final int EVIDENCE_CHAR_BUDGET = 8000;
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -185,9 +186,10 @@ public class OpenAiComposeStep implements ComposeStep {
         List<EvidenceItem> evidences = analysis.evidences();
         if (evidences != null && !evidences.isEmpty()) {
             sb.append("[참고 자료] (").append(evidences.size()).append("건)\n");
-            int limit = Math.min(5, evidences.size());
-            for (int i = 0; i < limit; i++) {
-                var ev = evidences.get(i);
+            int charUsed = 0;
+            for (EvidenceItem ev : evidences) {
+                String excerptText = ev.excerpt() != null ? ev.excerpt() : "";
+                if (charUsed > 0 && charUsed + excerptText.length() > EVIDENCE_CHAR_BUDGET) break;
                 sb.append("- ");
                 if (ev.fileName() != null) {
                     sb.append("(").append(ev.fileName());
@@ -199,7 +201,8 @@ public class OpenAiComposeStep implements ComposeStep {
                     }
                     sb.append(") ");
                 }
-                sb.append(ev.excerpt()).append("\n\n");
+                sb.append(excerptText).append("\n\n");
+                charUsed += excerptText.length();
             }
         }
 
@@ -224,9 +227,10 @@ public class OpenAiComposeStep implements ComposeStep {
         List<EvidenceItem> evidences = analysis.evidences();
         if (evidences != null && !evidences.isEmpty()) {
             sb.append("[참고 자료] (").append(evidences.size()).append("건)\n");
-            int limit = Math.min(5, evidences.size());
-            for (int i = 0; i < limit; i++) {
-                var ev = evidences.get(i);
+            int charUsed = 0;
+            for (EvidenceItem ev : evidences) {
+                String excerptText = ev.excerpt() != null ? ev.excerpt() : "";
+                if (charUsed > 0 && charUsed + excerptText.length() > EVIDENCE_CHAR_BUDGET) break;
                 sb.append("- (");
                 if (ev.fileName() != null) {
                     sb.append("파일명: ").append(ev.fileName());
@@ -241,7 +245,8 @@ public class OpenAiComposeStep implements ComposeStep {
                 sb.append("유사도: ")
                         .append(String.format("%.3f", ev.score()))
                         .append(")\n")
-                        .append(ev.excerpt()).append("\n\n");
+                        .append(excerptText).append("\n\n");
+                charUsed += excerptText.length();
             }
         }
 
@@ -283,39 +288,16 @@ public class OpenAiComposeStep implements ComposeStep {
     private String buildPerQuestionPrompt(String subQuestionMapping, AnalyzeResponse analysis,
                                           String tone, String channel) {
         StringBuilder sb = new StringBuilder();
-        sb.append("아래 하위 질문별 증거 매핑과 참고 자료를 바탕으로 고객 답변 초안을 한국어 격식체로 작성해줘.\n\n");
+        sb.append("아래 하위 질문별 증거를 바탕으로 고객 답변 초안을 한국어 격식체로 작성해줘.\n");
+        sb.append("각 질문에 배정된 증거만 사용하여 답변하라. 증거의 excerpt 내용이 답변의 근거이다.\n\n");
         sb.append(subQuestionMapping).append("\n\n");
 
         sb.append("[분석 결과]\n");
         sb.append("- tone: ").append(tone == null ? "gilseon" : tone).append("\n");
         sb.append("- channel: ").append(channel == null ? "email" : channel).append("\n\n");
 
-        List<EvidenceItem> evidences = analysis.evidences();
-        if (evidences != null && !evidences.isEmpty()) {
-            sb.append("[전체 참고 자료] (").append(evidences.size()).append("건)\n");
-            int limit = Math.min(7, evidences.size());
-            for (int i = 0; i < limit; i++) {
-                var ev = evidences.get(i);
-                sb.append("- (");
-                if (ev.fileName() != null) {
-                    sb.append("파일명: ").append(ev.fileName());
-                    if (ev.pageStart() != null) {
-                        sb.append(", p.").append(ev.pageStart());
-                        if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
-                            sb.append("-").append(ev.pageEnd());
-                        }
-                    }
-                    sb.append(", ");
-                }
-                sb.append("유사도: ")
-                        .append(String.format("%.3f", ev.score()))
-                        .append(")\n")
-                        .append(ev.excerpt()).append("\n\n");
-            }
-        }
-
         sb.append("[지시]\n");
-        sb.append("각 하위 질문에 대해 해당 증거를 활용하여 답변하라.\n");
+        sb.append("각 하위 질문에 대해 해당 질문에 배정된 증거를 활용하여 답변하라.\n");
         sb.append("증거가 충분하지 않은 질문에는 '해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.'로 응답하라.\n");
         sb.append("복수 질문이므로 #1), #2), #3) 형식으로 구분하여 답변하라.\n\n");
 

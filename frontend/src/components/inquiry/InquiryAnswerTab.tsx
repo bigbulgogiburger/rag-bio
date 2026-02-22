@@ -26,6 +26,8 @@ import {
   labelChannel,
   labelIssueSeverity,
   labelIssueCategory,
+  labelProductFamily,
+  labelRetrievalQuality,
 } from "@/lib/i18n/labels";
 import WorkflowResultCard from "./WorkflowResultCard";
 import { Badge, EmptyState } from "@/components/ui";
@@ -53,6 +55,7 @@ interface CitationView {
   pageEnd: number | null;
   sourceType?: "INQUIRY" | "KNOWLEDGE_BASE";
   excerpt?: string;
+  productFamily?: string;
 }
 
 function parseCitation(raw: string): CitationView {
@@ -82,6 +85,7 @@ function evidenceToCitationView(ev: AnalyzeEvidenceItem): CitationView {
     pageEnd: ev.pageEnd ?? null,
     sourceType: ev.sourceType,
     excerpt: ev.excerpt,
+    productFamily: ev.productFamily,
   };
 }
 
@@ -396,7 +400,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
 
   // Render answer body with clickable citation links
   const renderDraftWithCitations = (text: string): ReactNode => {
-    const citationRegex = /\(([^,]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
+    const citationRegex = /\(([^,가-힣\n]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
     const parts: ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -637,7 +641,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
 
       {/* Draft Result - Split Pane */}
       {answerDraft && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[1fr_400px]">
           {/* Left: Analysis Summary + Answer + Citations + Workflow */}
           <div className="space-y-6">
             {/* Analysis Summary Card */}
@@ -645,8 +649,8 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
               <h3 className="text-base font-semibold">분석 결과 요약</h3>
               <hr className="border-t border-border" />
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">판정</p>
                   <div className="text-lg font-bold tracking-tight text-foreground">
                     <Badge variant={getVerdictBadgeVariant(answerDraft.verdict)}>
@@ -654,11 +658,11 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                     </Badge>
                   </div>
                 </div>
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">신뢰도</p>
                   <p className="text-2xl font-bold tracking-tight text-foreground">{answerDraft.confidence}</p>
                 </div>
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">근거 수</p>
                   <p className="text-2xl font-bold tracking-tight text-foreground">{evidenceItems.length}</p>
                   <p className="text-xs text-muted-foreground">검색된 근거</p>
@@ -684,6 +688,35 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                       </Badge>
                     </span>
                   ))}
+                </div>
+              )}
+
+              {/* Retrieval Quality Fallback Banner */}
+              {answerDraft.retrievalQuality && answerDraft.retrievalQuality !== "EXACT" && (
+                <div
+                  className={cn(
+                    "rounded-lg border px-4 py-3 text-sm",
+                    answerDraft.retrievalQuality === "CATEGORY_EXPANDED"
+                      ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                      : "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+                  )}
+                  role="alert"
+                >
+                  <p className="font-medium">
+                    {answerDraft.retrievalQuality === "CATEGORY_EXPANDED"
+                      ? "관련 카테고리로 확장 검색되었습니다"
+                      : "제품 필터 없이 전체 검색되었습니다"}
+                  </p>
+                  {answerDraft.extractedProductFamilies && answerDraft.extractedProductFamilies.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium">추출된 제품군:</span>
+                      {answerDraft.extractedProductFamilies.map((pf) => (
+                        <Badge key={pf} variant="info">
+                          {labelProductFamily(pf)}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -736,6 +769,11 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                               {ev.sourceType && (
                                 <Badge variant={ev.sourceType === "KNOWLEDGE_BASE" ? "info" : "neutral"}>
                                   {ev.sourceType === "KNOWLEDGE_BASE" ? "지식 기반" : "문의 첨부"}
+                                </Badge>
+                              )}
+                              {ev.productFamily && (
+                                <Badge variant="info">
+                                  {labelProductFamily(ev.productFamily)}
                                 </Badge>
                               )}
                               <span className="text-sm font-medium">

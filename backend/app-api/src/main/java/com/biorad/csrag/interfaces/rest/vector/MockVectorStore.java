@@ -34,6 +34,7 @@ public class MockVectorStore implements VectorStore {
         log.info("vector.upsert.success chunkId={} documentId={} sourceType={} dim={}", chunkId, documentId, sourceType, vector.size());
     }
 
+    @Override
     public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType, String productFamily) {
         records.put(chunkId, new VectorRecord(chunkId, documentId, vector, content, sourceType, productFamily));
         log.info("vector.upsert.success chunkId={} documentId={} sourceType={} productFamily={} dim={}", chunkId, documentId, sourceType, productFamily, vector.size());
@@ -49,14 +50,23 @@ public class MockVectorStore implements VectorStore {
         Stream<VectorRecord> stream = records.values().stream();
 
         if (filter != null && !filter.isEmpty()) {
-            if (filter.hasDocumentFilter()) {
-                stream = stream.filter(r -> filter.documentIds().contains(r.documentId()));
+            // inquiryId 스코핑: documentIds OR sourceTypes (OR 로직)
+            if (filter.hasDocumentFilter() && filter.hasSourceTypeFilter() && filter.inquiryId() != null) {
+                stream = stream.filter(r ->
+                        filter.documentIds().contains(r.documentId())
+                        || (r.sourceType() != null && filter.sourceTypes().contains(r.sourceType()))
+                );
+            } else {
+                if (filter.hasDocumentFilter()) {
+                    stream = stream.filter(r -> filter.documentIds().contains(r.documentId()));
+                }
+                if (filter.hasSourceTypeFilter()) {
+                    stream = stream.filter(r -> r.sourceType() != null && filter.sourceTypes().contains(r.sourceType()));
+                }
             }
             if (filter.hasProductFilter()) {
-                stream = stream.filter(r -> filter.productFamily().equalsIgnoreCase(r.productFamily()));
-            }
-            if (filter.hasSourceTypeFilter()) {
-                stream = stream.filter(r -> r.sourceType() != null && filter.sourceTypes().contains(r.sourceType()));
+                stream = stream.filter(r -> r.productFamily() != null
+                        && filter.productFamilies().stream().anyMatch(pf -> pf.equalsIgnoreCase(r.productFamily())));
             }
         }
 

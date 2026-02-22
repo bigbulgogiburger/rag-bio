@@ -46,7 +46,8 @@ export default function DataTable<T>({
   }
 
   return (
-    <table className="w-full border-separate border-spacing-0" role="table" aria-label="데이터 테이블">
+    <div className="overflow-x-auto">
+    <table className="w-full min-w-[640px] border-separate border-spacing-0" role="table" aria-label="데이터 테이블">
       <thead>
         <tr>
           {columns.map((column) => (
@@ -92,5 +93,6 @@ export default function DataTable<T>({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

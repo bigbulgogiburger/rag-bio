@@ -12,6 +12,8 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 5. **한국어 라벨 함수 사용** — 영문 enum 값을 직접 표시하지 않고 labelVerdict/labelDocStatus 등 사용 확인
 6. **shadcn 컴포넌트 사용** — Button, Badge, Skeleton 등 shadcn/커스텀 UI 컴포넌트 사용 확인
 7. **react-hook-form + zod** — InquiryCreateForm에서 폼 유효성 검사 확인
+8. **제품군 태그 선택 UI** — InquiryCreateForm에서 드롭다운 + 뱃지 칩으로 제품군 선택 확인
+9. **제품군 뱃지 + fallback 경고** — 증거 productFamily 뱃지 + retrievalQuality fallback 경고 표시 확인
 
 ## When to Run
 
@@ -33,7 +35,7 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 | `frontend/src/app/inquiries/[id]/InquiryDetailClient.tsx` | 문의 상세 클라이언트 (useParams + useSearchParams + 탭 라우팅) |
 | `frontend/src/components/upload/SmartUploadModal.tsx` | 스마트 업로드 모달 (KB 문서 일괄 업로드) |
 | `frontend/src/components/upload/FileDropZone.tsx` | 파일 드래그앤드롭 영역 (cn + Tailwind) |
-| `frontend/src/components/upload/FileQueueItem.tsx` | 파일 큐 아이템 (cn + status 기반 스타일) |
+| `frontend/src/components/upload/FileQueueItem.tsx` | 파일 큐 아이템 (cn + status 기반 스타일 + 제품군 드롭다운) |
 | `frontend/src/lib/api/client.ts` | API 클라이언트 (타입 정의 + 헬퍼 함수) |
 | `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 함수 (labelReviewDecision, labelApprovalDecision 포함) |
 | `frontend/src/components/inquiry/WorkflowResultCard.tsx` | 워크플로우 결과 공유 컴포넌트 (showActions prop, 리뷰 이슈/게이트 결과 표시) |
@@ -183,18 +185,20 @@ grep -n "pagesDownloadUrl" frontend/src/components/inquiry/InquiryAnswerTab.tsx 
 **PASS:** 양쪽 모두 `pagesDownloadUrl={...getDocumentPagesUrl(...) + "&download=true"}` 패턴 존재
 **FAIL:** pagesDownloadUrl prop 누락 (전체 다운로드만 가능)
 
-### Step 10b: 인라인 인용 클릭 핸들링 확인
+### Step 10b: 인라인 인용 클릭 핸들링 + 한국어 제외 정규식 확인
 
-**파일:** `InquiryAnswerTab.tsx`
+**파일:** `InquiryAnswerTab.tsx`, `InquiryHistoryTab.tsx`
 
-**검사:** 답변 본문 내 `(파일명, p.XX-YY)` 패턴이 클릭 가능한 요소로 변환되어 해당 근거를 선택할 수 있는지 확인.
+**검사:** 답변 본문 내 `(파일명, p.XX-YY)` 패턴이 클릭 가능한 요소로 변환되는지, citationRegex가 한국어 문자를 제외(`[^,가-힣\n]+`)하여 한국어 괄호 표현식을 잘못 캡처하지 않는지 확인.
+
+문제 배경: `[^,]+\.pdf` 패턴은 한국어 문자를 포함하므로, 답변 본문에 `유효기간(외부 포장...)까지...(파일명.pdf, p.X)` 패턴이 있을 때 첫 번째 `(`부터 `.pdf`까지 모두 파일명으로 잡아 매칭 실패 → 일반 텍스트 표시.
 
 ```bash
-grep -n "citationRegex\|renderBodyWithCitations\|파일명.*p\.\|citation.*click\|handleCitationClick" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+grep -n "citationRegex\|가-힣" frontend/src/components/inquiry/InquiryAnswerTab.tsx frontend/src/components/inquiry/InquiryHistoryTab.tsx
 ```
 
-**PASS:** 인라인 인용 패턴 파싱 + 클릭 시 selectedEvidence 설정
-**FAIL:** 인라인 인용 클릭 핸들링 없음 (본문에 텍스트로만 표시)
+**PASS:** 두 파일 모두 `[^,가-힣\n]+\.pdf` 패턴 사용 + 클릭 시 `setSelectedEvidence` 호출
+**FAIL:** `[^,]+\.pdf` 패턴 사용 (한국어 미제외) → 한국어 괄호가 있는 문장에서 자료 링크가 일반 텍스트로 표시됨
 
 ### Step 10c: triggerBlobDownload 크로스오리진 다운로드 패턴 확인
 
@@ -300,6 +304,11 @@ grep -n "translatedQuery" frontend/src/components/inquiry/InquiryAnswerTab.tsx
 | 17 | CITATION/HALLUCINATION 카테고리 | PASS/FAIL | labels + WorkflowResultCard |
 | 18 | workflowRunCount 표시 | PASS/FAIL | HistoryTab 재실행 횟수 |
 | 19 | history-detail API 사용 | PASS/FAIL | HistoryTab listAnswerDraftHistoryDetail |
+| 20 | 제품군 태그 선택 UI | PASS/FAIL | 드롭다운 + 태그 + 최대 3개 |
+| 21 | productFamily 뱃지 + fallback | PASS/FAIL | 뱃지 + retrievalQuality 경고 |
+| 22 | 제품군/검색품질 라벨 | PASS/FAIL | 라벨 맵 + 함수 |
+| 23 | API client 타입 확장 | PASS/FAIL | ProductFamilyInfo + getProductFamilies |
+| 24 | FileQueueItem 드롭다운 | PASS/FAIL | 자유 텍스트 vs 드롭다운 |
 
 ### Step 16: WorkflowResultCard 공유 컴포넌트 사용 확인
 
@@ -352,6 +361,71 @@ grep -n "listAnswerDraftHistoryDetail\|AnswerHistoryDetailResult\|aiReviewHistor
 
 **PASS:** client.ts에 `listAnswerDraftHistoryDetail` 함수 + `AnswerHistoryDetailResult` 타입 정의, HistoryTab에서 사용
 **FAIL:** 기존 `listAnswerDraftHistory` 사용 (AI 리뷰 이력 미포함)
+
+### Step 20: InquiryCreateForm 제품군 태그 선택 UI 확인
+
+**파일:** `InquiryCreateForm.tsx`
+
+**검사:** 제품군 드롭다운 + "추가" 버튼 + 태그 뱃지(X 제거 버튼) + 최대 3개 제한이 구현되어 있는지 확인. `getProductFamilies()` API를 호출하여 옵션을 로드하는지 확인.
+
+```bash
+grep -n "productFamilies\|getProductFamilies\|MAX_PRODUCT\|제품군\|추가\|제거" frontend/src/components/inquiry/InquiryCreateForm.tsx
+```
+
+**PASS:** 드롭다운 + 추가 버튼 + 태그 뱃지 + X 제거 + 최대 3개 제한 + getProductFamilies API 호출
+**FAIL:** 제품군 선택 UI 없음 또는 자유 텍스트 입력
+
+### Step 21: InquiryAnswerTab productFamily 뱃지 + retrievalQuality fallback 확인
+
+**파일:** `InquiryAnswerTab.tsx`
+
+**검사:** 증거 상세에 productFamily 뱃지가 표시되고, retrievalQuality가 EXACT가 아닐 때 경고 배너가 표시되는지 확인. extractedProductFamilies 태그 표시도 확인.
+
+```bash
+grep -n "productFamily\|retrievalQuality\|CATEGORY_EXPANDED\|UNFILTERED\|extractedProductFamilies\|labelProductFamily\|labelRetrievalQuality" frontend/src/components/inquiry/InquiryAnswerTab.tsx
+```
+
+**PASS:** productFamily 뱃지 + retrievalQuality 조건부 경고 배너 + extractedProductFamilies 태그 + labelProductFamily/labelRetrievalQuality 함수 사용
+**FAIL:** productFamily 표시 없음 또는 retrievalQuality 경고 없음
+
+### Step 22: labels.ts 제품군/검색품질 라벨 확인
+
+**파일:** `frontend/src/lib/i18n/labels.ts`
+
+**검사:** `PRODUCT_FAMILY_LABELS` (10개 제품군) 맵과 `labelProductFamily()` 함수, `RETRIEVAL_QUALITY_LABELS` 맵과 `labelRetrievalQuality()` 함수가 존재하는지 확인.
+
+```bash
+grep -n "PRODUCT_FAMILY_LABELS\|labelProductFamily\|RETRIEVAL_QUALITY_LABELS\|labelRetrievalQuality" frontend/src/lib/i18n/labels.ts
+```
+
+**PASS:** PRODUCT_FAMILY_LABELS (10항목) + labelProductFamily + RETRIEVAL_QUALITY_LABELS (3항목) + labelRetrievalQuality 함수 모두 존재
+**FAIL:** 라벨 맵 또는 함수 누락
+
+### Step 23: API client 제품군 타입 확장 확인
+
+**파일:** `frontend/src/lib/api/client.ts`
+
+**검사:** `ProductFamilyInfo` 인터페이스, `getProductFamilies()` API, `AnalyzeEvidenceItem.productFamily`, `AnswerDraftResult.retrievalQuality/extractedProductFamilies`, `CreateInquiryPayload.productFamilies` 타입이 정의되어 있는지 확인.
+
+```bash
+grep -n "ProductFamilyInfo\|getProductFamilies\|retrievalQuality\|extractedProductFamilies\|productFamilies" frontend/src/lib/api/client.ts
+```
+
+**PASS:** ProductFamilyInfo + getProductFamilies() + retrievalQuality + extractedProductFamilies + productFamilies 모두 존재
+**FAIL:** 타입 또는 API 함수 누락
+
+### Step 24: FileQueueItem 제품군 드롭다운 확인
+
+**파일:** `frontend/src/components/upload/FileQueueItem.tsx`
+
+**검사:** KB 문서 업로드 시 제품군 선택이 자유 텍스트가 아닌 드롭다운으로 구현되어 있는지 확인.
+
+```bash
+grep -n "productFamily\|getProductFamilies\|select\|option" frontend/src/components/upload/FileQueueItem.tsx
+```
+
+**PASS:** `<select>` 또는 드롭다운 + getProductFamilies 옵션 로드
+**FAIL:** `<input type="text">` 자유 텍스트 입력
 
 ## Exceptions
 

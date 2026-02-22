@@ -57,6 +57,11 @@ public class QdrantVectorStore implements VectorStore {
 
     @Override
     public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType) {
+        upsert(chunkId, documentId, vector, content, sourceType, null);
+    }
+
+    @Override
+    public void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType, String productFamily) {
         ensureCollection(vector.size());
 
         Map<String, Object> payload = new HashMap<>();
@@ -64,7 +69,7 @@ public class QdrantVectorStore implements VectorStore {
         payload.put("documentId", documentId.toString());
         payload.put("content", content == null ? "" : content);
         payload.put("sourceType", sourceType == null ? "INQUIRY" : sourceType);
-        payload.put("productFamily", "");
+        payload.put("productFamily", productFamily == null ? "" : productFamily);
 
         Map<String, Object> point = new HashMap<>();
         point.put("id", chunkId.toString());
@@ -79,7 +84,7 @@ public class QdrantVectorStore implements VectorStore {
                 .retrieve()
                 .toBodilessEntity();
 
-        log.info("qdrant.upsert.success chunkId={} documentId={} sourceType={} dim={}", chunkId, documentId, sourceType, vector.size());
+        log.info("qdrant.upsert.success chunkId={} documentId={} sourceType={} productFamily={} dim={}", chunkId, documentId, sourceType, productFamily, vector.size());
     }
 
     @Override
@@ -98,34 +103,59 @@ public class QdrantVectorStore implements VectorStore {
 
         if (filter != null && !filter.isEmpty()) {
             List<Map<String, Object>> mustClauses = new ArrayList<>();
+            List<Map<String, Object>> shouldClauses = new ArrayList<>();
 
-            if (filter.hasDocumentFilter()) {
+            // inquiryId 스코핑: documentIds OR sourceTypes (OR 로직)
+            if (filter.hasDocumentFilter() && filter.hasSourceTypeFilter() && filter.inquiryId() != null) {
                 List<String> docIdStrings = filter.documentIds().stream()
                         .map(UUID::toString)
                         .toList();
-                mustClauses.add(Map.of(
+                shouldClauses.add(Map.of(
                         "key", "documentId",
                         "match", Map.of("any", docIdStrings)
                 ));
-            }
-
-            if (filter.hasProductFilter()) {
-                mustClauses.add(Map.of(
-                        "key", "productFamily",
-                        "match", Map.of("value", filter.productFamily())
-                ));
-            }
-
-            if (filter.hasSourceTypeFilter()) {
                 List<String> sourceTypeList = new ArrayList<>(filter.sourceTypes());
-                mustClauses.add(Map.of(
+                shouldClauses.add(Map.of(
                         "key", "sourceType",
                         "match", Map.of("any", sourceTypeList)
                 ));
+            } else {
+                if (filter.hasDocumentFilter()) {
+                    List<String> docIdStrings = filter.documentIds().stream()
+                            .map(UUID::toString)
+                            .toList();
+                    mustClauses.add(Map.of(
+                            "key", "documentId",
+                            "match", Map.of("any", docIdStrings)
+                    ));
+                }
+
+                if (filter.hasSourceTypeFilter()) {
+                    List<String> sourceTypeList = new ArrayList<>(filter.sourceTypes());
+                    mustClauses.add(Map.of(
+                            "key", "sourceType",
+                            "match", Map.of("any", sourceTypeList)
+                    ));
+                }
             }
 
+            if (filter.hasProductFilter()) {
+                List<String> productFamilyList = new ArrayList<>(filter.productFamilies());
+                mustClauses.add(Map.of(
+                        "key", "productFamily",
+                        "match", Map.of("any", productFamilyList)
+                ));
+            }
+
+            Map<String, Object> filterMap = new HashMap<>();
             if (!mustClauses.isEmpty()) {
-                body.put("filter", Map.of("must", mustClauses));
+                filterMap.put("must", mustClauses);
+            }
+            if (!shouldClauses.isEmpty()) {
+                filterMap.put("should", shouldClauses);
+            }
+            if (!filterMap.isEmpty()) {
+                body.put("filter", filterMap);
             }
         }
 

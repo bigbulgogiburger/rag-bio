@@ -145,6 +145,7 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
     }
   };
 
+
   const handleSaveQuestion = async () => {
     if (!inquiry || !editedQuestion.trim()) return;
     setSavingQuestion(true);
@@ -169,6 +170,7 @@ export default function InquiryInfoTab({ inquiryId }: InquiryInfoTabProps) {
   const hasFailedDocuments = documents.some(
     (doc) => doc.status === "FAILED" || doc.status === "FAILED_PARSING"
   );
+
 
   const baseColumns = [
     {

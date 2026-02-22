@@ -184,25 +184,28 @@ public class DocumentController {
     @PostMapping("/indexing/run")
     public ResponseEntity<?> runIndexing(
             @Parameter(description = "문의 ID (UUID)") @PathVariable String inquiryId,
-            @RequestParam(name = "failedOnly", defaultValue = "false") boolean failedOnly
+            @RequestParam(name = "failedOnly", defaultValue = "false") boolean failedOnly,
+            @RequestParam(name = "force", defaultValue = "false") boolean force
     ) {
-        log.info("document.indexing.run.request inquiryId={} failedOnly={}", inquiryId, failedOnly);
+        log.info("document.indexing.run.request inquiryId={} failedOnly={} force={}", inquiryId, failedOnly, force);
         UUID inquiryUuid = parseInquiryId(inquiryId);
         inquiryRepository.findById(new InquiryId(inquiryUuid))
                 .orElseThrow(() -> new NotFoundException("INQUIRY_NOT_FOUND", "문의를 찾을 수 없습니다."));
 
-        // Reject if all eligible documents are currently being indexed (intermediate states)
-        Set<String> indexingStates = Set.of("PARSING", "PARSED", "PARSED_OCR", "CHUNKED");
-        List<DocumentMetadataJpaEntity> docs = documentMetadataJpaRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid);
-        boolean allInProgress = !docs.isEmpty() && docs.stream()
-                .allMatch(d -> indexingStates.contains(d.getStatus()) || "INDEXED".equals(d.getStatus()));
-        if (allInProgress) {
-            log.info("document.indexing.run.conflict inquiryId={} reason=all_documents_already_indexing_or_indexed", inquiryUuid);
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "All documents are already being indexed or have been indexed."));
+        // force 모드가 아닐 때만 conflict 체크
+        if (!force) {
+            Set<String> indexingStates = Set.of("PARSING", "PARSED", "PARSED_OCR", "CHUNKED");
+            List<DocumentMetadataJpaEntity> docs = documentMetadataJpaRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryUuid);
+            boolean allInProgress = !docs.isEmpty() && docs.stream()
+                    .allMatch(d -> indexingStates.contains(d.getStatus()) || "INDEXED".equals(d.getStatus()));
+            if (allInProgress) {
+                log.info("document.indexing.run.conflict inquiryId={} reason=all_documents_already_indexing_or_indexed", inquiryUuid);
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "All documents are already being indexed or have been indexed."));
+            }
         }
 
-        IndexingRunResponse response = documentIndexingService.run(inquiryUuid, failedOnly);
+        IndexingRunResponse response = documentIndexingService.run(inquiryUuid, failedOnly, force);
         log.info("document.indexing.run.success inquiryId={} processed={} succeeded={} failed={}",
                 response.inquiryId(), response.processed(), response.succeeded(), response.failed());
         return ResponseEntity.ok(response);

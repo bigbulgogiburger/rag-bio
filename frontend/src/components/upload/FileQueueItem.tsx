@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { UploadQueueFile } from "@/lib/api/client";
-import { KB_CATEGORY_LABELS } from "@/lib/i18n/labels";
+import { KB_CATEGORY_LABELS, PRODUCT_FAMILY_LABELS } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 
 interface FileQueueItemProps {
@@ -179,15 +179,20 @@ export default function FileQueueItem({ item, onRemove, onMetadataChange, disabl
                   </option>
                 ))}
               </select>
-              <input
+              <select
                 className={inputClasses}
-                type="text"
-                placeholder="제품군"
                 value={item.metadata.productFamily}
                 onChange={(e) => onMetadataChange(item.id, "productFamily", e.target.value)}
                 disabled={disabled}
                 aria-label="제품군"
-              />
+              >
+                <option value="">제품군 선택</option>
+                {Object.entries(PRODUCT_FAMILY_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </>

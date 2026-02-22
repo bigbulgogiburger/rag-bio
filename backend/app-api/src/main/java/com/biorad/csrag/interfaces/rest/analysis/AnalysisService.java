@@ -83,7 +83,10 @@ public class AnalysisService {
     public List<PerQuestionEvidence> retrievePerQuestion(UUID inquiryId, List<SubQuestion> subQuestions, int topK, SearchFilter filter) {
         List<PerQuestionEvidence> results = new ArrayList<>();
         for (SubQuestion sq : subQuestions) {
-            List<EvidenceItem> evidences = retrieve(inquiryId, sq.question(), topK, filter);
+            SearchFilter sqFilter = (!sq.productFamilies().isEmpty())
+                    ? SearchFilter.forProducts(filter.inquiryId(), sq.productFamilies())
+                    : filter;
+            List<EvidenceItem> evidences = retrieve(inquiryId, sq.question(), topK, sqFilter);
             results.add(PerQuestionEvidence.of(sq, evidences));
         }
         return results;
@@ -135,6 +138,8 @@ public class AnalysisService {
             Integer pageStart = chunk != null ? chunk.getPageStart() : null;
             Integer pageEnd = chunk != null ? chunk.getPageEnd() : null;
 
+            String productFamily = chunk != null ? chunk.getProductFamily() : null;
+
             evidences.add(new EvidenceItem(
                     result.chunkId().toString(),
                     result.documentId().toString(),
@@ -143,7 +148,8 @@ public class AnalysisService {
                     result.sourceType(),
                     fileName,
                     pageStart,
-                    pageEnd
+                    pageEnd,
+                    productFamily
             ));
             rank++;
         }

@@ -143,6 +143,11 @@ public class KnowledgeDocumentJpaEntity {
         this.updatedAt = Instant.now();
     }
 
+    public void markReindexing() {
+        this.status = "REINDEXING";
+        this.updatedAt = Instant.now();
+    }
+
     public void markParsing() {
         this.status = "PARSING";
         this.updatedAt = Instant.now();

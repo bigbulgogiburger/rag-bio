@@ -33,7 +33,7 @@ argument-hint: "[선택사항: 특정 스킬 이름 또는 집중할 영역]"
 | `verify-kb-indexing` | KB 비동기 인덱싱 파이프라인 검증 | `backend/**/knowledge/*.java`, `backend/**/AsyncConfig.java`, `backend/**/DocumentTextExtractor.java` |
 | `verify-flyway-migrations` | Flyway DB 마이그레이션 일관성 검증 | `backend/**/db/migration/V*.sql`, `backend/**/persistence/**/*JpaEntity.java` |
 | `verify-frontend-ui` | 프론트엔드 UI 컴포넌트 품질 검증 | `frontend/src/components/ui/*.tsx`, `frontend/src/app/globals.css`, `frontend/src/app/layout.tsx` |
-| `verify-rag-pipeline` | RAG 파이프라인 검증 | `backend/**/answer/**/*.java`, `backend/**/analysis/*.java`, `backend/**/document/DocumentDownloadController.java` |
+| `verify-rag-pipeline` | RAG 파이프라인 검증 | `backend/**/answer/**/*.java`, `backend/**/analysis/*.java`, `backend/**/search/*.java`, `backend/**/vector/*.java`, `backend/**/document/DocumentDownloadController.java` |
 | `verify-inquiry-ui` | 문의 상세 페이지 UI 검증 | `frontend/src/components/inquiry/*.tsx`, `frontend/src/components/upload/*.tsx` |
 
 ## 워크플로우

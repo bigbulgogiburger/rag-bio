@@ -10,6 +10,7 @@ description: 프론트엔드 UI 컴포넌트 품질 검증 (shadcn/ui + Tailwind
 3. **다크 모드 호환** — `.dark` 클래스 기반 테마 전환 시 색상 정상 동작 확인
 4. **TypeScript 타입 안전성** — Props 인터페이스, cva variants, 제네릭 사용 확인
 5. **shadcn/ui 패턴 준수** — cn() 유틸리티, cva, forwardRef, Radix 프리미티브 사용 확인
+6. **모바일 반응형** — 햄버거 메뉴, 터치 타겟, DataTable 수평 스크롤, FilterBar 모바일 최적화 확인
 
 ## When to Run
 
@@ -44,6 +45,8 @@ description: 프론트엔드 UI 컴포넌트 품질 검증 (shadcn/ui + Tailwind
 | `frontend/src/components/theme-provider.tsx` | next-themes ThemeProvider 래퍼 |
 | `frontend/src/components/theme-toggle.tsx` | 다크/라이트 모드 토글 버튼 |
 | `frontend/src/app/layout.tsx` | 루트 레이아웃 (sticky footer, header/main/footer 구조) |
+| `frontend/src/components/app-shell-nav.tsx` | 상단 네비게이션 (데스크톱 수평 nav + 모바일 햄버거 메뉴) |
+| `frontend/src/app/dashboard/page.tsx` | 대시보드 (반응형 통계 그리드) |
 
 ## Workflow
 
@@ -166,7 +169,7 @@ wc -l frontend/src/app/globals.css
 grep -c '^\.' frontend/src/app/globals.css
 ```
 
-**PASS:** 120줄 이하, 컴포넌트 CSS 클래스 없음 (.dark만 허용)
+**PASS:** 180줄 이하, 컴포넌트 CSS 클래스 없음 (.dark만 허용)
 **FAIL:** 레거시 CSS 클래스 잔존 (.btn, .card, .badge 등)
 
 ### Step 9: shadcn 컴포넌트 패턴 확인
@@ -209,6 +212,58 @@ grep -c "export" frontend/src/components/ui/index.ts
 **PASS:** Badge, DataTable, Pagination, Tabs, Toast, EmptyState, FilterBar, Toaster, Button, Card*, Input, Skeleton 모두 export (PdfViewer, PdfExpandModal 제외)
 **FAIL:** 신규 컴포넌트 export 누락 (단, SSR 미지원 컴포넌트는 제외가 정상)
 
+### Step 12: 모바일 햄버거 메뉴 확인
+
+**파일:** `frontend/src/components/app-shell-nav.tsx`
+
+**검사:** md: 이상에서 수평 네비게이션, md: 미만에서 햄버거 버튼 + 슬라이드 오버레이 메뉴가 구현되어 있는지 확인. 메뉴 열기/닫기 상태 관리와 ARIA 속성(aria-expanded, dialog role) 확인.
+
+```bash
+grep -n "md:hidden\|md:flex\|hamburger\|메뉴 열기\|메뉴 닫기\|isMenuOpen\|aria-expanded\|dialog\|모바일" frontend/src/components/app-shell-nav.tsx
+```
+
+**PASS:** md:hidden 햄버거 + md:flex 수평 nav + 슬라이드 오버레이 + aria-expanded + dialog role
+**FAIL:** 모바일에서 수평 네비게이션 그대로 표시 또는 햄버거 메뉴 없음
+
+### Step 13: 터치 타겟 최소 크기 확인
+
+**파일:** `frontend/src/app/globals.css`
+
+**검사:** `@media (pointer: coarse)` 쿼리로 터치 디바이스에서 최소 44px 터치 타겟이 설정되어 있는지 확인.
+
+```bash
+grep -n "pointer.*coarse\|min-height.*44\|min-width.*44\|touch" frontend/src/app/globals.css
+```
+
+**PASS:** `@media (pointer: coarse)` + 44px 최소 터치 타겟 규칙 존재
+**FAIL:** 터치 타겟 규칙 없음
+
+### Step 14: DataTable 모바일 수평 스크롤 확인
+
+**파일:** `frontend/src/components/ui/DataTable.tsx`
+
+**검사:** 테이블 wrapper에 `overflow-x-auto` + `min-w-[640px]` 패턴이 적용되어 모바일에서 수평 스크롤이 가능한지 확인.
+
+```bash
+grep -n "overflow-x-auto\|min-w-\[640px\]" frontend/src/components/ui/DataTable.tsx
+```
+
+**PASS:** `overflow-x-auto` wrapper + `min-w-[640px]` 테이블 최소 너비
+**FAIL:** overflow-x-auto 없이 모바일에서 테이블 깨짐
+
+### Step 15: FilterBar 모바일 최적화 확인
+
+**파일:** `frontend/src/components/ui/FilterBar.tsx`
+
+**검사:** 필터 입력의 최소 너비가 모바일에서 `min-w-0`으로 축소 가능하고, sm: 이상에서 `sm:min-w-[160px]`로 복원되는지 확인.
+
+```bash
+grep -n "min-w-0\|sm:min-w" frontend/src/components/ui/FilterBar.tsx
+```
+
+**PASS:** `min-w-0 sm:min-w-[160px]` 반응형 패턴
+**FAIL:** `min-w-[160px]` 고정 (모바일 오버플로우)
+
 ## Output Format
 
 | # | 검사 항목 | 결과 | 상세 |
@@ -224,6 +279,10 @@ grep -c "export" frontend/src/components/ui/index.ts
 | 9 | shadcn 컴포넌트 패턴 | PASS/FAIL | 누락 패턴 |
 | 10 | PdfViewer SSR 제한 | PASS/FAIL | import 방식 |
 | 11 | 배럴 export 완전성 | PASS/FAIL | 누락 export |
+| 12 | 모바일 햄버거 메뉴 | PASS/FAIL | md:hidden 햄버거 + 슬라이드 오버레이 |
+| 13 | 터치 타겟 최소 크기 | PASS/FAIL | @media (pointer: coarse) + 44px |
+| 14 | DataTable 수평 스크롤 | PASS/FAIL | overflow-x-auto + min-w-[640px] |
+| 15 | FilterBar 모바일 최적화 | PASS/FAIL | min-w-0 sm:min-w-[160px] |
 
 ## Exceptions
 

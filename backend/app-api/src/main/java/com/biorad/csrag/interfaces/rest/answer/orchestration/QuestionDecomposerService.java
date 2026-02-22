@@ -1,18 +1,27 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.interfaces.rest.search.ProductExtractorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Component
 public class QuestionDecomposerService {
 
     private static final Logger log = LoggerFactory.getLogger(QuestionDecomposerService.class);
+
+    private final ProductExtractorService productExtractorService;
+
+    public QuestionDecomposerService(ProductExtractorService productExtractorService) {
+        this.productExtractorService = productExtractorService;
+    }
 
     // Greeting/signature patterns to strip
     private static final Pattern GREETING_PATTERN = Pattern.compile(
@@ -49,10 +58,33 @@ public class QuestionDecomposerService {
             subQuestions = List.of(new SubQuestion(1, cleaned, productContext));
         }
 
+        // 하위 질문별 제품 패밀리 추출
+        subQuestions = enrichWithProductFamilies(subQuestions);
+
         log.debug("Decomposed question into {} sub-questions, productContext={}",
                 subQuestions.size(), productContext);
 
         return new DecomposedQuestion(original, subQuestions, productContext);
+    }
+
+    /**
+     * 각 하위 질문에서 제품명을 추출하여 productFamilies를 설정한다.
+     */
+    private List<SubQuestion> enrichWithProductFamilies(List<SubQuestion> subQuestions) {
+        List<SubQuestion> enriched = new ArrayList<>(subQuestions.size());
+        for (SubQuestion sq : subQuestions) {
+            List<ProductExtractorService.ExtractedProduct> products =
+                    productExtractorService.extractAll(sq.question());
+            if (products.isEmpty()) {
+                enriched.add(sq);
+            } else {
+                Set<String> families = products.stream()
+                        .map(ProductExtractorService.ExtractedProduct::productFamily)
+                        .collect(Collectors.toSet());
+                enriched.add(new SubQuestion(sq.index(), sq.question(), sq.context(), families));
+            }
+        }
+        return enriched;
     }
 
     private String extractProductContext(String text) {

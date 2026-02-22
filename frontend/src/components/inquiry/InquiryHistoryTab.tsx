@@ -256,7 +256,7 @@ export default function InquiryHistoryTab({ inquiryId, inquiryQuestion }: Inquir
 
   // Render answer body with clickable citation links
   const renderDraftWithCitations = (text: string): ReactNode => {
-    const citationRegex = /\(([^,]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
+    const citationRegex = /\(([^,가-힣\n]+\.pdf),\s*p\.(\d+)(?:-(\d+))?\)/gi;
     const parts: ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -415,7 +415,7 @@ export default function InquiryHistoryTab({ inquiryId, inquiryQuestion }: Inquir
       </div>
 
       {selected && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[1fr_400px]">
           {/* Left: Version detail */}
           <div className="space-y-6">
             <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
@@ -424,12 +424,12 @@ export default function InquiryHistoryTab({ inquiryId, inquiryQuestion }: Inquir
               <hr className="border-t border-border" />
 
               {/* Version summary metrics */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">버전</p>
                   <p className="text-2xl font-bold tracking-tight text-foreground">v{selected.answer.version}</p>
                 </div>
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">상태</p>
                   <div className="text-lg font-bold tracking-tight text-foreground">
                     <Badge variant={getAnswerStatusBadgeVariant(selected.answer.status)}>
@@ -437,7 +437,7 @@ export default function InquiryHistoryTab({ inquiryId, inquiryQuestion }: Inquir
                     </Badge>
                   </div>
                 </div>
-                <div className="rounded-xl border bg-card p-5 shadow-sm">
+                <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">판정 / 신뢰도</p>
                   <div className="text-lg font-bold tracking-tight text-foreground">
                     <Badge variant={getVerdictBadgeVariant(selected.answer.verdict)}>

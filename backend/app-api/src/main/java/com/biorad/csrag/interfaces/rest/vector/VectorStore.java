@@ -24,6 +24,20 @@ public interface VectorStore {
     void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType);
 
     /**
+     * 벡터 저장 (sourceType + productFamily 포함)
+     *
+     * @param chunkId       청크 ID
+     * @param documentId    문서 ID
+     * @param vector        임베딩 벡터
+     * @param content       청크 내용
+     * @param sourceType    "INQUIRY" 또는 "KNOWLEDGE_BASE"
+     * @param productFamily 제품 패밀리 (예: "naica", "vericheck", nullable)
+     */
+    default void upsert(UUID chunkId, UUID documentId, List<Double> vector, String content, String sourceType, String productFamily) {
+        upsert(chunkId, documentId, vector, content, sourceType);
+    }
+
+    /**
      * 벡터 검색 (필터 없음 - 하위 호환)
      */
     List<VectorSearchResult> search(List<Double> queryVector, int topK);

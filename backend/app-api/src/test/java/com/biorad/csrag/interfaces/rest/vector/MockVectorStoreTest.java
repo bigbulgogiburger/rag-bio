@@ -1,9 +1,11 @@
 package com.biorad.csrag.interfaces.rest.vector;
 
+import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -107,5 +109,78 @@ class MockVectorStoreTest {
         assertThat(store.size()).isEqualTo(1);
         List<VectorSearchResult> results = store.search(List.of(1.0), 5);
         assertThat(results.get(0).content()).isEqualTo("updated");
+    }
+
+    @Test
+    void search_withMultipleProductFamilies_matchesAny() {
+        UUID docId = UUID.randomUUID();
+        List<Double> vector = List.of(1.0, 0.0, 0.0);
+
+        store.upsert(UUID.randomUUID(), docId, vector, "naica doc", "KNOWLEDGE_BASE", "naica");
+        store.upsert(UUID.randomUUID(), docId, vector, "cfx doc", "KNOWLEDGE_BASE", "CFX96");
+        store.upsert(UUID.randomUUID(), docId, vector, "qx doc", "KNOWLEDGE_BASE", "QX200");
+
+        SearchFilter filter = SearchFilter.forProducts(null, Set.of("naica", "CFX96"));
+        List<VectorSearchResult> results = store.search(vector, 10, filter);
+
+        assertThat(results).hasSize(2);
+        assertThat(results).extracting(VectorSearchResult::content)
+                .containsExactlyInAnyOrder("naica doc", "cfx doc");
+    }
+
+    @Test
+    void search_withMultipleProductFamilies_excludesOthers() {
+        UUID docId = UUID.randomUUID();
+        List<Double> vector = List.of(1.0, 0.0, 0.0);
+
+        store.upsert(UUID.randomUUID(), docId, vector, "naica doc", "KNOWLEDGE_BASE", "naica");
+        store.upsert(UUID.randomUUID(), docId, vector, "other doc", "KNOWLEDGE_BASE", "BioPlex2200");
+
+        SearchFilter filter = SearchFilter.forProducts(null, Set.of("naica"));
+        List<VectorSearchResult> results = store.search(vector, 10, filter);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).content()).isEqualTo("naica doc");
+    }
+
+    @Test
+    void search_withProductFilter_caseInsensitive() {
+        UUID docId = UUID.randomUUID();
+        List<Double> vector = List.of(1.0, 0.0, 0.0);
+
+        store.upsert(UUID.randomUUID(), docId, vector, "naica doc", "KNOWLEDGE_BASE", "naica");
+
+        SearchFilter filter = SearchFilter.forProducts(null, Set.of("NAICA"));
+        List<VectorSearchResult> results = store.search(vector, 10, filter);
+
+        assertThat(results).hasSize(1);
+    }
+
+    @Test
+    void search_withNullFilter_returnsAll() {
+        UUID docId = UUID.randomUUID();
+        List<Double> vector = List.of(1.0, 0.0, 0.0);
+
+        store.upsert(UUID.randomUUID(), docId, vector, "c1", "INQUIRY", null);
+        store.upsert(UUID.randomUUID(), docId, vector, "c2", "KNOWLEDGE_BASE", "naica");
+
+        List<VectorSearchResult> results = store.search(vector, 10, null);
+        assertThat(results).hasSize(2);
+    }
+
+    @Test
+    void upsert_withProductFamily_storesMetadata() {
+        UUID chunkId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+        List<Double> vector = List.of(1.0, 0.0);
+
+        store.upsert(chunkId, docId, vector, "content", "KNOWLEDGE_BASE", "naica");
+
+        assertThat(store.size()).isEqualTo(1);
+
+        // Search without filter returns the record
+        List<VectorSearchResult> results = store.search(vector, 5);
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).sourceType()).isEqualTo("KNOWLEDGE_BASE");
     }
 }

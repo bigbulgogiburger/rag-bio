@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             본문으로 건너뛰기
           </a>
           <header className="sticky top-0 z-50 border-b border-border/50 bg-card/80 backdrop-blur-md">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 sm:px-6 sm:py-3">
               <Link href="/dashboard" className="flex items-center gap-3 transition-opacity hover:opacity-80">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -55,10 +55,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
 
-          <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 flex-1 w-full">{children}</main>
+          <main id="main-content" className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 flex-1 w-full">{children}</main>
 
           <footer className="border-t border-border/50 bg-slate-900 text-slate-400 dark:bg-slate-950 dark:text-slate-500" role="contentinfo">
-            <div className="mx-auto flex max-w-7xl gap-8 px-6 py-8 text-xs">
+            <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 text-xs sm:flex-row sm:gap-8 sm:px-6 sm:py-8">
               <div className="flex-1 space-y-1">
                 <div className="mb-3 flex items-center gap-2">
                   <div className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-blue-600 text-[0.6rem] font-extrabold text-white">
@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <p>권한 없는 승인/발송 요청은 자동으로 차단됩니다.</p>
               </div>
 
-              <div className="w-px shrink-0 self-stretch bg-slate-700 dark:bg-slate-800" aria-hidden="true" />
+              <div className="hidden sm:block w-px shrink-0 self-stretch bg-slate-700 dark:bg-slate-800" aria-hidden="true" />
 
               <div className="space-y-1">
                 <strong className="mb-2 block text-slate-200 dark:text-slate-300">지원 정보</strong>

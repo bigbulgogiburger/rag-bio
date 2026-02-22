@@ -15,8 +15,10 @@ import { SmartUploadModal } from "@/components/upload";
 import {
   labelKbCategory,
   labelDocStatus,
+  labelProductFamily,
   KB_CATEGORY_LABELS,
   DOC_STATUS_LABELS,
+  PRODUCT_FAMILY_LABELS,
 } from "@/lib/i18n/labels";
 import { showToast } from "@/lib/toast";
 import DataTable from "@/components/ui/DataTable";
@@ -98,6 +100,12 @@ export default function KnowledgeBasePage() {
       };
       const data = await listKbDocuments(params);
       setResponse(data);
+
+      // 모달이 열려있으면 selectedDoc도 갱신
+      if (selectedDoc) {
+        const updated = data.content.find((d) => d.documentId === selectedDoc.documentId);
+        if (updated) setSelectedDoc(updated);
+      }
     } catch {
       // 백그라운드 실패 시 무시 (기존 데이터 유지)
     }
@@ -121,7 +129,7 @@ export default function KnowledgeBasePage() {
   useEffect(() => {
     if (!response) return;
 
-    const hasIndexing = response.content.some((doc) => doc.status === "INDEXING");
+    const hasIndexing = response.content.some((doc) => doc.status === "INDEXING" || doc.status === "REINDEXING");
     if (!hasIndexing) return;
 
     const interval = setInterval(() => {
@@ -211,8 +219,9 @@ export default function KnowledgeBasePage() {
     }
   };
 
+
   const getStatusBadgeVariant = (status: string): "info" | "success" | "warn" | "danger" | "neutral" => {
-    if (status === "INDEXING") return "warn";
+    if (status === "INDEXING" || status === "REINDEXING") return "warn";
     if (status === "INDEXED") return "success";
     if (status === "FAILED") return "danger";
     if (status === "UPLOADED") return "neutral";
@@ -238,8 +247,13 @@ export default function KnowledgeBasePage() {
     {
       key: "productFamily",
       header: "제품군",
-      width: "120px",
-      render: (item: KbDocument) => item.productFamily || <span className="text-sm text-muted-foreground">-</span>,
+      width: "140px",
+      render: (item: KbDocument) =>
+        item.productFamily ? (
+          <Badge variant="info">{labelProductFamily(item.productFamily)}</Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        ),
     },
     {
       key: "status",
@@ -247,7 +261,7 @@ export default function KnowledgeBasePage() {
       width: "120px",
       render: (item: KbDocument) => (
         <Badge variant={getStatusBadgeVariant(item.status)}>
-          {item.status === "INDEXING" && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+          {(item.status === "INDEXING" || item.status === "REINDEXING") && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
           {labelDocStatus(item.status)}
         </Badge>
       ),
@@ -285,8 +299,14 @@ export default function KnowledgeBasePage() {
     {
       key: "productFamily",
       label: "제품군",
-      type: "text" as const,
-      placeholder: "제품군 검색",
+      type: "select" as const,
+      options: [
+        { value: "", label: "전체" },
+        ...Object.entries(PRODUCT_FAMILY_LABELS).map(([key, label]) => ({
+          value: key,
+          label,
+        })),
+      ],
     },
     {
       key: "status",
@@ -330,28 +350,43 @@ export default function KnowledgeBasePage() {
 
       {/* Stats Cards */}
       {stats ? (
-        <section className="grid grid-cols-3 gap-4">
-          <article className="rounded-xl border bg-card p-5 shadow-sm">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
             <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
           </article>
-          <article className="rounded-xl border bg-card p-5 shadow-sm">
+          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
             <p className="text-2xl font-bold tracking-tight text-foreground">{stats.indexedDocuments}건</p>
           </article>
-          <article className="rounded-xl border bg-card p-5 shadow-sm">
+          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
             <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
           </article>
         </section>
       ) : (
-        <section className="grid grid-cols-3 gap-4">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <article className="rounded-xl border bg-card p-5 shadow-sm" key={i}>
+            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={i}>
               <Skeleton className="h-3.5 w-20 mb-2" />
               <Skeleton className="h-8 w-[100px]" />
             </article>
           ))}
+        </section>
+      )}
+
+      {/* Product Family Distribution */}
+      {stats && stats.byProductFamily && Object.keys(stats.byProductFamily).length > 0 && (
+        <section>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">제품군별 분포</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {Object.entries(stats.byProductFamily).map(([family, count]) => (
+              <article key={family} className="rounded-xl border bg-card p-4 shadow-sm">
+                <p className="text-xs font-medium text-muted-foreground truncate">{labelProductFamily(family)}</p>
+                <p className="text-lg font-bold tracking-tight text-foreground">{count}건</p>
+              </article>
+            ))}
+          </div>
         </section>
       )}
 
@@ -433,12 +468,12 @@ export default function KnowledgeBasePage() {
 
             <div className="space-y-2 text-sm">
               <div><b>카테고리:</b> {labelKbCategory(selectedDoc.category)}</div>
-              <div><b>제품군:</b> {selectedDoc.productFamily || "-"}</div>
+              <div><b>제품군:</b> {selectedDoc.productFamily ? <Badge variant="info">{labelProductFamily(selectedDoc.productFamily)}</Badge> : "-"}</div>
               <div><b>파일:</b> {selectedDoc.fileName} ({(selectedDoc.fileSize / 1024).toFixed(1)} KB)</div>
               <div>
                 <b>상태:</b>{" "}
                 <Badge variant={getStatusBadgeVariant(selectedDoc.status)}>
-                  {selectedDoc.status === "INDEXING" && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                  {(selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING") && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
                   {labelDocStatus(selectedDoc.status)}
                 </Badge>
               </div>
@@ -460,8 +495,9 @@ export default function KnowledgeBasePage() {
               <Button
                 variant="outline"
                 onClick={() => handleIndex(selectedDoc.documentId)}
+                disabled={selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING"}
               >
-                인덱싱 실행
+                {selectedDoc.status === "INDEXED" ? "재인덱싱" : "인덱싱 실행"}
               </Button>
               <Button
                 variant="destructive"

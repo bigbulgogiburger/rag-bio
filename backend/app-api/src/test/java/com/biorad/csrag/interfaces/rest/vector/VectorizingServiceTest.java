@@ -2,6 +2,8 @@ package com.biorad.csrag.interfaces.rest.vector;
 
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
+import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +22,7 @@ import static org.mockito.Mockito.*;
 class VectorizingServiceTest {
 
     @Mock private DocumentChunkJpaRepository chunkRepository;
+    @Mock private KnowledgeDocumentJpaRepository kbDocRepository;
     @Mock private EmbeddingService embeddingService;
     @Mock private VectorStore vectorStore;
 
@@ -26,7 +30,7 @@ class VectorizingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new VectorizingService(chunkRepository, embeddingService, vectorStore);
+        service = new VectorizingService(chunkRepository, kbDocRepository, embeddingService, vectorStore);
     }
 
     @Test
@@ -37,11 +41,11 @@ class VectorizingServiceTest {
         int result = service.upsertDocumentChunks(docId);
 
         assertThat(result).isEqualTo(0);
-        verify(vectorStore, never()).upsert(any(), any(), anyList(), anyString(), anyString());
+        verify(vectorStore, never()).upsert(any(), any(), anyList(), anyString(), anyString(), any());
     }
 
     @Test
-    void upsertDocumentChunks_withChunks_embedsAndUpserts() {
+    void upsertDocumentChunks_kbChunks_resolvesProductFamilyFromParent() {
         UUID docId = UUID.randomUUID();
         DocumentChunkJpaEntity chunk1 = mock(DocumentChunkJpaEntity.class);
         DocumentChunkJpaEntity chunk2 = mock(DocumentChunkJpaEntity.class);
@@ -50,21 +54,48 @@ class VectorizingServiceTest {
 
         when(chunk1.getId()).thenReturn(chunkId1);
         when(chunk1.getContent()).thenReturn("content 1");
-        when(chunk1.getSourceType()).thenReturn("INQUIRY");
+        when(chunk1.getSourceType()).thenReturn("KNOWLEDGE_BASE");
         when(chunk2.getId()).thenReturn(chunkId2);
         when(chunk2.getContent()).thenReturn("content 2");
         when(chunk2.getSourceType()).thenReturn("KNOWLEDGE_BASE");
 
         when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
                 .thenReturn(List.of(chunk1, chunk2));
+
+        // KB 부모 문서에서 productFamily 조회
+        KnowledgeDocumentJpaEntity kbDoc = mock(KnowledgeDocumentJpaEntity.class);
+        when(kbDoc.getProductFamily()).thenReturn("naica");
+        when(kbDocRepository.findById(docId)).thenReturn(Optional.of(kbDoc));
+
         when(embeddingService.embed("content 1")).thenReturn(List.of(0.1, 0.2));
         when(embeddingService.embed("content 2")).thenReturn(List.of(0.3, 0.4));
 
         int result = service.upsertDocumentChunks(docId);
 
         assertThat(result).isEqualTo(2);
-        verify(vectorStore).upsert(chunkId1, docId, List.of(0.1, 0.2), "content 1", "INQUIRY");
-        verify(vectorStore).upsert(chunkId2, docId, List.of(0.3, 0.4), "content 2", "KNOWLEDGE_BASE");
+        verify(vectorStore).upsert(chunkId1, docId, List.of(0.1, 0.2), "content 1", "KNOWLEDGE_BASE", "naica");
+        verify(vectorStore).upsert(chunkId2, docId, List.of(0.3, 0.4), "content 2", "KNOWLEDGE_BASE", "naica");
+    }
+
+    @Test
+    void upsertDocumentChunks_inquiryChunks_productFamilyNull() {
+        UUID docId = UUID.randomUUID();
+        DocumentChunkJpaEntity chunk = mock(DocumentChunkJpaEntity.class);
+        UUID chunkId = UUID.randomUUID();
+
+        when(chunk.getId()).thenReturn(chunkId);
+        when(chunk.getContent()).thenReturn("content");
+        when(chunk.getSourceType()).thenReturn("INQUIRY");
+        when(chunk.getProductFamily()).thenReturn(null);
+
+        when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
+                .thenReturn(List.of(chunk));
+        when(embeddingService.embed("content")).thenReturn(List.of(0.5));
+
+        service.upsertDocumentChunks(docId);
+
+        verify(vectorStore).upsert(chunkId, docId, List.of(0.5), "content", "INQUIRY", null);
+        verify(kbDocRepository, never()).findById(any());
     }
 
     @Test
@@ -76,6 +107,7 @@ class VectorizingServiceTest {
         when(chunk.getId()).thenReturn(chunkId);
         when(chunk.getContent()).thenReturn("content");
         when(chunk.getSourceType()).thenReturn(null);
+        when(chunk.getProductFamily()).thenReturn(null);
 
         when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
                 .thenReturn(List.of(chunk));
@@ -83,6 +115,6 @@ class VectorizingServiceTest {
 
         service.upsertDocumentChunks(docId);
 
-        verify(vectorStore).upsert(chunkId, docId, List.of(0.5), "content", "INQUIRY");
+        verify(vectorStore).upsert(chunkId, docId, List.of(0.5), "content", "INQUIRY", null);
     }
 }

@@ -2,7 +2,11 @@ package com.biorad.csrag.interfaces.rest.search;
 
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +57,8 @@ public class ProductExtractorService {
                     "TransBlot", false)
     );
 
+    private static final int MAX_EXTRACT_COUNT = 3;
+
     /**
      * 질문 텍스트에서 Bio-Rad 제품명을 추출한다.
      * @return 추출된 제품 정보, 없으면 null
@@ -84,5 +90,40 @@ public class ProductExtractorService {
 
         double confidence = bestExact ? 0.9 : 0.6;
         return new ExtractedProduct(bestMatch.trim(), bestFamily, confidence);
+    }
+
+    /**
+     * 질문 텍스트에서 모든 Bio-Rad 제품명을 추출한다 (최대 3개).
+     * family 중복 시 confidence가 높은 것만 유지한다.
+     * @return 신뢰도 내림차순 정렬된 추출 결과 (없으면 빈 리스트)
+     */
+    public List<ExtractedProduct> extractAll(String question) {
+        if (question == null || question.isBlank()) {
+            return List.of();
+        }
+
+        // family별 최고 confidence 제품만 유지
+        Map<String, ExtractedProduct> bestByFamily = new LinkedHashMap<>();
+
+        for (ProductPattern pp : PRODUCT_PATTERNS) {
+            Matcher matcher = pp.pattern().matcher(question);
+            while (matcher.find()) {
+                String matched = matcher.group().trim();
+                double confidence = pp.exact() ? 0.9 : 0.6;
+                ExtractedProduct candidate = new ExtractedProduct(matched, pp.productFamily(), confidence);
+
+                bestByFamily.merge(pp.productFamily(), candidate,
+                        (existing, newer) -> newer.confidence() > existing.confidence() ? newer : existing);
+            }
+        }
+
+        if (bestByFamily.isEmpty()) {
+            return List.of();
+        }
+
+        return bestByFamily.values().stream()
+                .sorted(Comparator.comparingDouble(ExtractedProduct::confidence).reversed())
+                .limit(MAX_EXTRACT_COUNT)
+                .toList();
     }
 }

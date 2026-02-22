@@ -50,8 +50,10 @@ public class MockKeywordSearchService implements KeywordSearchService {
         }
 
         if (filter.hasProductFilter()) {
-            sql.append(" AND product_family = ?");
-            params.add(filter.productFamily());
+            String placeholdersPf = String.join(",",
+                    filter.productFamilies().stream().map(pf -> "?").toList());
+            sql.append(" AND product_family IN (").append(placeholdersPf).append(")");
+            params.addAll(filter.productFamilies());
         }
 
         if (filter.hasSourceTypeFilter()) {

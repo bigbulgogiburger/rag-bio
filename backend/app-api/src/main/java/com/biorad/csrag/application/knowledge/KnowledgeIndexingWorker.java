@@ -84,7 +84,7 @@ public class KnowledgeIndexingWorker {
                 finalText = limitText(ocr.text());
                 doc.markParsedFromOcr(finalText, ocr.confidence());
                 kbDocRepository.save(doc);
-                chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText, "KNOWLEDGE_BASE", doc.getId());
+                chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText, "KNOWLEDGE_BASE", doc.getId(), doc.getFileName());
             } else {
                 // 페이지별 추출 사용 (PDF는 페이지 정보 보존)
                 List<DocumentTextExtractor.PageText> pageTexts =
@@ -94,7 +94,7 @@ public class KnowledgeIndexingWorker {
                         .collect(Collectors.joining(" ")));
                 doc.markParsed(finalText);
                 kbDocRepository.save(doc);
-                chunkCount = chunkingService.chunkAndStore(doc.getId(), pageTexts, "KNOWLEDGE_BASE", doc.getId());
+                chunkCount = chunkingService.chunkAndStore(doc.getId(), pageTexts, "KNOWLEDGE_BASE", doc.getId(), doc.getFileName());
             }
             doc.markChunked(chunkCount);
             kbDocRepository.save(doc);

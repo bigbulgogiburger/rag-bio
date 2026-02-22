@@ -63,7 +63,7 @@ class KnowledgeIndexingWorkerTest {
                 .thenReturn("This is a long enough extracted text that does not need OCR processing at all.");
         when(textExtractor.extractByPage(any(Path.class), eq("application/pdf")))
                 .thenReturn(List.of(new PageText(1, "Page 1 text here", 0, 16)));
-        when(chunkingService.chunkAndStore(eq(doc.getId()), anyList(), eq("KNOWLEDGE_BASE"), eq(doc.getId())))
+        when(chunkingService.chunkAndStore(eq(doc.getId()), anyList(), eq("KNOWLEDGE_BASE"), eq(doc.getId()), any()))
                 .thenReturn(3);
         when(vectorizingService.upsertDocumentChunks(doc.getId())).thenReturn(3);
         when(kbDocRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -85,7 +85,7 @@ class KnowledgeIndexingWorkerTest {
         when(kbDocRepository.findById(docId)).thenReturn(Optional.of(doc));
         when(textExtractor.extract(any(Path.class), eq("application/pdf"))).thenReturn("");
         when(ocrService.extract(any(Path.class))).thenReturn(new OcrResult("OCR extracted text from scan", 0.85));
-        when(chunkingService.chunkAndStore(eq(doc.getId()), anyString(), eq("KNOWLEDGE_BASE"), eq(doc.getId())))
+        when(chunkingService.chunkAndStore(eq(doc.getId()), anyString(), eq("KNOWLEDGE_BASE"), eq(doc.getId()), any()))
                 .thenReturn(2);
         when(vectorizingService.upsertDocumentChunks(doc.getId())).thenReturn(2);
         when(kbDocRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -127,7 +127,7 @@ class KnowledgeIndexingWorkerTest {
         when(textExtractor.extract(any(Path.class), anyString())).thenReturn(longText);
         when(textExtractor.extractByPage(any(Path.class), anyString()))
                 .thenReturn(List.of(new PageText(1, longText, 0, longText.length())));
-        when(chunkingService.chunkAndStore(eq(doc.getId()), anyList(), eq("KNOWLEDGE_BASE"), eq(doc.getId())))
+        when(chunkingService.chunkAndStore(eq(doc.getId()), anyList(), eq("KNOWLEDGE_BASE"), eq(doc.getId()), any()))
                 .thenReturn(10);
         when(vectorizingService.upsertDocumentChunks(doc.getId())).thenReturn(10);
         when(kbDocRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

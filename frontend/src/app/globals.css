@@ -101,3 +101,17 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Touch-friendly interaction targets */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"],
+  [role="tab"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

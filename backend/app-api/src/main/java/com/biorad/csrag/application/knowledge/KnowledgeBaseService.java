@@ -176,13 +176,17 @@ public class KnowledgeBaseService {
         KnowledgeDocumentJpaEntity doc = kbDocRepository.findById(docId)
                 .orElseThrow(() -> new NotFoundException("KB_DOCUMENT_NOT_FOUND", "지식 기반 문서를 찾을 수 없습니다."));
 
-        // 이미 인덱싱 진행 중이면 409 Conflict
-        if ("INDEXING".equals(doc.getStatus())) {
+        // 이미 인덱싱/재인덱싱 진행 중이면 409 Conflict
+        if ("INDEXING".equals(doc.getStatus()) || "REINDEXING".equals(doc.getStatus())) {
             throw new ConflictException("INDEXING_IN_PROGRESS", "이미 인덱싱이 진행 중입니다.");
         }
 
-        // 상태를 INDEXING으로 변경하고 저장
-        doc.markIndexing();
+        // INDEXED 상태면 재인덱싱, 그 외는 최초 인덱싱
+        if ("INDEXED".equals(doc.getStatus())) {
+            doc.markReindexing();
+        } else {
+            doc.markIndexing();
+        }
         kbDocRepository.save(doc);
 
         // 트랜잭션 커밋 후 비동기 워커 실행 (커밋 전 호출하면 DB 미반영 상태에서 워커가 시작됨)

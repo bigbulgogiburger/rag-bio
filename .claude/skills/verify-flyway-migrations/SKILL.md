@@ -40,6 +40,8 @@ description: Flyway DB 마이그레이션 일관성 검증. 마이그레이션 �
 | `backend/app-api/src/main/resources/db/migration/V23__hybrid_search_tsvector.sql` | tsvector 하이브리드 검색 |
 | `backend/app-api/src/main/resources/db/migration/V24__answer_draft_refinement.sql` | 답변 초안 보완 컬럼 |
 | `backend/app-api/src/main/resources/db/migration/V25__workflow_run_count.sql` | workflow_run_count 컬럼 추가 |
+| `backend/app-api/src/main/resources/db/migration/V26__chunk_product_family.sql` | product_family 컬럼 + 인덱스 + answer_drafts 확장 |
+| `backend/app-api/src/main/java/db/migration/V27__KoreanTsvectorNormalization.java` | Java 기반 마이그레이션 (한국어 tsvector 정규화, PostgreSQL 전용 / H2 no-op) |
 
 ## Workflow
 
@@ -206,6 +208,54 @@ grep -n "workflow_run_count\|workflowRunCount" backend/app-api/src/main/resource
 **PASS:** SQL `INT NOT NULL DEFAULT 0`과 JPA int 필드 일치, 기본값 0 설정
 **FAIL:** JPA에 workflowRunCount 필드 없음 또는 타입 불일치
 
+### Step 13: V26 product_family + answer_drafts 확장 동기화 확인
+
+**파일:** `V26__chunk_product_family.sql`, `DocumentChunkJpaEntity.java`, `AnswerDraftJpaEntity.java`
+
+**검사:** V26에서 추가된 `product_family VARCHAR(100)` 컬럼이 DocumentChunkJpaEntity에 매핑되고, `sub_question_count INT` / `decomposed_questions TEXT` 컬럼이 AnswerDraftJpaEntity에 매핑되는지 확인.
+
+```bash
+grep -n "product_family\|productFamily\|sub_question_count\|subQuestionCount\|decomposed_questions\|decomposedQuestions" backend/app-api/src/main/resources/db/migration/V26__chunk_product_family.sql backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/chunk/DocumentChunkJpaEntity.java backend/app-api/src/main/java/com/biorad/csrag/infrastructure/persistence/answer/AnswerDraftJpaEntity.java
+```
+
+**PASS:** SQL 컬럼과 JPA 필드 일치 (product_family→productFamily, sub_question_count→subQuestionCount, decomposed_questions→decomposedQuestions)
+**FAIL:** JPA에 대응 필드 없음 또는 타입 불일치
+
+## Output Format (Updated)
+
+| # | 검사 항목 | 결과 | 상세 |
+|---|----------|------|------|
+| ... | (기존 1~12 항목) | ... | ... |
+| 13 | V26 product_family 동기화 | PASS/FAIL | chunk + answer_drafts 컬럼 매핑 |
+| 14 | Java 마이그레이션 H2 no-op | PASS/FAIL | BaseJavaMigration + H2 분기 |
+| 15 | Java/SQL 버전 번호 중복 없음 | PASS/FAIL | 중복 버전 목록 |
+
+### Step 14: Java 기반 Flyway 마이그레이션 패턴 확인
+
+**파일:** `V27__KoreanTsvectorNormalization.java`
+
+**검사:** Java 기반 마이그레이션이 `BaseJavaMigration`을 상속하고, H2 데이터베이스에서는 no-op(아무 작업 안 함)으로 처리되는지 확인. PostgreSQL 전용 기능(트리거 함수, tsvector 등)을 사용하는 마이그레이션은 H2에서 실행하면 안 됨.
+
+```bash
+grep -n "BaseJavaMigration\|H2\|isH2\|getConnection\|DatabaseProduct\|CREATE.*FUNCTION\|TRIGGER" backend/app-api/src/main/java/db/migration/V27__KoreanTsvectorNormalization.java
+```
+
+**PASS:** `BaseJavaMigration` 상속 + H2 감지 시 early return (no-op) + PostgreSQL에서만 트리거 함수 생성/교체
+**FAIL:** H2 분기 없음 (H2에서 PostgreSQL 전용 SQL 실행 시도) 또는 `BaseJavaMigration` 미상속
+
+### Step 15: Java 마이그레이션 버전 번호 연속성 확인
+
+**파일:** `backend/app-api/src/main/java/db/migration/`, `backend/app-api/src/main/resources/db/migration/`
+
+**검사:** Java 마이그레이션(V{N}__.java)과 SQL 마이그레이션(V{N}__.sql) 간 버전 번호가 중복되지 않는지 확인.
+
+```bash
+ls backend/app-api/src/main/resources/db/migration/V*.sql backend/app-api/src/main/java/db/migration/V*.java 2>/dev/null | sed 's/.*\/V\([0-9_]*\)__.*/V\1/' | sort | uniq -d
+```
+
+**PASS:** 중복 버전 번호 없음 (SQL과 Java 간 동일 버전 미존재)
+**FAIL:** 동일 버전 번호가 .sql과 .java 양쪽에 존재 (Flyway 충돌)
+
 ## Exceptions
 
 다음은 **위반이 아닙니다**:
@@ -213,3 +263,5 @@ grep -n "workflow_run_count\|workflowRunCount" backend/app-api/src/main/resource
 1. **ALTER TABLE 구문** — ALTER에는 IF NOT EXISTS가 불필요 (Flyway 버전 관리로 한 번만 실행)
 2. **V14의 복합 마이그레이션** — KB 기능 전체를 하나의 마이그레이션에 포함하는 것은 기능 단위 번들링으로 허용
 3. **DROP CONSTRAINT IF EXISTS** — FK 제거 시 IF EXISTS 사용은 안전 패턴
+4. **Java 마이그레이션의 `.sql` 패턴 미준수** — Java 기반 마이그레이션(V{N}__.java)은 SQL 명명 규칙(V{N}__.sql)과 다르며 이는 정상. Step 2 명명 규칙 검사에서 Java 파일은 제외
+5. **Java 마이그레이션의 IF NOT EXISTS 미사용** — Java 코드에서 직접 SQL을 실행하므로 Step 7 IF NOT EXISTS 검사 대상이 아님

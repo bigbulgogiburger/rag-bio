@@ -5,6 +5,7 @@ import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRu
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.biorad.csrag.interfaces.rest.search.ProductExtractorService;
+import com.biorad.csrag.interfaces.rest.search.ProductFamilyRegistry;
 import com.biorad.csrag.interfaces.rest.sse.SseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,14 +36,18 @@ class AnswerOrchestrationServiceTest {
     @Mock private SseService sseService;
     @Mock private QuestionDecomposerService questionDecomposerService;
     @Mock private ProductExtractorService productExtractorService;
+    @Mock private ProductFamilyRegistry productFamilyRegistry;
 
     private AnswerOrchestrationService service;
 
     @BeforeEach
     void setUp() {
+        // extractAll()은 기본적으로 빈 리스트 반환 (제품 추출 실패 시나리오)
+        lenient().when(productExtractorService.extractAll(any())).thenReturn(List.of());
         service = new AnswerOrchestrationService(
                 retrieveStep, verifyStep, composeStep, selfReviewStep,
-                runRepository, sseService, questionDecomposerService, productExtractorService);
+                runRepository, sseService, questionDecomposerService,
+                productExtractorService, productFamilyRegistry);
     }
 
     /** Helper: stub decomposer to return a single sub-question (default single-question flow). */
@@ -305,8 +310,8 @@ class AnswerOrchestrationServiceTest {
         SubQuestion sq2 = new SubQuestion(2, "교정 방법", "naica");
         when(questionDecomposerService.decompose(question)).thenReturn(
                 new DecomposedQuestion(question, List.of(sq1, sq2), "naica"));
-        when(productExtractorService.extract(question)).thenReturn(
-                new ProductExtractorService.ExtractedProduct("naica", "naica", 0.9));
+        when(productExtractorService.extractAll(question)).thenReturn(
+                List.of(new ProductExtractorService.ExtractedProduct("naica", "naica", 0.9)));
 
         // Use DefaultRetrieveStep (concrete) to trigger multi-question path
         // Since our mock is RetrieveStep (interface), the single-question fallback will be used.
@@ -332,6 +337,6 @@ class AnswerOrchestrationServiceTest {
         // When retrieveStep is not DefaultRetrieveStep, falls back to single-question retrieve
         assertThat(result.perQuestionEvidences()).isNull();
         verify(questionDecomposerService).decompose(question);
-        verify(productExtractorService).extract(question);
+        verify(productExtractorService).extractAll(question);
     }
 }

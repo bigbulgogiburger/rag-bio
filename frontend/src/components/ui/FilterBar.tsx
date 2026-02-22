@@ -62,7 +62,7 @@ export default function FilterBar({
       {fields.map((field) => {
         if (field.type === 'select') {
           return (
-            <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+            <label key={field.key} className="grid gap-1.5 flex-1 min-w-0 sm:min-w-[160px]">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {field.label}
               </span>
@@ -84,7 +84,7 @@ export default function FilterBar({
 
         if (field.type === 'date') {
           return (
-            <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+            <label key={field.key} className="grid gap-1.5 flex-1 min-w-0 sm:min-w-[160px]">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {field.label}
               </span>
@@ -102,7 +102,7 @@ export default function FilterBar({
 
         // type === 'text'
         return (
-          <label key={field.key} className="grid gap-1.5 flex-1 min-w-[160px]">
+          <label key={field.key} className="grid gap-1.5 flex-1 min-w-0 sm:min-w-[160px]">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {field.label}
             </span>

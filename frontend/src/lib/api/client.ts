@@ -2,6 +2,12 @@ export interface CreateInquiryPayload {
   question: string;
   customerChannel?: string;
   preferredTone?: string;
+  productFamilies?: string[];
+}
+
+export interface ProductFamilyInfo {
+  name: string;
+  category: string;
 }
 
 export interface AskQuestionResult {
@@ -87,6 +93,7 @@ export interface AnalyzeEvidenceItem {
   fileName?: string;
   pageStart?: number;
   pageEnd?: number;
+  productFamily?: string;
 }
 
 export interface AnalyzeResult {
@@ -140,6 +147,8 @@ export interface AnswerDraftResult {
   additionalInstructions?: string | null;
   selfReviewIssues?: SelfReviewIssue[];
   workflowRunCount?: number;
+  retrievalQuality?: "EXACT" | "CATEGORY_EXPANDED" | "UNFILTERED";
+  extractedProductFamilies?: string[];
 }
 
 // ===== AI Review / Approval =====
@@ -430,9 +439,9 @@ export async function getInquiryIndexingStatus(inquiryId: string): Promise<Inqui
   return (await response.json()) as InquiryIndexingStatus;
 }
 
-export async function runInquiryIndexing(inquiryId: string, failedOnly = false): Promise<IndexingRunResult> {
+export async function runInquiryIndexing(inquiryId: string, failedOnly = false, force = false): Promise<IndexingRunResult> {
   const response = await authFetch(
-    `${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing/run?failedOnly=${failedOnly}`,
+    `${API_BASE_URL}/api/v1/inquiries/${inquiryId}/documents/indexing/run?failedOnly=${failedOnly}&force=${force}`,
     {
       method: "POST"
     }
@@ -622,6 +631,14 @@ export async function getOpsMetrics(): Promise<OpsMetrics> {
     throw new Error(`Failed to fetch ops metrics: ${response.status}`);
   }
   return (await response.json()) as OpsMetrics;
+}
+
+export async function getProductFamilies(): Promise<ProductFamilyInfo[]> {
+  const response = await authFetch(`${API_BASE_URL}/api/v1/product-families`);
+  if (!response.ok) {
+    throw new Error(`제품군 조회 실패: ${response.status}`);
+  }
+  return (await response.json()) as ProductFamilyInfo[];
 }
 
 // ===== Inquiry List =====

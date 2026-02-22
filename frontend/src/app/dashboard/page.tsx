@@ -149,9 +149,9 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
         </div>
-        <section className="grid grid-cols-3 gap-4">
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <article className="rounded-xl border bg-card p-5 shadow-sm" key={i}>
+            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={i}>
               <Skeleton className="mb-3 h-3.5 w-20" />
               <Skeleton className="mb-2 h-8 w-24" />
               <Skeleton className="h-3 w-16" />
@@ -193,9 +193,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric Cards */}
-      <section className="grid grid-cols-3 gap-4 lg:grid-cols-6">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {metricCards.map((metric) => (
-          <article className="rounded-xl border bg-card p-5 shadow-sm" key={metric.label}>
+          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={metric.label}>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
             <p className="text-2xl font-bold tracking-tight text-foreground">{metric.value}</p>
             {metric.subValue && (
@@ -207,7 +207,7 @@ export default function DashboardPage() {
         {/* Processing Time Metrics */}
         {processingTime && (
           <>
-            <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">평균 처리 시간</p>
               <p className="text-2xl font-bold tracking-tight text-foreground">
                 {processingTime.avgProcessingTimeHours > 0 ? `${processingTime.avgProcessingTimeHours}h` : "-"}
@@ -216,14 +216,14 @@ export default function DashboardPage() {
                 중앙값 {processingTime.medianProcessingTimeHours}h
               </p>
             </article>
-            <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">완료 건수</p>
               <p className="text-2xl font-bold tracking-tight text-foreground">{processingTime.totalCompleted}건</p>
               <p className="text-xs text-muted-foreground">
                 {processingTime.minProcessingTimeHours}h ~ {processingTime.maxProcessingTimeHours}h
               </p>
             </article>
-            <article className="rounded-xl border bg-card p-5 shadow-sm">
+            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">KB 활용률</p>
               <p className="text-2xl font-bold tracking-tight text-foreground">
                 {kbUsage ? `${kbUsage.kbUsageRate}%` : "-"}

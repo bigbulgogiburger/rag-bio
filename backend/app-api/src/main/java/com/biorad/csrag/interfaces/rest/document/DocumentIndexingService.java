@@ -44,6 +44,11 @@ public class DocumentIndexingService {
 
     @Transactional
     public IndexingRunResponse run(UUID inquiryId, boolean failedOnly) {
+        return run(inquiryId, failedOnly, false);
+    }
+
+    @Transactional
+    public IndexingRunResponse run(UUID inquiryId, boolean failedOnly, boolean forceReindex) {
         List<DocumentMetadataJpaEntity> docs = documentRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
 
         int processed = 0;
@@ -51,7 +56,9 @@ public class DocumentIndexingService {
         int failed = 0;
 
         for (DocumentMetadataJpaEntity doc : docs) {
-            if (failedOnly) {
+            if (forceReindex) {
+                // force 모드: 모든 문서 재인덱싱 (INDEXED 포함)
+            } else if (failedOnly) {
                 if (!"FAILED_PARSING".equals(doc.getStatus())) {
                     continue;
                 }
@@ -73,7 +80,7 @@ public class DocumentIndexingService {
                     finalText = limitText(ocr.text());
                     doc.markParsedFromOcr(finalText, ocr.confidence());
                     log.info("document.indexing.ocr.success documentId={} confidence={}", doc.getId(), ocr.confidence());
-                    chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText);
+                    chunkCount = chunkingService.chunkAndStore(doc.getId(), finalText, "INQUIRY", doc.getId(), doc.getFileName());
                 } else {
                     // 페이지별 추출 사용 (PDF는 페이지 정보 보존)
                     List<DocumentTextExtractor.PageText> pageTexts =
@@ -82,7 +89,7 @@ public class DocumentIndexingService {
                             .map(DocumentTextExtractor.PageText::text)
                             .collect(Collectors.joining(" ")));
                     doc.markParsed(finalText);
-                    chunkCount = chunkingService.chunkAndStore(doc.getId(), pageTexts, "INQUIRY", doc.getId());
+                    chunkCount = chunkingService.chunkAndStore(doc.getId(), pageTexts, "INQUIRY", doc.getId(), doc.getFileName());
                 }
 
                 doc.markChunked(chunkCount);

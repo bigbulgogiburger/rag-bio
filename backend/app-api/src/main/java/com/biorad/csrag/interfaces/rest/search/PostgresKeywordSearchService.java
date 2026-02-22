@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Component
 @Primary
@@ -18,10 +19,28 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(PostgresKeywordSearchService.class);
 
+    private static final String KOREAN_CHAR = "[\uAC00-\uD7A3]";
+    private static final Pattern KOREAN_EOMI_PATTERN = Pattern.compile(
+            "(?<=" + KOREAN_CHAR + ")(했습니다|되었습니다|합니다|입니다|됩니다|습니다|하세요|하여|하고|해서)");
+    private static final Pattern KOREAN_JOSA_PATTERN = Pattern.compile(
+            "(?<=" + KOREAN_CHAR + ")(에서|에게|으로|까지|부터|을|를|이|가|은|는|로|의|와|과|도|만)(?!["
+            + "\uAC00-\uD7A3" + "])");
+    private static final Pattern MULTI_SPACE = Pattern.compile("\\s{2,}");
+
     private final JdbcTemplate jdbcTemplate;
 
     public PostgresKeywordSearchService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    static String normalizeKorean(String query) {
+        if (query == null || query.isBlank()) {
+            return query;
+        }
+        String result = KOREAN_EOMI_PATTERN.matcher(query).replaceAll("");
+        result = KOREAN_JOSA_PATTERN.matcher(result).replaceAll("");
+        result = MULTI_SPACE.matcher(result).replaceAll(" ");
+        return result.trim();
     }
 
     @Override
@@ -32,6 +51,11 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
     @Override
     public List<KeywordSearchResult> search(String query, int topK, SearchFilter filter) {
         log.info("keyword.search.postgres query=\"{}\" topK={} filter={}", query, topK, filter);
+        String normalizedQuery = normalizeKorean(query);
+        if (!query.equals(normalizedQuery)) {
+            log.info("keyword.search.postgres.normalized \"{}\" -> \"{}\"", query, normalizedQuery);
+        }
+        query = normalizedQuery;
 
         if (filter == null || filter.isEmpty()) {
             return searchWithoutFilter(query, topK);
@@ -48,6 +72,12 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
         params.add(query);
         params.add(query);
 
+        // inquiryId 스코핑: 해당 문의 문서 + KB 전체 검색
+        if (filter.inquiryId() != null && !filter.hasDocumentFilter()) {
+            sql.append(" AND (document_id IN (SELECT id FROM documents WHERE inquiry_id = ?) OR source_type = 'KNOWLEDGE_BASE')");
+            params.add(filter.inquiryId());
+        }
+
         if (filter.hasDocumentFilter()) {
             String placeholders = String.join(",",
                     filter.documentIds().stream().map(id -> "?").toList());
@@ -56,8 +86,10 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
         }
 
         if (filter.hasProductFilter()) {
-            sql.append(" AND product_family = ?");
-            params.add(filter.productFamily());
+            String placeholdersPf = String.join(",",
+                    filter.productFamilies().stream().map(pf -> "?").toList());
+            sql.append(" AND product_family IN (").append(placeholdersPf).append(")");
+            params.addAll(filter.productFamilies());
         }
 
         if (filter.hasSourceTypeFilter()) {

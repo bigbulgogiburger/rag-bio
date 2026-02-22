@@ -82,6 +82,7 @@ search:
     rrf-k: 60
     vector-weight: 1.0
     keyword-weight: 1.0
+    min-vector-score: ${MIN_VECTOR_SCORE:0.25}
 
 logging:
   pattern:

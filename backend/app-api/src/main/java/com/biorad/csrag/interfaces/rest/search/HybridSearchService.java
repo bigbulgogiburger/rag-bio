@@ -1,5 +1,7 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaEntity;
+import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.biorad.csrag.interfaces.rest.vector.VectorSearchResult;
 import com.biorad.csrag.interfaces.rest.vector.VectorStore;
@@ -19,6 +21,7 @@ public class HybridSearchService {
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
     private final KeywordSearchService keywordSearchService;
+    private final DocumentMetadataJpaRepository documentRepository;
 
     @Value("${search.hybrid.enabled:true}")
     private boolean hybridEnabled;
@@ -32,12 +35,17 @@ public class HybridSearchService {
     @Value("${search.hybrid.keyword-weight:1.0}")
     private double keywordWeight;
 
+    @Value("${search.hybrid.min-vector-score:0.25}")
+    private double minVectorScore;
+
     public HybridSearchService(EmbeddingService embeddingService,
                                VectorStore vectorStore,
-                               KeywordSearchService keywordSearchService) {
+                               KeywordSearchService keywordSearchService,
+                               DocumentMetadataJpaRepository documentRepository) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.keywordSearchService = keywordSearchService;
+        this.documentRepository = documentRepository;
     }
 
     public List<HybridSearchResult> search(String query, int topK) {
@@ -45,9 +53,11 @@ public class HybridSearchService {
     }
 
     public List<HybridSearchResult> search(String query, int topK, SearchFilter filter) {
+        // 벡터 검색용 필터: inquiryId → documentIds 해소 (벡터 DB는 SQL 서브쿼리 불가)
+        SearchFilter vectorFilter = resolveForVectorSearch(filter);
         List<Double> queryVector = embeddingService.embed(query);
-        List<VectorSearchResult> vectorResults = (filter != null && !filter.isEmpty())
-                ? vectorStore.search(queryVector, topK * 2, filter)
+        List<VectorSearchResult> vectorResults = (vectorFilter != null && !vectorFilter.isEmpty())
+                ? vectorStore.search(queryVector, topK * 2, vectorFilter)
                 : vectorStore.search(queryVector, topK * 2);
 
         if (!hybridEnabled) {
@@ -95,10 +105,43 @@ public class HybridSearchService {
                         e.sourceType, e.getMatchSource()))
                 .collect(Collectors.toList());
 
-        log.info("hybrid.search query={} vector={} keyword={} fused={} filter={}",
-                query, vectorResults.size(), keywordResults.size(), fused.size(), filter);
+        List<HybridSearchResult> filtered = fused.stream()
+                .filter(r -> r.vectorScore() == 0.0 || r.vectorScore() >= minVectorScore)
+                .collect(Collectors.toList());
 
-        return fused;
+        if (filtered.isEmpty() && !fused.isEmpty()) {
+            log.info("hybrid.search all results below min-vector-score={}, returning unfiltered", minVectorScore);
+            filtered = fused;
+        }
+
+        log.info("hybrid.search query={} vector={} keyword={} fused={} filtered={} filter={}",
+                query, vectorResults.size(), keywordResults.size(), fused.size(), filtered.size(), filter);
+
+        return filtered;
+    }
+
+    /**
+     * 벡터 검색용 필터 해소: inquiryId만 있고 documentIds가 없으면
+     * DB에서 해당 문의 문서 ID를 조회하여 documentIds + sourceTypes(KNOWLEDGE_BASE)로 변환.
+     * 벡터 DB는 SQL 서브쿼리를 지원하지 않으므로 여기서 미리 해소한다.
+     */
+    private SearchFilter resolveForVectorSearch(SearchFilter filter) {
+        if (filter == null || filter.inquiryId() == null || filter.hasDocumentFilter()) {
+            return filter;
+        }
+        Set<UUID> inquiryDocIds = documentRepository
+                .findByInquiryIdOrderByCreatedAtDesc(filter.inquiryId())
+                .stream()
+                .map(DocumentMetadataJpaEntity::getId)
+                .collect(Collectors.toSet());
+
+        // 문의 문서 ID + KB 소스 타입으로 필터 생성
+        // VectorStore에서 OR 로직 적용: documentIds에 매칭 OR sourceType=KNOWLEDGE_BASE
+        Set<String> sourceTypes = filter.hasSourceTypeFilter()
+                ? filter.sourceTypes()
+                : Set.of("KNOWLEDGE_BASE");
+
+        return new SearchFilter(filter.inquiryId(), inquiryDocIds, filter.productFamilies(), sourceTypes);
     }
 
     private static class RrfEntry {

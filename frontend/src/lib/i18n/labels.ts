@@ -22,6 +22,7 @@ export const DOC_STATUS_LABELS: Record<string, string> = {
   PARSED_OCR: "인덱싱 중",
   CHUNKED: "인덱싱 중",
   INDEXING: "인덱싱 중",
+  REINDEXING: "재인덱싱 중",
   INDEXED: "인덱싱 완료",
   FAILED: "인덱싱 실패",
   FAILED_PARSING: "인덱싱 실패",
@@ -31,7 +32,7 @@ export type DocStatusBadgeVariant = "info" | "success" | "warn" | "danger" | "ne
 
 export function docStatusBadgeVariant(status: string): DocStatusBadgeVariant {
   if (status === "UPLOADED") return "neutral";
-  if (["PARSING", "PARSED", "PARSED_OCR", "CHUNKED", "INDEXING"].includes(status)) return "warn";
+  if (["PARSING", "PARSED", "PARSED_OCR", "CHUNKED", "INDEXING", "REINDEXING"].includes(status)) return "warn";
   if (status === "INDEXED") return "success";
   if (status === "FAILED" || status === "FAILED_PARSING") return "danger";
   return "neutral";
@@ -122,6 +123,20 @@ export const KB_CATEGORY_LABELS: Record<string, string> = {
   SPEC_SHEET: "스펙시트",
 };
 
+// ===== 제품군 (Product Family) =====
+export const PRODUCT_FAMILY_LABELS: Record<string, string> = {
+  QX200: "QX200 Droplet Digital PCR",
+  QX600: "QX600 Droplet Digital PCR",
+  QXOne: "QX ONE Droplet Digital PCR",
+  naica: "naica System",
+  CFX96: "CFX96 Touch",
+  CFX384: "CFX384 Touch",
+  CFXOpus: "CFX Opus",
+  BioPlex2200: "BioPlex 2200",
+  BioPlex3D: "BioPlex 3D",
+  ChemiDoc: "ChemiDoc Imaging",
+};
+
 // ===== 검색 관련 =====
 export const SEARCH_LABELS: Record<string, string> = {
   TRANSLATED_QUERY: "번역된 질문",
@@ -158,6 +173,20 @@ export function labelChannel(c: string): string {
 }
 export function labelKbCategory(c: string): string {
   return label(KB_CATEGORY_LABELS, c);
+}
+export function labelProductFamily(key: string): string {
+  return label(PRODUCT_FAMILY_LABELS, key);
+}
+
+// ===== 검색 품질 (Retrieval Quality) =====
+export const RETRIEVAL_QUALITY_LABELS: Record<string, string> = {
+  EXACT: "정확 매칭",
+  CATEGORY_EXPANDED: "카테고리 확장",
+  UNFILTERED: "전체 검색",
+};
+
+export function labelRetrievalQuality(key: string): string {
+  return label(RETRIEVAL_QUALITY_LABELS, key);
 }
 export function labelError(code: string): string {
   return label(ERROR_LABELS, code);
