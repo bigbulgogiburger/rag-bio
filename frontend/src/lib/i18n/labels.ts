@@ -137,6 +137,17 @@ export const PRODUCT_FAMILY_LABELS: Record<string, string> = {
   ChemiDoc: "ChemiDoc Imaging",
 };
 
+// ===== 이미지 업로드 =====
+export const IMAGE_LABELS: Record<string, string> = {
+  imageUpload: '이미지 첨부',
+  imageAnalyzing: '이미지 분석 중...',
+  imageAnalysisComplete: '분석 완료',
+  imageAnalysisFailed: '분석 실패',
+  imageSizeExceeded: '이미지 파일 크기는 20MB를 초과할 수 없습니다',
+  imageTypes: '지원 형식: PNG, JPG, WEBP',
+  imageAnalysisPending: '이미지 분석 대기 중',
+};
+
 // ===== 검색 관련 =====
 export const SEARCH_LABELS: Record<string, string> = {
   TRANSLATED_QUERY: "번역된 질문",

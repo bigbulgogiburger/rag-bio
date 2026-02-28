@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,8 +9,8 @@ import {
   createInquiry,
   uploadInquiryDocument,
 } from "@/lib/api/client";
-import { labelDocStatus, labelTone, PRODUCT_FAMILY_LABELS, labelProductFamily } from "@/lib/i18n/labels";
-import { Toast } from "@/components/ui";
+import { labelDocStatus, labelTone, PRODUCT_FAMILY_LABELS, labelProductFamily, IMAGE_LABELS } from "@/lib/i18n/labels";
+import { Toast, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 
 const inquirySchema = z.object({
@@ -22,9 +22,64 @@ const inquirySchema = z.object({
 
 type InquiryFormData = z.infer<typeof inquirySchema>;
 
+const isImageFile = (file: File) => file.type.startsWith("image/");
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
+
+function getFileTypeBadge(file: File): { label: string; variant: "info" | "neutral" } {
+  if (isImageFile(file)) return { label: "이미지", variant: "info" };
+  if (file.name.toLowerCase().endsWith(".pdf")) return { label: "PDF", variant: "neutral" };
+  return { label: "DOCX", variant: "neutral" };
+}
+
+function DocumentIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="48"
+      height="48"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-muted-foreground"
+      aria-hidden="true"
+    >
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" x2="8" y1="13" y2="13" />
+      <line x1="16" x2="8" y1="17" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="shrink-0"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
 export default function InquiryCreateForm() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; variant: "success" | "error" | "warn" | "info" } | null>(null);
   const [selectedProductFamilies, setSelectedProductFamilies] = useState<string[]>([]);
   const [pfSelectValue, setPfSelectValue] = useState("");
@@ -38,6 +93,41 @@ export default function InquiryCreateForm() {
     resolver: zodResolver(inquirySchema),
     defaultValues: { question: "", customerChannel: "email", answerTone: "gilseon" },
   });
+
+  // Revoke object URL on cleanup to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0] ?? null;
+
+    // Revoke previous preview URL
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
+
+    if (selected && isImageFile(selected) && selected.size > MAX_IMAGE_SIZE) {
+      setToast({
+        message: IMAGE_LABELS.imageSizeExceeded,
+        variant: "error",
+      });
+      setFile(null);
+      event.target.value = "";
+      return;
+    }
+
+    setFile(selected);
+
+    if (selected && isImageFile(selected)) {
+      setImagePreviewUrl(URL.createObjectURL(selected));
+    }
+  }, [imagePreviewUrl]);
 
   const onSubmit = async (data: InquiryFormData) => {
     setToast(null);
@@ -65,6 +155,10 @@ export default function InquiryCreateForm() {
 
       // Reset form
       reset();
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
       setFile(null);
       setSelectedProductFamilies([]);
       setPfSelectValue("");
@@ -203,22 +297,81 @@ export default function InquiryCreateForm() {
         <hr className="border-t border-border" />
 
         <div className="space-y-4">
-          <h3 className="text-base font-semibold">문서 첨부</h3>
+          <h3 className="text-base font-semibold">파일 첨부</h3>
+          <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, PNG, JPG, WEBP 형식을 지원합니다.</p>
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            파일 (PDF/DOC/DOCX)
             <div className="rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
+                onChange={handleFileChange}
+                aria-label="파일 선택"
               />
-              {file ? (
-                <p className="text-sm text-muted-foreground">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
-              ) : (
+              {!file && (
                 <p className="text-sm text-muted-foreground">클릭하여 파일을 선택하거나 드래그하세요</p>
               )}
             </div>
           </label>
+
+          {/* File preview */}
+          {file && (
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+              {/* Thumbnail or document icon */}
+              <div className="shrink-0">
+                {isImageFile(file) && imagePreviewUrl ? (
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <img
+                      src={imagePreviewUrl}
+                      alt={file.name}
+                      style={{ width: 48, height: 48, objectFit: "cover" }}
+                      className="rounded-md"
+                    />
+                  </div>
+                ) : (
+                  <DocumentIcon />
+                )}
+              </div>
+
+              {/* File info */}
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium truncate">{file.name}</span>
+                  <Badge variant={getFileTypeBadge(file).variant}>
+                    {getFileTypeBadge(file).label}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {file.size < 1024 * 1024
+                    ? `${(file.size / 1024).toFixed(1)} KB`
+                    : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                </p>
+
+                {/* Image analysis status placeholder */}
+                {isImageFile(file) && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                    <ClockIcon />
+                    <span>{IMAGE_LABELS.imageAnalysisPending}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Remove button */}
+              <button
+                type="button"
+                className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                onClick={() => {
+                  if (imagePreviewUrl) {
+                    URL.revokeObjectURL(imagePreviewUrl);
+                    setImagePreviewUrl(null);
+                  }
+                  setFile(null);
+                }}
+                aria-label="파일 제거"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+          )}
         </div>
 
         <hr className="border-t border-border" />

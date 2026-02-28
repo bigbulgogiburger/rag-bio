@@ -14,9 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -183,10 +183,10 @@ class ChunkingServiceTest {
 
         String page1 = "Page one content here.";
         String page2 = "Page two content here.";
-        // After joining with " ": "Page one content here. Page two content here."
+        // After joining with "\n\n": pages separated by paragraph break
         List<PageText> pageTexts = new ArrayList<>();
         pageTexts.add(new PageText(1, page1, 0, page1.length()));
-        pageTexts.add(new PageText(2, page2, page1.length() + 1, page1.length() + 1 + page2.length()));
+        pageTexts.add(new PageText(2, page2, page1.length() + 2, page1.length() + 2 + page2.length()));
 
         int count = chunkingService.chunkAndStore(docId, pageTexts, "KNOWLEDGE_BASE", sourceId);
 
@@ -228,5 +228,110 @@ class ChunkingServiceTest {
         for (DocumentChunkJpaEntity chunk : chunks) {
             assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1500);
         }
+    }
+
+    // ── TASK 1-2: 과학 약어 보호 테스트 ──
+
+    @Test
+    void splitIntoSentences_doesNotSplitOnConcentration() {
+        List<String> result = chunkingService.splitIntoSentences("final 0.125 uM");
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).isEqualTo("final 0.125 uM");
+    }
+
+    @Test
+    void splitIntoSentences_doesNotSplitOnFigAbbreviation() {
+        List<String> result = chunkingService.splitIntoSentences("(Fig. 2) 참조");
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).isEqualTo("(Fig. 2) 참조");
+    }
+
+    @Test
+    void splitIntoSentences_doesNotSplitOnEgAbbreviation() {
+        List<String> result = chunkingService.splitIntoSentences("e.g. restriction enzyme");
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void splitIntoSentences_splitsKoreanThenEnglish() {
+        List<String> result = chunkingService.splitIntoSentences("처리 완료. Vortex 필요.");
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0)).isEqualTo("처리 완료.");
+        assertThat(result.get(1)).isEqualTo("Vortex 필요.");
+    }
+
+    @Test
+    void splitIntoSentences_doesNotSplitOnDrTitle() {
+        List<String> result = chunkingService.splitIntoSentences("Dr. Kim said hello. The result was good.");
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0)).startsWith("Dr. Kim");
+        assertThat(result.get(1)).startsWith("The result");
+    }
+
+    // ── TASK 1-6: HEADING_PATTERN 확장 테스트 ──
+
+    @Test
+    void headingPattern_matchesMarkdownHeading() {
+        assertThat(isHeading("## Introduction")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesNumberedSection() {
+        assertThat(isHeading("2.1 Methods")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesAllCapsHeading() {
+        assertThat(isHeading("TROUBLESHOOTING")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesTroubleshooting() {
+        assertThat(isHeading("Troubleshooting")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesKoreanHeading() {
+        assertThat(isHeading("프로토콜:")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesTableReference() {
+        assertThat(isHeading("Table 1")).isTrue();
+        assertThat(isHeading("Figure 3")).isTrue();
+        assertThat(isHeading("Fig. 5")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesSectionKeywords() {
+        assertThat(isHeading("Section 2")).isTrue();
+        assertThat(isHeading("Chapter 1")).isTrue();
+        assertThat(isHeading("APPENDIX A")).isTrue();
+    }
+
+    @Test
+    void headingPattern_matchesSafetyKeywords() {
+        assertThat(isHeading("Warning")).isTrue();
+        assertThat(isHeading("Caution")).isTrue();
+        assertThat(isHeading("Note")).isTrue();
+        assertThat(isHeading("Protocol")).isTrue();
+        assertThat(isHeading("Procedure")).isTrue();
+        assertThat(isHeading("Safety")).isTrue();
+    }
+
+    private static final Pattern HEADING_PATTERN = Pattern.compile(
+        "^(?:" +
+        "#{1,6}\\s|" +
+        "\\d+\\.\\d*\\s|" +
+        "[A-Z][A-Z\\s]{2,}$|" +
+        "(?:Section|Chapter|Part|APPENDIX)\\s|" +
+        "(?:Table|Figure|Fig\\.)\\s+\\d|" +
+        "(?:Troubleshooting|Protocol|Procedure|Safety|Warning|Caution|Note)\\b|" +
+        "[가-힣]+\\s*:\\s*$" +
+        ")", Pattern.MULTILINE
+    );
+
+    private boolean isHeading(String text) {
+        return HEADING_PATTERN.matcher(text.trim()).find();
     }
 }

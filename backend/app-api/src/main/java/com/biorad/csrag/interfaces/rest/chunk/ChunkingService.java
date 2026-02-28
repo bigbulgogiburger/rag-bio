@@ -19,14 +19,27 @@ public class ChunkingService {
     private static final int CHUNK_SIZE = 1500;
     private static final int OVERLAP_CHARS = 300;
 
-    // 문장 분리: 마침표/느낌표/물음표 + 공백, 또는 줄바꿈
-    private static final Pattern SENTENCE_SPLIT = Pattern.compile(
-            "(?<=[.!?。\\n])\\s+"
+    // 과학 약어 보호 패턴
+    private static final Pattern ABBREVIATION = Pattern.compile(
+        "(?:e\\.g|i\\.e|Fig|Figs|et al|vs|Vol|No|Dr|Mr|Mrs|Prof|approx|" +
+        "Inc|Ltd|Corp|Rev|dept|cf|viz|" +
+        "p|pp|sec|min|hr|conc|temp|vol|wt|" +
+        "\\d)" +
+        "\\.(?=\\s)"
     );
+    private static final String DOT_PLACEHOLDER = "\uFFF0";
 
-    // 제목 패턴: Markdown heading, 번호 리스트, 전체 대문자 제목
+    // 제목 패턴: Markdown heading, 번호 리스트, 전체 대문자 제목, 기술 문서 섹션
     private static final Pattern HEADING_PATTERN = Pattern.compile(
-            "^(?:#{1,6}\\s|\\d+\\.\\s|[A-Z][A-Z\\s]{2,}$)"
+        "^(?:" +
+        "#{1,6}\\s|" +
+        "\\d+\\.\\d*\\s|" +
+        "[A-Z][A-Z\\s]{2,}$|" +
+        "(?:Section|Chapter|Part|APPENDIX)\\s|" +
+        "(?:Table|Figure|Fig\\.)\\s+\\d|" +
+        "(?:Troubleshooting|Protocol|Procedure|Safety|Warning|Caution|Note)\\b|" +
+        "[가-힣]+\\s*:\\s*$" +
+        ")", Pattern.MULTILINE
     );
 
     private final DocumentChunkJpaRepository chunkRepository;
@@ -183,10 +196,10 @@ public class ChunkingService {
      * productFamily가 지정되면 각 청크에 제품 패밀리 메타데이터 설정
      */
     public int chunkAndStore(UUID documentId, List<PageText> pageTexts, String sourceType, UUID sourceId, String fileName, String productFamily) {
-        // 전체 텍스트 연결 (페이지 사이에 공백 구분자)
+        // 전체 텍스트 연결 (페이지 사이에 단락 구분자)
         String fullText = pageTexts.stream()
                 .map(PageText::text)
-                .collect(Collectors.joining(" "));
+                .collect(Collectors.joining("\n\n"));
 
         // 콘텐츠 매칭용 정규화 페이지 텍스트 사전 계산 (오프셋 드리프트에 영향받지 않음)
         List<String> normalizedPages = pageTexts.stream()
@@ -375,16 +388,26 @@ public class ChunkingService {
     }
 
     List<String> splitIntoSentences(String text) {
-        if (text == null || text.isBlank()) {
-            return List.of();
-        }
+        if (text == null || text.isBlank()) return List.of();
 
-        String[] parts = SENTENCE_SPLIT.split(text.trim());
+        // Pass 1: 약어 마침표를 플레이스홀더로 치환
+        String protectedText = ABBREVIATION.matcher(text)
+            .replaceAll(m -> m.group().replace(".", DOT_PLACEHOLDER));
+
+        // 단락 분리 → 문장 분리
+        String[] paragraphs = protectedText.split("\\n\\n+");
         List<String> sentences = new ArrayList<>();
-        for (String part : parts) {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty()) {
-                sentences.add(trimmed);
+
+        for (String paragraph : paragraphs) {
+            String[] parts = paragraph.trim().split(
+                "(?<=[.!?。])\\s+(?=[A-Z가-힣\\d(\\[\"'])"
+            );
+            for (String part : parts) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty()) {
+                    // Pass 2: 플레이스홀더를 원래 마침표로 복원
+                    sentences.add(trimmed.replace(DOT_PLACEHOLDER, "."));
+                }
             }
         }
         return sentences;

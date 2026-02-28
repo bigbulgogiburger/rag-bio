@@ -45,13 +45,25 @@ public class DocumentController {
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "application/pdf",
             "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/png",
+            "image/jpeg",
+            "image/webp"
     );
+
+    private static final Set<String> IMAGE_CONTENT_TYPES = Set.of(
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+    );
+
+    private static final long MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
 
     private final InquiryRepository inquiryRepository;
     private final DocumentMetadataJpaRepository documentMetadataJpaRepository;
     private final DocumentIndexingService documentIndexingService;
     private final DocumentIndexingWorker documentIndexingWorker;
+    private final ImageAnalysisService imageAnalysisService;
 
     @Value("${app.storage.upload-dir:uploads}")
     private String uploadDir;
@@ -60,15 +72,17 @@ public class DocumentController {
             InquiryRepository inquiryRepository,
             DocumentMetadataJpaRepository documentMetadataJpaRepository,
             DocumentIndexingService documentIndexingService,
-            DocumentIndexingWorker documentIndexingWorker
+            DocumentIndexingWorker documentIndexingWorker,
+            ImageAnalysisService imageAnalysisService
     ) {
         this.inquiryRepository = inquiryRepository;
         this.documentMetadataJpaRepository = documentMetadataJpaRepository;
         this.documentIndexingService = documentIndexingService;
         this.documentIndexingWorker = documentIndexingWorker;
+        this.imageAnalysisService = imageAnalysisService;
     }
 
-    @Operation(summary = "문서 업로드", description = "문의에 PDF/DOC/DOCX 문서를 업로드합니다 (자동 인덱싱 트리거)")
+    @Operation(summary = "문서 업로드", description = "문의에 PDF/DOC/DOCX 문서 또는 이미지(PNG/JPEG/WebP)를 업로드합니다 (자동 인덱싱 트리거)")
     @ApiResponse(responseCode = "201", description = "업로드 성공")
     @ApiResponse(responseCode = "400", description = "유효성 검증 실패 (빈 파일 또는 허용되지 않는 파일 형식)")
     @ApiResponse(responseCode = "404", description = "문의를 찾을 수 없음")
@@ -94,7 +108,12 @@ public class DocumentController {
 
         String contentType = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
         if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new ValidationException("INVALID_FILE_TYPE", "Only PDF/DOC/DOCX files are allowed");
+            throw new ValidationException("INVALID_FILE_TYPE", "Only PDF/DOC/DOCX/PNG/JPEG/WebP files are allowed");
+        }
+
+        boolean isImage = IMAGE_CONTENT_TYPES.contains(contentType);
+        if (isImage && file.getSize() > MAX_IMAGE_SIZE) {
+            throw new ValidationException("FILE_TOO_LARGE", "Image files must be 20MB or smaller");
         }
 
         String fileName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename());
@@ -124,14 +143,37 @@ public class DocumentController {
                     now,
                     now
             );
+
+            // Run image analysis for image files
+            if (isImage) {
+                try {
+                    ImageAnalysisService.ImageAnalysisResult result = imageAnalysisService.analyze(target);
+                    entity.setImageAnalysis(
+                            result.imageType(),
+                            result.extractedText(),
+                            result.visualDescription(),
+                            result.technicalContext(),
+                            result.suggestedQuery(),
+                            result.confidence()
+                    );
+                    // Use extracted text + visual description as the document's extracted text for indexing
+                    entity.markParsed(result.extractedText() + "\n\n" + result.visualDescription());
+                    log.info("document.image-analysis.success inquiryId={} documentId={} imageType={} confidence={}",
+                            inquiryUuid, documentId, result.imageType(), result.confidence());
+                } catch (Exception e) {
+                    log.warn("document.image-analysis.failed inquiryId={} documentId={}: {}",
+                            inquiryUuid, documentId, e.getMessage());
+                }
+            }
+
             documentMetadataJpaRepository.save(entity);
-            log.info("document.upload.success inquiryId={} documentId={} status=UPLOADED", inquiryUuid, documentId);
+            log.info("document.upload.success inquiryId={} documentId={} status={}", inquiryUuid, documentId, entity.getStatus());
 
             // Trigger async indexing automatically after upload
             documentIndexingWorker.indexOneAsync(documentId);
             log.info("document.upload.auto-indexing.triggered inquiryId={} documentId={}", inquiryUuid, documentId);
 
-            return new DocumentUploadResponse(documentId.toString(), inquiryUuid.toString(), fileName, "UPLOADED");
+            return new DocumentUploadResponse(documentId.toString(), inquiryUuid.toString(), fileName, entity.getStatus());
         } catch (IOException e) {
             throw new ExternalServiceException("FileStorage", "Failed to store uploaded file");
         }

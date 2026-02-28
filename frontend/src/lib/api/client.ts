@@ -209,6 +209,17 @@ export interface AnswerHistoryDetailResult {
   aiReviewHistory: AiReviewHistoryItem[];
 }
 
+// ===== Image Analysis =====
+
+export interface ImageAnalysisResult {
+  imageType: 'SCREENSHOT' | 'GRAPH' | 'PHOTO' | 'DIAGRAM';
+  extractedText: string;
+  visualDescription: string;
+  technicalContext: string;
+  suggestedQuery: string;
+  confidence: number;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
 
 // ===== Auth Types =====

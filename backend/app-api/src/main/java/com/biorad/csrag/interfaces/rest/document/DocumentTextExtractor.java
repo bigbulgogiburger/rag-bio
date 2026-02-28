@@ -15,13 +15,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
 public class DocumentTextExtractor {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentTextExtractor.class);
+
+    private final TableExtractorService tableExtractor;
+
+    public DocumentTextExtractor(TableExtractorService tableExtractor) {
+        this.tableExtractor = tableExtractor;
+    }
 
     public String extract(Path filePath, String contentType) throws IOException {
         if (contentType == null) {
@@ -115,17 +124,59 @@ public class DocumentTextExtractor {
                 globalOffset = endOffset;
             }
 
+            pages = removeHeadersFooters(pages);
+
+            List<TableExtractorService.ExtractedTable> tables = tableExtractor.extractTables(filePath);
+            pages = TableExtractorService.mergeTablesIntoPages(pages, tables);
+
             log.info("pdf.extractByPage.success path={} pages={}", filePath.getFileName(), pages.size());
             return pages;
         }
+    }
+
+    List<PageText> removeHeadersFooters(List<PageText> pages) {
+        if (pages.size() < 3) return pages;
+
+        Map<String, Integer> firstLineFreq = new HashMap<>();
+        Map<String, Integer> lastLineFreq = new HashMap<>();
+
+        for (PageText page : pages) {
+            String[] lines = page.text().split("\\n");
+            if (lines.length > 0) firstLineFreq.merge(lines[0].trim(), 1, Integer::sum);
+            if (lines.length > 1) lastLineFreq.merge(lines[lines.length - 1].trim(), 1, Integer::sum);
+        }
+
+        int threshold = pages.size() / 2;
+        Set<String> headerLines = firstLineFreq.entrySet().stream()
+                .filter(e -> e.getValue() >= threshold)
+                .map(Map.Entry::getKey).collect(Collectors.toSet());
+        Set<String> footerLines = lastLineFreq.entrySet().stream()
+                .filter(e -> e.getValue() >= threshold)
+                .map(Map.Entry::getKey).collect(Collectors.toSet());
+
+        return pages.stream().map(page -> {
+            String[] lines = page.text().split("\\n");
+            List<String> filtered = new ArrayList<>();
+            for (int i = 0; i < lines.length; i++) {
+                String trimmed = lines[i].trim();
+                if (i == 0 && headerLines.contains(trimmed)) continue;
+                if (i == lines.length - 1 && footerLines.contains(trimmed)) continue;
+                filtered.add(lines[i]);
+            }
+            return new PageText(page.pageNumber(), String.join("\n", filtered), page.startOffset(), page.endOffset());
+        }).toList();
     }
 
     private String cleanText(String text) {
         if (text == null) {
             return "";
         }
-        return text.replaceAll("\\p{Cntrl}", " ")
-                .replaceAll("\\s+", " ")
+        return text
+                .replaceAll("[\\p{Cntrl}&&[^\\n\\r\\t]]", " ")
+                .replaceAll("\\r\\n", "\n")
+                .replaceAll("\\r", "\n")
+                .replaceAll("[\\t ]+", " ")
+                .replaceAll("\\n{3,}", "\n\n")
                 .trim();
     }
 }

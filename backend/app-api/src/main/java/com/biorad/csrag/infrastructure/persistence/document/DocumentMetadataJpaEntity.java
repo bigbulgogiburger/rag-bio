@@ -48,6 +48,24 @@ public class DocumentMetadataJpaEntity {
     @Column(name = "vector_count")
     private Integer vectorCount;
 
+    @Column(name = "image_analysis_type", length = 20)
+    private String imageAnalysisType;
+
+    @Column(name = "image_extracted_text", columnDefinition = "TEXT")
+    private String imageExtractedText;
+
+    @Column(name = "image_visual_description", columnDefinition = "TEXT")
+    private String imageVisualDescription;
+
+    @Column(name = "image_technical_context", columnDefinition = "TEXT")
+    private String imageTechnicalContext;
+
+    @Column(name = "image_suggested_query", columnDefinition = "TEXT")
+    private String imageSuggestedQuery;
+
+    @Column(name = "image_analysis_confidence")
+    private Double imageAnalysisConfidence;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -103,6 +121,30 @@ public class DocumentMetadataJpaEntity {
     public Integer getVectorCount() { return vectorCount; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public String getImageAnalysisType() { return imageAnalysisType; }
+    public String getImageExtractedText() { return imageExtractedText; }
+    public String getImageVisualDescription() { return imageVisualDescription; }
+    public String getImageTechnicalContext() { return imageTechnicalContext; }
+    public String getImageSuggestedQuery() { return imageSuggestedQuery; }
+    public Double getImageAnalysisConfidence() { return imageAnalysisConfidence; }
+
+    public void setImageAnalysis(
+            String imageType,
+            String extractedText,
+            String visualDescription,
+            String technicalContext,
+            String suggestedQuery,
+            double confidence
+    ) {
+        this.imageAnalysisType = imageType;
+        this.imageExtractedText = extractedText;
+        this.imageVisualDescription = visualDescription;
+        this.imageTechnicalContext = technicalContext;
+        this.imageSuggestedQuery = suggestedQuery;
+        this.imageAnalysisConfidence = confidence;
+        this.updatedAt = Instant.now();
+    }
 
     public void markParsing() {
         this.status = "PARSING";

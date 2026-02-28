@@ -9,6 +9,7 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +30,7 @@ class DocumentTextExtractorTest {
 
     @BeforeEach
     void setUp() {
-        extractor = new DocumentTextExtractor();
+        extractor = new DocumentTextExtractor(new TableExtractorService());
     }
 
     @Test
@@ -128,6 +130,157 @@ class DocumentTextExtractorTest {
         assertThat(result).doesNotContain("\u0000");
         assertThat(result).contains("Hello");
         assertThat(result).contains("World");
+    }
+
+    // --- cleanText tests ---
+
+    @Nested
+    class CleanTextTest {
+
+        @Test
+        void preservesNewlinesBetweenParagraphs() throws IOException {
+            Path file = tempDir.resolve("paragraphs.txt");
+            Files.writeString(file, "First paragraph\nSecond paragraph\nThird paragraph");
+
+            String result = extractor.extract(file, "text/plain");
+
+            assertThat(result).contains("First paragraph\nSecond paragraph\nThird paragraph");
+        }
+
+        @Test
+        void convertsWindowsLineEndingsToUnix() throws IOException {
+            Path file = tempDir.resolve("crlf.txt");
+            Files.writeString(file, "Line one\r\nLine two\r\nLine three");
+
+            String result = extractor.extract(file, "text/plain");
+
+            assertThat(result).contains("Line one\nLine two\nLine three");
+            assertThat(result).doesNotContain("\r");
+        }
+
+        @Test
+        void removesControlCharsButKeepsNewlineAndTab() throws IOException {
+            Path file = tempDir.resolve("ctrl.txt");
+            Files.writeString(file, "Hello\u0000World\n\tIndented\u0001Line");
+
+            String result = extractor.extract(file, "text/plain");
+
+            assertThat(result).doesNotContain("\u0000");
+            assertThat(result).doesNotContain("\u0001");
+            assertThat(result).contains("\n");
+            assertThat(result).contains("Hello");
+            assertThat(result).contains("Indented");
+        }
+
+        @Test
+        void collapsesThreeOrMoreBlankLinesToTwo() throws IOException {
+            Path file = tempDir.resolve("blanks.txt");
+            Files.writeString(file, "Section 1\n\n\n\n\nSection 2");
+
+            String result = extractor.extract(file, "text/plain");
+
+            assertThat(result).isEqualTo("Section 1\n\nSection 2");
+        }
+
+        @Test
+        void handlesNullInput() throws IOException {
+            // cleanText is private, test via extractFromText with empty file
+            Path file = tempDir.resolve("empty.txt");
+            Files.writeString(file, "");
+
+            String result = extractor.extract(file, "text/plain");
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // --- removeHeadersFooters tests ---
+
+    @Nested
+    class RemoveHeadersFootersTest {
+
+        @Test
+        void removesRepeatedHeadersAndFooters() {
+            var pages = List.of(
+                    new DocumentTextExtractor.PageText(1, "Bio-Rad Manual\nContent page 1\nPage 1 of 5", 0, 50),
+                    new DocumentTextExtractor.PageText(2, "Bio-Rad Manual\nContent page 2\nPage 2 of 5", 50, 100),
+                    new DocumentTextExtractor.PageText(3, "Bio-Rad Manual\nContent page 3\nPage 3 of 5", 100, 150),
+                    new DocumentTextExtractor.PageText(4, "Bio-Rad Manual\nContent page 4\nPage 4 of 5", 150, 200),
+                    new DocumentTextExtractor.PageText(5, "Bio-Rad Manual\nContent page 5\nPage 5 of 5", 200, 250)
+            );
+
+            List<DocumentTextExtractor.PageText> result = extractor.removeHeadersFooters(pages);
+
+            assertThat(result).hasSize(5);
+            for (var page : result) {
+                assertThat(page.text()).doesNotContain("Bio-Rad Manual");
+                assertThat(page.text()).contains("Content page");
+            }
+        }
+
+        @Test
+        void skipsWhenLessThanThreePages() {
+            var pages = List.of(
+                    new DocumentTextExtractor.PageText(1, "Header\nContent\nFooter", 0, 20),
+                    new DocumentTextExtractor.PageText(2, "Header\nContent 2\nFooter", 20, 40)
+            );
+
+            List<DocumentTextExtractor.PageText> result = extractor.removeHeadersFooters(pages);
+
+            assertThat(result).isEqualTo(pages);
+        }
+
+        @Test
+        void handlesPagesWithSingleLine() {
+            var pages = List.of(
+                    new DocumentTextExtractor.PageText(1, "Only line", 0, 10),
+                    new DocumentTextExtractor.PageText(2, "Only line", 10, 20),
+                    new DocumentTextExtractor.PageText(3, "Only line", 20, 30)
+            );
+
+            // Single-line pages: first line matches as header (3/3 >= threshold 1)
+            // but last line won't match (lines.length == 1, so lastLineFreq not incremented)
+            List<DocumentTextExtractor.PageText> result = extractor.removeHeadersFooters(pages);
+
+            assertThat(result).hasSize(3);
+            // Header "Only line" removed from each page
+            for (var page : result) {
+                assertThat(page.text()).isEmpty();
+            }
+        }
+
+        @Test
+        void handlesEmptyPageText() {
+            var pages = List.of(
+                    new DocumentTextExtractor.PageText(1, "", 0, 0),
+                    new DocumentTextExtractor.PageText(2, "Content", 0, 7),
+                    new DocumentTextExtractor.PageText(3, "", 7, 7)
+            );
+
+            List<DocumentTextExtractor.PageText> result = extractor.removeHeadersFooters(pages);
+
+            assertThat(result).hasSize(3);
+        }
+
+        @Test
+        void keepsNonRepeatingHeaders() {
+            var pages = List.of(
+                    new DocumentTextExtractor.PageText(1, "Chapter 1\nContent A\nFooter", 0, 30),
+                    new DocumentTextExtractor.PageText(2, "Chapter 2\nContent B\nFooter", 30, 60),
+                    new DocumentTextExtractor.PageText(3, "Chapter 3\nContent C\nFooter", 60, 90),
+                    new DocumentTextExtractor.PageText(4, "Chapter 4\nContent D\nFooter", 90, 120)
+            );
+
+            List<DocumentTextExtractor.PageText> result = extractor.removeHeadersFooters(pages);
+
+            // Each chapter title is unique, so none should be removed
+            assertThat(result.get(0).text()).contains("Chapter 1");
+            assertThat(result.get(1).text()).contains("Chapter 2");
+            // Footer "Footer" appears 4/4 times >= threshold 2, so it should be removed
+            for (var page : result) {
+                assertThat(page.text()).doesNotContain("Footer");
+            }
+        }
     }
 
     // --- Helper methods ---
