@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,8 +68,8 @@ class VectorizingServiceTest {
         when(kbDoc.getProductFamily()).thenReturn("naica");
         when(kbDocRepository.findById(docId)).thenReturn(Optional.of(kbDoc));
 
-        when(embeddingService.embed("content 1")).thenReturn(List.of(0.1, 0.2));
-        when(embeddingService.embed("content 2")).thenReturn(List.of(0.3, 0.4));
+        when(embeddingService.embedBatch(List.of("content 1", "content 2")))
+                .thenReturn(List.of(List.of(0.1, 0.2), List.of(0.3, 0.4)));
 
         int result = service.upsertDocumentChunks(docId);
 
@@ -90,7 +91,8 @@ class VectorizingServiceTest {
 
         when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
                 .thenReturn(List.of(chunk));
-        when(embeddingService.embed("content")).thenReturn(List.of(0.5));
+        when(embeddingService.embedBatch(List.of("content")))
+                .thenReturn(List.of(List.of(0.5)));
 
         service.upsertDocumentChunks(docId);
 
@@ -111,10 +113,71 @@ class VectorizingServiceTest {
 
         when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
                 .thenReturn(List.of(chunk));
-        when(embeddingService.embed("content")).thenReturn(List.of(0.5));
+        when(embeddingService.embedBatch(List.of("content")))
+                .thenReturn(List.of(List.of(0.5)));
 
         service.upsertDocumentChunks(docId);
 
         verify(vectorStore).upsert(chunkId, docId, List.of(0.5), "content", "INQUIRY", null);
+    }
+
+    @Test
+    void upsertDocumentChunks_usesEmbedBatchInsteadOfEmbed() {
+        UUID docId = UUID.randomUUID();
+        DocumentChunkJpaEntity chunk = mock(DocumentChunkJpaEntity.class);
+        UUID chunkId = UUID.randomUUID();
+
+        when(chunk.getId()).thenReturn(chunkId);
+        when(chunk.getContent()).thenReturn("content");
+        when(chunk.getSourceType()).thenReturn("INQUIRY");
+        when(chunk.getProductFamily()).thenReturn(null);
+
+        when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId))
+                .thenReturn(List.of(chunk));
+        when(embeddingService.embedBatch(List.of("content")))
+                .thenReturn(List.of(List.of(0.5)));
+
+        service.upsertDocumentChunks(docId);
+
+        // embedBatch should be called, NOT embed
+        verify(embeddingService).embedBatch(List.of("content"));
+        verify(embeddingService, never()).embed(anyString());
+    }
+
+    @Test
+    void upsertDocumentChunks_batchesInGroupsOf50() {
+        UUID docId = UUID.randomUUID();
+        List<DocumentChunkJpaEntity> chunks = new ArrayList<>();
+        for (int i = 0; i < 75; i++) {
+            DocumentChunkJpaEntity chunk = mock(DocumentChunkJpaEntity.class);
+            when(chunk.getId()).thenReturn(UUID.randomUUID());
+            when(chunk.getContent()).thenReturn("content " + i);
+            when(chunk.getSourceType()).thenReturn("INQUIRY");
+            when(chunk.getProductFamily()).thenReturn(null);
+            chunks.add(chunk);
+        }
+
+        when(chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId)).thenReturn(chunks);
+
+        // First batch: 50 items
+        List<String> firstBatchTexts = new ArrayList<>();
+        for (int i = 0; i < 50; i++) firstBatchTexts.add("content " + i);
+        List<List<Double>> firstBatchVectors = new ArrayList<>();
+        for (int i = 0; i < 50; i++) firstBatchVectors.add(List.of((double) i));
+        when(embeddingService.embedBatch(firstBatchTexts)).thenReturn(firstBatchVectors);
+
+        // Second batch: 25 items
+        List<String> secondBatchTexts = new ArrayList<>();
+        for (int i = 50; i < 75; i++) secondBatchTexts.add("content " + i);
+        List<List<Double>> secondBatchVectors = new ArrayList<>();
+        for (int i = 50; i < 75; i++) secondBatchVectors.add(List.of((double) i));
+        when(embeddingService.embedBatch(secondBatchTexts)).thenReturn(secondBatchVectors);
+
+        int result = service.upsertDocumentChunks(docId);
+
+        assertThat(result).isEqualTo(75);
+        // embedBatch called exactly twice (50 + 25)
+        verify(embeddingService, times(2)).embedBatch(anyList());
+        verify(vectorStore, times(75)).upsert(any(), eq(docId), anyList(), anyString(), anyString(), any());
     }
 }

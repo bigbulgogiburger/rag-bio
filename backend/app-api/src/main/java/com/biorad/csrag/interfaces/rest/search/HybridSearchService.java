@@ -22,6 +22,7 @@ public class HybridSearchService {
     private final VectorStore vectorStore;
     private final KeywordSearchService keywordSearchService;
     private final DocumentMetadataJpaRepository documentRepository;
+    private final HydeQueryTransformer hydeQueryTransformer;
 
     @Value("${search.hybrid.enabled:true}")
     private boolean hybridEnabled;
@@ -41,11 +42,13 @@ public class HybridSearchService {
     public HybridSearchService(EmbeddingService embeddingService,
                                VectorStore vectorStore,
                                KeywordSearchService keywordSearchService,
-                               DocumentMetadataJpaRepository documentRepository) {
+                               DocumentMetadataJpaRepository documentRepository,
+                               HydeQueryTransformer hydeQueryTransformer) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.keywordSearchService = keywordSearchService;
         this.documentRepository = documentRepository;
+        this.hydeQueryTransformer = hydeQueryTransformer;
     }
 
     public List<HybridSearchResult> search(String query, int topK) {
@@ -55,7 +58,9 @@ public class HybridSearchService {
     public List<HybridSearchResult> search(String query, int topK, SearchFilter filter) {
         // 벡터 검색용 필터: inquiryId → documentIds 해소 (벡터 DB는 SQL 서브쿼리 불가)
         SearchFilter vectorFilter = resolveForVectorSearch(filter);
-        List<Double> queryVector = embeddingService.embed(query);
+        List<Double> queryVector = hydeQueryTransformer.isEnabled()
+                ? hydeQueryTransformer.transformAndEmbed(query, "")
+                : embeddingService.embedQuery(query);
         List<VectorSearchResult> vectorResults = (vectorFilter != null && !vectorFilter.isEmpty())
                 ? vectorStore.search(queryVector, topK * 2, vectorFilter)
                 : vectorStore.search(queryVector, topK * 2);

@@ -13,6 +13,7 @@ import com.biorad.csrag.interfaces.rest.answer.orchestration.SubQuestion;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchResult;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchService;
 import com.biorad.csrag.interfaces.rest.search.QueryTranslationService;
+import com.biorad.csrag.interfaces.rest.search.RerankingService;
 import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.biorad.csrag.interfaces.rest.search.TranslatedQuery;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
@@ -34,6 +35,7 @@ public class AnalysisService {
     private final KnowledgeDocumentJpaRepository kbDocRepository;
     private final QueryTranslationService queryTranslationService;
     private final HybridSearchService hybridSearchService;
+    private final RerankingService rerankingService;
 
     public AnalysisService(
             EmbeddingService embeddingService,
@@ -43,7 +45,8 @@ public class AnalysisService {
             DocumentMetadataJpaRepository documentRepository,
             KnowledgeDocumentJpaRepository kbDocRepository,
             QueryTranslationService queryTranslationService,
-            HybridSearchService hybridSearchService
+            HybridSearchService hybridSearchService,
+            RerankingService rerankingService
     ) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
@@ -53,6 +56,7 @@ public class AnalysisService {
         this.kbDocRepository = kbDocRepository;
         this.queryTranslationService = queryTranslationService;
         this.hybridSearchService = hybridSearchService;
+        this.rerankingService = rerankingService;
     }
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
@@ -93,11 +97,16 @@ public class AnalysisService {
     }
 
     private List<EvidenceItem> doRetrieve(UUID inquiryId, String searchQuery, int topK, SearchFilter filter) {
-        List<HybridSearchResult> searchResults = hybridSearchService.search(searchQuery, topK, filter);
+        // 리랭킹을 위해 더 많은 후보 검색 (topK * 5)
+        int candidateCount = topK * 5;
+        List<HybridSearchResult> searchResults = hybridSearchService.search(searchQuery, candidateCount, filter);
+
+        // Cross-Encoder 리랭킹
+        List<RerankingService.RerankResult> reranked = rerankingService.rerank(searchQuery, searchResults, topK);
 
         // 배치 조회로 N+1 방지
-        Set<UUID> chunkIds = searchResults.stream().map(HybridSearchResult::chunkId).collect(Collectors.toSet());
-        Set<UUID> docIds = searchResults.stream().map(HybridSearchResult::documentId).collect(Collectors.toSet());
+        Set<UUID> chunkIds = reranked.stream().map(RerankingService.RerankResult::chunkId).collect(Collectors.toSet());
+        Set<UUID> docIds = reranked.stream().map(RerankingService.RerankResult::documentId).collect(Collectors.toSet());
 
         Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
                 .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
@@ -118,12 +127,12 @@ public class AnalysisService {
 
         List<EvidenceItem> evidences = new ArrayList<>();
         int rank = 1;
-        for (HybridSearchResult result : searchResults) {
+        for (RerankingService.RerankResult result : reranked) {
             evidenceRepository.save(new RetrievalEvidenceJpaEntity(
                     UUID.randomUUID(),
                     inquiryId,
                     result.chunkId(),
-                    result.vectorScore(),
+                    result.rerankScore(),
                     rank,
                     searchQuery,
                     Instant.now()
@@ -137,13 +146,12 @@ public class AnalysisService {
             }
             Integer pageStart = chunk != null ? chunk.getPageStart() : null;
             Integer pageEnd = chunk != null ? chunk.getPageEnd() : null;
-
             String productFamily = chunk != null ? chunk.getProductFamily() : null;
 
             evidences.add(new EvidenceItem(
                     result.chunkId().toString(),
                     result.documentId().toString(),
-                    result.vectorScore(),
+                    result.rerankScore(),
                     summarize(result.content()),
                     result.sourceType(),
                     fileName,
@@ -173,7 +181,15 @@ public class AnalysisService {
             );
         }
 
-        double avg = evidences.stream().mapToDouble(EvidenceItem::score).average().orElse(0d);
+        // Position-weighted scoring: 상위 순위에 더 높은 가중치 (1위: 1.0, 2위: 0.5, 3위: 0.33, ...)
+        double weightedScore = 0.0;
+        double weightSum = 0.0;
+        for (int i = 0; i < evidences.size(); i++) {
+            double weight = 1.0 / (i + 1);
+            weightedScore += evidences.get(i).score() * weight;
+            weightSum += weight;
+        }
+        double avg = weightSum > 0 ? weightedScore / weightSum : 0.0;
         String verdict;
         String reason;
         List<String> riskFlags = new ArrayList<>();

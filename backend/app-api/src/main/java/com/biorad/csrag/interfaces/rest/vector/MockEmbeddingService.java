@@ -8,7 +8,7 @@ import java.util.List;
 @Component
 public class MockEmbeddingService implements EmbeddingService {
 
-    private static final int DIMENSION = 16;
+    private static final int DIMENSION = 3072;
 
     @Override
     public List<Double> embed(String text) {

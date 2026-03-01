@@ -46,6 +46,55 @@ public class OpenAiEmbeddingService implements EmbeddingService {
     }
 
     @Override
+    public List<List<Double>> embedBatch(List<String> texts) {
+        if (texts == null || texts.isEmpty()) return List.of();
+        try {
+            List<String> inputs = texts.stream()
+                    .map(t -> t == null ? "" : t)
+                    .toList();
+
+            String response = restClient.post()
+                    .uri("/embeddings")
+                    .body(Map.of("model", embeddingModel, "input", inputs))
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(response == null ? "{}" : response);
+            JsonNode dataNode = root.path("data");
+            if (!dataNode.isArray()) {
+                throw new IllegalStateException("openai batch embedding response has no data array");
+            }
+
+            // Sort by index to maintain order
+            List<List<Double>> results = new ArrayList<>(texts.size());
+            for (int i = 0; i < texts.size(); i++) results.add(null);
+
+            for (JsonNode item : dataNode) {
+                int index = item.path("index").asInt();
+                JsonNode embeddingNode = item.path("embedding");
+                List<Double> vector = new ArrayList<>(embeddingNode.size());
+                for (JsonNode value : embeddingNode) {
+                    vector.add(value.asDouble());
+                }
+                if (index < results.size()) {
+                    results.set(index, vector);
+                }
+            }
+
+            // Validate all positions filled
+            for (int i = 0; i < results.size(); i++) {
+                if (results.get(i) == null) {
+                    throw new IllegalStateException("Missing embedding at index " + i);
+                }
+            }
+            return results;
+        } catch (Exception ex) {
+            log.warn("openai.embedding.batch.failed -> fallback to sequential: {}", ex.getMessage());
+            return fallback.embedBatch(texts);
+        }
+    }
+
+    @Override
     public List<Double> embed(String text) {
         String input = text == null ? "" : text;
         try {

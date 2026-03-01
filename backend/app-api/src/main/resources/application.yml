@@ -60,7 +60,7 @@ openai:
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   model:
     chat: ${OPENAI_CHAT_MODEL:gpt-5.2}
-    embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-large}
 
 vector:
   provider: ${VECTOR_DB_PROVIDER:mock}

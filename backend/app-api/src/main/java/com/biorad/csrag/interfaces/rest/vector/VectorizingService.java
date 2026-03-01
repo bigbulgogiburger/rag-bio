@@ -49,11 +49,19 @@ public class VectorizingService {
                     .orElse(null);
         }
 
-        for (DocumentChunkJpaEntity chunk : chunks) {
-            List<Double> vector = embeddingService.embed(chunk.getContent());
-            String sourceType = chunk.getSourceType() != null ? chunk.getSourceType() : "INQUIRY";
-            String productFamily = resolvedProductFamily != null ? resolvedProductFamily : chunk.getProductFamily();
-            vectorStore.upsert(chunk.getId(), documentId, vector, chunk.getContent(), sourceType, productFamily);
+        // 배치 임베딩 (50개씩)
+        int batchSize = 50;
+        for (int i = 0; i < chunks.size(); i += batchSize) {
+            List<DocumentChunkJpaEntity> batch = chunks.subList(i, Math.min(i + batchSize, chunks.size()));
+            List<String> texts = batch.stream().map(DocumentChunkJpaEntity::getContent).toList();
+            List<List<Double>> vectors = embeddingService.embedBatch(texts);
+
+            for (int j = 0; j < batch.size(); j++) {
+                DocumentChunkJpaEntity chunk = batch.get(j);
+                String sourceType = chunk.getSourceType() != null ? chunk.getSourceType() : "INQUIRY";
+                String productFamily = resolvedProductFamily != null ? resolvedProductFamily : chunk.getProductFamily();
+                vectorStore.upsert(chunk.getId(), documentId, vectors.get(j), chunk.getContent(), sourceType, productFamily);
+            }
         }
 
         return chunks.size();
