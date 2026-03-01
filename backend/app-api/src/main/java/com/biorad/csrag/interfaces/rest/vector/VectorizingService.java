@@ -4,6 +4,7 @@ import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
+import com.biorad.csrag.interfaces.rest.chunk.ContextualChunkEnricher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,17 +17,20 @@ public class VectorizingService {
     private final KnowledgeDocumentJpaRepository kbDocRepository;
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
+    private final ContextualChunkEnricher contextualChunkEnricher;
 
     public VectorizingService(
             DocumentChunkJpaRepository chunkRepository,
             KnowledgeDocumentJpaRepository kbDocRepository,
             EmbeddingService embeddingService,
-            VectorStore vectorStore
+            VectorStore vectorStore,
+            ContextualChunkEnricher contextualChunkEnricher
     ) {
         this.chunkRepository = chunkRepository;
         this.kbDocRepository = kbDocRepository;
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
+        this.contextualChunkEnricher = contextualChunkEnricher;
     }
 
     /**
@@ -49,11 +53,21 @@ public class VectorizingService {
                     .orElse(null);
         }
 
-        // 배치 임베딩 (50개씩)
+        // Contextual enrichment: enrichedContent에 문맥 주입
+        contextualChunkEnricher.enrichChunks("", chunks, "");
+
+        // CHILD 청크만 임베딩 (PARENT는 검색 대상 아님). flat 구조면 전부 임베딩.
+        List<DocumentChunkJpaEntity> chunksToEmbed = chunks.stream()
+                .filter(c -> !"PARENT".equals(c.getChunkLevel()))
+                .toList();
+
+        // 배치 임베딩 (50개씩) — enrichedContent 사용
         int batchSize = 50;
-        for (int i = 0; i < chunks.size(); i += batchSize) {
-            List<DocumentChunkJpaEntity> batch = chunks.subList(i, Math.min(i + batchSize, chunks.size()));
-            List<String> texts = batch.stream().map(DocumentChunkJpaEntity::getContent).toList();
+        for (int i = 0; i < chunksToEmbed.size(); i += batchSize) {
+            List<DocumentChunkJpaEntity> batch = chunksToEmbed.subList(i, Math.min(i + batchSize, chunksToEmbed.size()));
+            List<String> texts = batch.stream()
+                    .map(c -> c.getEnrichedContent() != null ? c.getEnrichedContent() : c.getContent())
+                    .toList();
             List<List<Double>> vectors = embeddingService.embedBatch(texts);
 
             for (int j = 0; j < batch.size(); j++) {

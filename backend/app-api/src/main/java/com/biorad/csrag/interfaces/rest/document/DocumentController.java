@@ -4,6 +4,7 @@ import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaE
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
+import com.biorad.csrag.interfaces.rest.chunk.ChunkingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -64,6 +65,7 @@ public class DocumentController {
     private final DocumentIndexingService documentIndexingService;
     private final DocumentIndexingWorker documentIndexingWorker;
     private final ImageAnalysisService imageAnalysisService;
+    private final ChunkingService chunkingService;
 
     @Value("${app.storage.upload-dir:uploads}")
     private String uploadDir;
@@ -73,13 +75,15 @@ public class DocumentController {
             DocumentMetadataJpaRepository documentMetadataJpaRepository,
             DocumentIndexingService documentIndexingService,
             DocumentIndexingWorker documentIndexingWorker,
-            ImageAnalysisService imageAnalysisService
+            ImageAnalysisService imageAnalysisService,
+            ChunkingService chunkingService
     ) {
         this.inquiryRepository = inquiryRepository;
         this.documentMetadataJpaRepository = documentMetadataJpaRepository;
         this.documentIndexingService = documentIndexingService;
         this.documentIndexingWorker = documentIndexingWorker;
         this.imageAnalysisService = imageAnalysisService;
+        this.chunkingService = chunkingService;
     }
 
     @Operation(summary = "문서 업로드", description = "문의에 PDF/DOC/DOCX 문서 또는 이미지(PNG/JPEG/WebP)를 업로드합니다 (자동 인덱싱 트리거)")
@@ -160,6 +164,13 @@ public class DocumentController {
                     entity.markParsed(result.extractedText() + "\n\n" + result.visualDescription());
                     log.info("document.image-analysis.success inquiryId={} documentId={} imageType={} confidence={}",
                             inquiryUuid, documentId, result.imageType(), result.confidence());
+
+                    // Index image analysis as a searchable chunk
+                    if (result.confidence() > 0.1) {
+                        String imageChunkText = buildImageChunkText(fileName, result);
+                        chunkingService.chunkAndStore(documentId, imageChunkText, "INQUIRY", inquiryUuid, fileName);
+                        log.info("document.image-chunk.indexed inquiryId={} documentId={}", inquiryUuid, documentId);
+                    }
                 } catch (Exception e) {
                     log.warn("document.image-analysis.failed inquiryId={} documentId={}: {}",
                             inquiryUuid, documentId, e.getMessage());
@@ -284,5 +295,22 @@ public class DocumentController {
         } catch (IllegalArgumentException e) {
             throw new ValidationException("INVALID_INQUIRY_ID", "Invalid inquiryId format");
         }
+    }
+
+    String buildImageChunkText(String fileName, ImageAnalysisService.ImageAnalysisResult result) {
+        return String.format("""
+                [이미지 분석: %s]
+                유형: %s
+                추출 텍스트: %s
+                시각적 설명: %s
+                기술 컨텍스트: %s
+                권장 검색 쿼리: %s""",
+                fileName,
+                result.imageType() != null ? result.imageType() : "알 수 없음",
+                result.extractedText() != null ? result.extractedText() : "",
+                result.visualDescription() != null ? result.visualDescription() : "",
+                result.technicalContext() != null ? result.technicalContext() : "",
+                result.suggestedQuery() != null ? result.suggestedQuery() : ""
+        );
     }
 }

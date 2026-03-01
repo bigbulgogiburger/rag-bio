@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import AppShellNav from "@/components/app-shell-nav";
+import AppShellNav, { MobileBottomNav } from "@/components/app-shell-nav";
 import QueryProvider from "@/providers/QueryProvider";
 import AuthProvider from "@/components/auth/AuthProvider";
 import { ClientErrorBoundary } from "@/components/error";
@@ -48,16 +48,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </Link>
               <div className="flex items-center gap-2">
-                <AppShellNav />
-                <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                <div className="hidden md:flex md:items-center md:gap-2">
+                  <AppShellNav />
+                  <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                </div>
                 <ThemeToggle />
               </div>
             </div>
           </header>
 
-          <main id="main-content" className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 flex-1 w-full">{children}</main>
+          <main id="main-content" className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 flex-1 w-full pb-20 md:pb-0">{children}</main>
 
-          <footer className="border-t border-border/50 bg-slate-900 text-slate-400 dark:bg-slate-950 dark:text-slate-500" role="contentinfo">
+          <MobileBottomNav />
+
+          <footer className="hidden border-t border-border/50 bg-slate-900 text-slate-400 dark:bg-slate-950 dark:text-slate-500 md:block" role="contentinfo">
             <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 text-xs sm:flex-row sm:gap-8 sm:px-6 sm:py-8">
               <div className="flex-1 space-y-1">
                 <div className="mb-3 flex items-center gap-2">

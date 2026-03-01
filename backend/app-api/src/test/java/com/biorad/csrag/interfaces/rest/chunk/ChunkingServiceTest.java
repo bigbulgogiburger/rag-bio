@@ -75,9 +75,9 @@ class ChunkingServiceTest {
     }
 
     @Test
-    void chunkAndStore_createsChunksWithSentenceBoundaries() {
+    void chunkAndStore_createsParentAndChildChunks() {
         UUID docId = UUID.randomUUID();
-        // 짧은 문장 여러 개 - 하나의 청크에 합쳐져야 함
+        // 짧은 문장 여러 개 - 하나의 Parent + Child 청크가 생성되어야 함
         String text = "Short sentence one. Short sentence two. Short sentence three.";
 
         int count = chunkingService.chunkAndStore(docId, text);
@@ -86,14 +86,23 @@ class ChunkingServiceTest {
         List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
 
         assertThat(count).isEqualTo(chunks.size());
-        // 짧은 문장들은 하나의 청크로 합쳐져야 함
-        assertThat(chunks.size()).isEqualTo(1);
-        assertThat(chunks.get(0).getContent()).contains("Short sentence one.");
-        assertThat(chunks.get(0).getContent()).contains("Short sentence three.");
+
+        // Parent 청크 확인
+        List<DocumentChunkJpaEntity> parents = chunks.stream()
+                .filter(c -> "PARENT".equals(c.getChunkLevel())).toList();
+        assertThat(parents).hasSize(1);
+        assertThat(parents.get(0).getContent()).contains("Short sentence one.");
+        assertThat(parents.get(0).getContent()).contains("Short sentence three.");
+
+        // Child 청크 확인 - 부모 ID 참조
+        List<DocumentChunkJpaEntity> children = chunks.stream()
+                .filter(c -> "CHILD".equals(c.getChunkLevel())).toList();
+        assertThat(children).allSatisfy(child ->
+                assertThat(child.getParentChunkId()).isEqualTo(parents.get(0).getId()));
     }
 
     @Test
-    void chunkAndStore_splitsLongTextIntoMultipleChunks() {
+    void chunkAndStore_splitsLongTextIntoMultipleParentsWithChildren() {
         UUID docId = UUID.randomUUID();
         // CHUNK_SIZE(1500) 초과하는 긴 텍스트 생성
         StringBuilder sb = new StringBuilder();
@@ -108,10 +117,21 @@ class ChunkingServiceTest {
         List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
 
         assertThat(count).isGreaterThan(1);
-        // 각 청크가 CHUNK_SIZE를 크게 초과하지 않아야 함
-        for (DocumentChunkJpaEntity chunk : chunks) {
-            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1600); // 약간의 여유
+
+        List<DocumentChunkJpaEntity> parents = chunks.stream()
+                .filter(c -> "PARENT".equals(c.getChunkLevel())).toList();
+        List<DocumentChunkJpaEntity> children = chunks.stream()
+                .filter(c -> "CHILD".equals(c.getChunkLevel())).toList();
+
+        // 여러 Parent가 생성되어야 함
+        assertThat(parents.size()).isGreaterThan(1);
+        // Parent 청크는 CHUNK_SIZE를 크게 초과하지 않아야 함
+        for (DocumentChunkJpaEntity parent : parents) {
+            assertThat(parent.getContent().length()).isLessThanOrEqualTo(1600);
         }
+        // 각 Child는 parentChunkId를 가지고 있어야 함
+        assertThat(children).allSatisfy(child ->
+                assertThat(child.getParentChunkId()).isNotNull());
     }
 
     @Test
@@ -162,12 +182,14 @@ class ChunkingServiceTest {
         verify(chunkRepository).saveAll(chunksCaptor.capture());
         List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
 
-        if (chunks.size() >= 2) {
-            // 마지막 청크의 시작 부분이 이전 청크 내용과 겹쳐야 함 (오버랩)
-            String firstChunk = chunks.get(0).getContent();
-            String secondChunk = chunks.get(1).getContent();
+        // Parent 청크만 추출하여 오버랩 확인
+        List<DocumentChunkJpaEntity> parents = chunks.stream()
+                .filter(c -> "PARENT".equals(c.getChunkLevel())).toList();
 
-            // 두 번째 청크에 첫 번째 청크의 마지막 문장이 포함되어 있는지 확인
+        if (parents.size() >= 2) {
+            String firstChunk = parents.get(0).getContent();
+            String secondChunk = parents.get(1).getContent();
+
             String[] firstSentences = firstChunk.split("\\. ");
             if (firstSentences.length > 1) {
                 String lastSentenceOfFirst = firstSentences[firstSentences.length - 1];
@@ -225,9 +247,77 @@ class ChunkingServiceTest {
         List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
 
         assertThat(count).isGreaterThan(1);
-        for (DocumentChunkJpaEntity chunk : chunks) {
-            assertThat(chunk.getContent().length()).isLessThanOrEqualTo(1500);
+        // Parent 청크가 CHUNK_SIZE 이하
+        List<DocumentChunkJpaEntity> parents = chunks.stream()
+                .filter(c -> "PARENT".equals(c.getChunkLevel())).toList();
+        for (DocumentChunkJpaEntity parent : parents) {
+            assertThat(parent.getContent().length()).isLessThanOrEqualTo(1500);
         }
+    }
+
+    // ── TASK 3-2: Parent-Child 청킹 테스트 ──
+
+    @Test
+    void splitIntoChildTexts_eachChildWithinTargetSize() {
+        // ~800자 텍스트를 400자 Child로 분할
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= 20; i++) {
+            sb.append("Sentence ").append(i).append(" with extra padding text here. ");
+        }
+        String text = sb.toString();
+
+        List<String> children = chunkingService.splitIntoChildTexts(text, 400);
+
+        assertThat(children).isNotEmpty();
+        for (String child : children) {
+            assertThat(child.length()).isLessThanOrEqualTo(450); // 약간의 여유 (문장 경계)
+        }
+    }
+
+    @Test
+    void splitIntoChildTexts_emptyInputReturnsEmptyList() {
+        assertThat(chunkingService.splitIntoChildTexts("", 400)).isEmpty();
+        assertThat(chunkingService.splitIntoChildTexts(null, 400)).isEmpty();
+        assertThat(chunkingService.splitIntoChildTexts("   ", 400)).isEmpty();
+    }
+
+    @Test
+    void splitIntoChildTexts_shortTextReturnsSingleChild() {
+        String text = "Short text.";
+        List<String> children = chunkingService.splitIntoChildTexts(text, 400);
+        assertThat(children).hasSize(1);
+        assertThat(children.get(0)).isEqualTo("Short text.");
+    }
+
+    @Test
+    void chunkAndStore_childInheritsProductFamily() {
+        UUID docId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        String text = "Knowledge base content about naica system. It has detailed information. Third sentence here.";
+
+        chunkingService.chunkAndStore(docId, text, "KNOWLEDGE_BASE", sourceId, null, "naica");
+
+        verify(chunkRepository).saveAll(chunksCaptor.capture());
+        List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
+
+        assertThat(chunks).allSatisfy(chunk ->
+                assertThat(chunk.getProductFamily()).isEqualTo("naica"));
+    }
+
+    @Test
+    void chunkAndStore_parentHasNoParentChunkId() {
+        UUID docId = UUID.randomUUID();
+        String text = "Some content for testing. Another sentence here.";
+
+        chunkingService.chunkAndStore(docId, text);
+
+        verify(chunkRepository).saveAll(chunksCaptor.capture());
+        List<DocumentChunkJpaEntity> chunks = chunksCaptor.getValue();
+
+        List<DocumentChunkJpaEntity> parents = chunks.stream()
+                .filter(c -> "PARENT".equals(c.getChunkLevel())).toList();
+        assertThat(parents).allSatisfy(parent ->
+                assertThat(parent.getParentChunkId()).isNull());
     }
 
     // ── TASK 1-2: 과학 약어 보호 테스트 ──

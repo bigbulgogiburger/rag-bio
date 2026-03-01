@@ -45,6 +45,18 @@ public class DocumentChunkJpaEntity {
     @Column(name = "product_family", length = 100)
     private String productFamily;              // 제품 패밀리 (예: "naica", "vericheck", "QX700")
 
+    @Column(name = "parent_chunk_id")
+    private UUID parentChunkId;                // 부모 청크 ID (Child 청크만 설정)
+
+    @Column(name = "chunk_level", length = 10)
+    private String chunkLevel = "CHILD";       // "PARENT" | "CHILD"
+
+    @Column(name = "context_prefix", columnDefinition = "TEXT")
+    private String contextPrefix;              // LLM이 생성한 문맥 설명
+
+    @Column(name = "enriched_content", columnDefinition = "TEXT")
+    private String enrichedContent;            // contextPrefix + "\n" + content
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -123,5 +135,37 @@ public class DocumentChunkJpaEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getParentChunkId() {
+        return parentChunkId;
+    }
+
+    public void setParentChunkId(UUID parentChunkId) {
+        this.parentChunkId = parentChunkId;
+    }
+
+    public String getChunkLevel() {
+        return chunkLevel;
+    }
+
+    public void setChunkLevel(String chunkLevel) {
+        this.chunkLevel = chunkLevel;
+    }
+
+    public String getContextPrefix() {
+        return contextPrefix;
+    }
+
+    public void setContextPrefix(String contextPrefix) {
+        this.contextPrefix = contextPrefix;
+    }
+
+    public String getEnrichedContent() {
+        return enrichedContent;
+    }
+
+    public void setEnrichedContent(String enrichedContent) {
+        this.enrichedContent = enrichedContent;
     }
 }

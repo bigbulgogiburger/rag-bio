@@ -55,7 +55,7 @@ export default function FilterBar({
 
   return (
     <div
-      className="flex gap-2 items-end flex-wrap py-4 border-t border-border/50"
+      className="grid grid-cols-1 gap-2 py-4 border-t border-border/50 sm:flex sm:items-end sm:flex-wrap"
       role="search"
       aria-label="필터 검색"
     >
@@ -119,7 +119,7 @@ export default function FilterBar({
         );
       })}
 
-      <Button onClick={onSearch} className="self-end">
+      <Button onClick={onSearch} className="self-end w-full sm:w-auto">
         <Search className="h-4 w-4" aria-hidden="true" />
         검색
       </Button>

@@ -66,6 +66,7 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
                        ts_rank(content_tsv, plainto_tsquery('simple', ?)) AS rank
                 FROM document_chunks
                 WHERE content_tsv @@ plainto_tsquery('simple', ?)
+                  AND (chunk_level IS NULL OR chunk_level = 'CHILD')
                 """);
 
         List<Object> params = new ArrayList<>();
@@ -121,6 +122,7 @@ public class PostgresKeywordSearchService implements KeywordSearchService {
                        ts_rank(content_tsv, plainto_tsquery('simple', ?)) AS rank
                 FROM document_chunks
                 WHERE content_tsv @@ plainto_tsquery('simple', ?)
+                  AND (chunk_level IS NULL OR chunk_level = 'CHILD')
                 ORDER BY rank DESC
                 LIMIT ?
                 """;

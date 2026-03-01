@@ -72,17 +72,17 @@ export default function Pagination({
 
   return (
     <div
-      className="flex items-center justify-between py-4 text-xs text-muted-foreground gap-4 flex-wrap"
+      className="flex flex-col gap-3 py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       role="navigation"
       aria-label="페이지네이션"
     >
-      <div>
+      <div className="text-center sm:text-left">
         전체{' '}
         <strong className="text-foreground font-semibold">{totalElements}</strong>
         건 중 {startItem}-{endItem}건
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-center gap-1">
         <button
           className={cn(
             'inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md border border-border bg-card transition-colors',
@@ -98,7 +98,13 @@ export default function Pagination({
           이전
         </button>
 
-        {renderPageButtons()}
+        <span className="hidden sm:contents">
+          {renderPageButtons()}
+        </span>
+
+        <span className="inline-flex items-center px-2 text-xs font-medium text-foreground sm:hidden">
+          {page + 1} / {totalPages}
+        </span>
 
         <button
           className={cn(
@@ -116,7 +122,7 @@ export default function Pagination({
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="hidden sm:flex items-center gap-2">
         <label
           htmlFor="pagination-size-select"
           className="text-xs text-muted-foreground whitespace-nowrap"

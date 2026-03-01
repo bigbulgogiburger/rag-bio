@@ -23,7 +23,7 @@ import java.util.Map;
 public class OpenAiComposeStep implements ComposeStep {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiComposeStep.class);
-    private static final int EVIDENCE_CHAR_BUDGET = 8000;
+    private static final int EVIDENCE_CHAR_BUDGET = 12000;
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;

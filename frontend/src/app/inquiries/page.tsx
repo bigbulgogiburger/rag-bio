@@ -206,6 +206,7 @@ export default function InquiriesPage() {
         <h2 className="text-xl font-semibold tracking-tight">문의 대응 내역</h2>
         <Button
           onClick={() => router.push("/inquiries/new")}
+          className="hidden sm:inline-flex"
         >
           문의 작성
         </Button>
@@ -244,12 +245,42 @@ export default function InquiriesPage() {
               />
             ) : (
               <>
-                <DataTable
-                  columns={columns}
-                  data={response.content}
-                  onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
-                  emptyMessage="등록된 문의가 없습니다"
-                />
+                {/* Desktop table */}
+                <div className="hidden md:block">
+                  <DataTable
+                    columns={columns}
+                    data={response.content}
+                    onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
+                    emptyMessage="등록된 문의가 없습니다"
+                  />
+                </div>
+
+                {/* Mobile card list */}
+                <div className="flex flex-col gap-3 md:hidden">
+                  {response.content.map((item) => (
+                    <button
+                      key={item.inquiryId}
+                      type="button"
+                      className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                      onClick={() => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
+                    >
+                      <p className="mb-2 text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}</span>
+                        <span>{labelChannel(item.customerChannel)}</span>
+                        <Badge variant={getStatusBadgeVariant(item.status)}>
+                          {labelInquiryStatus(item.status)}
+                        </Badge>
+                        {item.latestAnswerStatus && (
+                          <Badge variant={getAnswerStatusBadgeVariant(item.latestAnswerStatus)}>
+                            {labelAnswerStatus(item.latestAnswerStatus)}
+                          </Badge>
+                        )}
+                        <span>{item.documentCount}건 문서</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
 
                 <Pagination
                   page={response.page}

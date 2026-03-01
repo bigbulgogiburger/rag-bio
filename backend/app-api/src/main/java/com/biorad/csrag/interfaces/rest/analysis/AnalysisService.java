@@ -111,6 +111,17 @@ public class AnalysisService {
         Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
                 .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
 
+        // Parent-Child: CHILD 청크의 부모 청크를 배치 조회
+        Set<UUID> parentIds = chunkMap.values().stream()
+                .filter(c -> "CHILD".equals(c.getChunkLevel()) && c.getParentChunkId() != null)
+                .map(DocumentChunkJpaEntity::getParentChunkId)
+                .collect(Collectors.toSet());
+
+        Map<UUID, DocumentChunkJpaEntity> parentMap = parentIds.isEmpty()
+                ? Map.of()
+                : chunkRepository.findAllById(parentIds).stream()
+                    .collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
+
         // sourceId 기반 조회를 위해 청크의 sourceId 수집
         Set<UUID> sourceIds = chunkMap.values().stream()
                 .map(DocumentChunkJpaEntity::getSourceId)
@@ -148,11 +159,20 @@ public class AnalysisService {
             Integer pageEnd = chunk != null ? chunk.getPageEnd() : null;
             String productFamily = chunk != null ? chunk.getProductFamily() : null;
 
+            // Parent-Child: CHILD 청크면 PARENT 콘텐츠를 LLM에 제공 (더 넓은 문맥)
+            String contentForLlm = result.content();
+            if (chunk != null && "CHILD".equals(chunk.getChunkLevel()) && chunk.getParentChunkId() != null) {
+                DocumentChunkJpaEntity parent = parentMap.get(chunk.getParentChunkId());
+                if (parent != null) {
+                    contentForLlm = parent.getContent();
+                }
+            }
+
             evidences.add(new EvidenceItem(
                     result.chunkId().toString(),
                     result.documentId().toString(),
                     result.rerankScore(),
-                    summarize(result.content()),
+                    summarize(contentForLlm),
                     result.sourceType(),
                     fileName,
                     pageStart,

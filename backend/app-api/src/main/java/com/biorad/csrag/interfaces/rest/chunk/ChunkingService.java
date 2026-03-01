@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 public class ChunkingService {
 
     private static final int CHUNK_SIZE = 1500;
+    private static final int CHILD_CHUNK_SIZE = 400;
     private static final int OVERLAP_CHARS = 300;
 
     // 과학 약어 보호 패턴
@@ -79,7 +80,7 @@ public class ChunkingService {
         chunkRepository.deleteByDocumentId(documentId);
 
         List<String> sentences = splitIntoSentences(text);
-        List<DocumentChunkJpaEntity> chunks = new ArrayList<>();
+        List<DocumentChunkJpaEntity> parentChunks = new ArrayList<>();
         int chunkIndex = 0;
         int globalOffset = 0;
 
@@ -130,7 +131,8 @@ public class ChunkingService {
                     if (productFamily != null) {
                         chunk.setProductFamily(productFamily);
                     }
-                    chunks.add(chunk);
+                    chunk.setChunkLevel("PARENT");
+                    parentChunks.add(chunk);
                     chunkIndex++;
                     pos = end;
                 }
@@ -156,7 +158,8 @@ public class ChunkingService {
             if (productFamily != null) {
                 chunk.setProductFamily(productFamily);
             }
-            chunks.add(chunk);
+            chunk.setChunkLevel("PARENT");
+            parentChunks.add(chunk);
 
             globalOffset = endOffset;
             chunkIndex++;
@@ -169,8 +172,33 @@ public class ChunkingService {
             sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
-        chunkRepository.saveAll(chunks);
-        return chunks.size();
+        // Parent-Child 분할: 각 Parent를 ~400자 Child로 분할
+        List<DocumentChunkJpaEntity> allChunks = new ArrayList<>();
+        for (DocumentChunkJpaEntity parent : parentChunks) {
+            allChunks.add(parent);
+
+            List<String> childTexts = splitIntoChildTexts(parent.getContent(), CHILD_CHUNK_SIZE);
+            for (int ci = 0; ci < childTexts.size(); ci++) {
+                DocumentChunkJpaEntity child = new DocumentChunkJpaEntity(
+                        UUID.randomUUID(),
+                        parent.getDocumentId(),
+                        parent.getChunkIndex() * 100 + ci,
+                        parent.getStartOffset(),
+                        parent.getEndOffset(),
+                        childTexts.get(ci),
+                        parent.getSourceType(),
+                        parent.getSourceId(),
+                        Instant.now()
+                );
+                child.setChunkLevel("CHILD");
+                child.setParentChunkId(parent.getId());
+                child.setProductFamily(parent.getProductFamily());
+                allChunks.add(child);
+            }
+        }
+
+        chunkRepository.saveAll(allChunks);
+        return allChunks.size();
     }
 
     /**
@@ -209,7 +237,7 @@ public class ChunkingService {
         chunkRepository.deleteByDocumentId(documentId);
 
         List<String> sentences = splitIntoSentences(fullText);
-        List<DocumentChunkJpaEntity> chunks = new ArrayList<>();
+        List<DocumentChunkJpaEntity> parentChunks = new ArrayList<>();
         int chunkIndex = 0;
         int globalOffset = 0;
 
@@ -256,7 +284,8 @@ public class ChunkingService {
                     if (productFamily != null) {
                         chunk.setProductFamily(productFamily);
                     }
-                    chunks.add(chunk);
+                    chunk.setChunkLevel("PARENT");
+                    parentChunks.add(chunk);
                     chunkIndex++;
                     pos = end;
                 }
@@ -281,7 +310,8 @@ public class ChunkingService {
             if (productFamily != null) {
                 chunk.setProductFamily(productFamily);
             }
-            chunks.add(chunk);
+            chunk.setChunkLevel("PARENT");
+            parentChunks.add(chunk);
 
             globalOffset = endOffset;
             chunkIndex++;
@@ -293,8 +323,35 @@ public class ChunkingService {
             sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
-        chunkRepository.saveAll(chunks);
-        return chunks.size();
+        // Parent-Child 분할: 각 Parent를 ~400자 Child로 분할
+        List<DocumentChunkJpaEntity> allChunks = new ArrayList<>();
+        for (DocumentChunkJpaEntity parent : parentChunks) {
+            allChunks.add(parent);
+
+            List<String> childTexts = splitIntoChildTexts(parent.getContent(), CHILD_CHUNK_SIZE);
+            for (int ci = 0; ci < childTexts.size(); ci++) {
+                DocumentChunkJpaEntity child = new DocumentChunkJpaEntity(
+                        UUID.randomUUID(),
+                        parent.getDocumentId(),
+                        parent.getChunkIndex() * 100 + ci,
+                        parent.getStartOffset(),
+                        parent.getEndOffset(),
+                        childTexts.get(ci),
+                        parent.getSourceType(),
+                        parent.getSourceId(),
+                        parent.getPageStart(),
+                        parent.getPageEnd(),
+                        Instant.now()
+                );
+                child.setChunkLevel("CHILD");
+                child.setParentChunkId(parent.getId());
+                child.setProductFamily(parent.getProductFamily());
+                allChunks.add(child);
+            }
+        }
+
+        chunkRepository.saveAll(allChunks);
+        return allChunks.size();
     }
 
     /**
@@ -374,6 +431,29 @@ public class ChunkingService {
             newStart = k;
         }
         return newStart;
+    }
+
+    List<String> splitIntoChildTexts(String text, int targetSize) {
+        List<String> children = new ArrayList<>();
+        if (text == null || text.isBlank()) return children;
+
+        List<String> sentences = splitIntoSentences(text);
+        StringBuilder current = new StringBuilder();
+
+        for (String sentence : sentences) {
+            if (current.length() + sentence.length() > targetSize && current.length() > 0) {
+                children.add(current.toString().trim());
+                current = new StringBuilder();
+            }
+            if (current.length() > 0) {
+                current.append(" ");
+            }
+            current.append(sentence);
+        }
+        if (!current.isEmpty()) {
+            children.add(current.toString().trim());
+        }
+        return children.isEmpty() ? List.of(text) : children;
     }
 
     private boolean isHeading(String sentence) {

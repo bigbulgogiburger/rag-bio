@@ -182,7 +182,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header with period selector + CSV export */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
         <div className="flex items-center gap-3">
           <PeriodSelector value={period} onChange={setPeriod} />
@@ -193,7 +193,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric Cards */}
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {metricCards.map((metric) => (
           <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={metric.label}>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
@@ -239,7 +239,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         {/* Timeline Chart */}
         <Card>
           <CardContent className="p-6">
@@ -300,12 +300,45 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          <DataTable
-            columns={inquiryColumns}
-            data={inquiries}
-            onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
-            emptyMessage="등록된 문의가 없습니다"
-          />
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={inquiryColumns}
+              data={inquiries}
+              onRowClick={(item) => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
+              emptyMessage="등록된 문의가 없습니다"
+            />
+          </div>
+
+          {/* Mobile card list */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {inquiries.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">등록된 문의가 없습니다</p>
+            ) : (
+              inquiries.map((item) => (
+                <button
+                  key={item.inquiryId}
+                  type="button"
+                  className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                  onClick={() => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
+                >
+                  <p className="mb-2 text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>{item.createdAt.slice(0, 10)}</span>
+                    <span>{labelChannel(item.customerChannel)}</span>
+                    <Badge variant={getStatusVariant(item.status)}>
+                      {labelInquiryStatus(item.status)}
+                    </Badge>
+                    {item.latestAnswerStatus && (
+                      <Badge variant={getAnswerVariant(item.latestAnswerStatus)}>
+                        {labelAnswerStatus(item.latestAnswerStatus)}
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
