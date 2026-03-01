@@ -106,4 +106,45 @@ class ProductExtractorServiceTest {
         assertThat(results).hasSize(1);
         assertThat(results.get(0).productFamily()).isEqualTo("ChemiDoc");
     }
+
+    @Test
+    void extract_longerMatchWins_shorterMatchIgnored() {
+        // "naica 10x multiplex" (exact, longer) should win over "naica" (non-exact, shorter)
+        // Tests the FALSE branch: matched.length() <= bestMatch.length() → skip
+        ProductExtractorService.ExtractedProduct result = service.extract("naica 10x multiplex system");
+
+        assertThat(result).isNotNull();
+        // naica multiplex pattern (exact=true) → confidence=0.9
+        assertThat(result.confidence()).isEqualTo(0.9);
+        assertThat(result.productFamily()).isEqualTo("naica");
+    }
+
+    @Test
+    void extractAll_sameFamilyExactBeatsNonExact_keepHigherConfidence() {
+        // "naica 10x multiplex" (exact, 0.9) and "naica" (non-exact, 0.6) both match "naica" family
+        // Tests the merge lambda FALSE branch: newer.confidence (0.6) <= existing (0.9) → keep existing
+        List<ProductExtractorService.ExtractedProduct> results =
+                service.extractAll("naica 10x multiplex 문의");
+
+        assertThat(results).isNotEmpty();
+        // Only one entry for "naica" family, with high confidence (0.9 exact match wins)
+        long naicaCount = results.stream()
+                .filter(p -> "naica".equals(p.productFamily()))
+                .count();
+        assertThat(naicaCount).isEqualTo(1);
+        double naicaConfidence = results.stream()
+                .filter(p -> "naica".equals(p.productFamily()))
+                .mapToDouble(ProductExtractorService.ExtractedProduct::confidence)
+                .max().orElse(0.0);
+        assertThat(naicaConfidence).isEqualTo(0.9);
+    }
+
+    @Test
+    void extractAll_maxThreeProducts() {
+        // naica + QX200 + ChemiDoc + ddPCR Supermix = 4 products, limited to 3
+        List<ProductExtractorService.ExtractedProduct> results =
+                service.extractAll("naica QX200 ChemiDoc ddPCR Supermix 비교");
+
+        assertThat(results.size()).isLessThanOrEqualTo(3);
+    }
 }

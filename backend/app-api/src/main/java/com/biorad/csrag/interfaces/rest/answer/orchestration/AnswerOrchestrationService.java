@@ -4,8 +4,11 @@ import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRu
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaRepository;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
+import com.biorad.csrag.interfaces.rest.search.AdaptiveRetrievalAgent;
+import com.biorad.csrag.interfaces.rest.search.MultiHopRetriever;
 import com.biorad.csrag.interfaces.rest.search.ProductExtractorService;
 import com.biorad.csrag.interfaces.rest.search.ProductFamilyRegistry;
+import com.biorad.csrag.interfaces.rest.search.RerankingService;
 import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.biorad.csrag.interfaces.rest.sse.SseService;
 import org.slf4j.Logger;
@@ -36,6 +39,9 @@ public class AnswerOrchestrationService {
     private final QuestionDecomposerService questionDecomposerService;
     private final ProductExtractorService productExtractorService;
     private final ProductFamilyRegistry productFamilyRegistry;
+    private final AdaptiveRetrievalAgent adaptiveRetrievalAgent;
+    private final MultiHopRetriever multiHopRetriever;
+    private final CriticAgentService criticAgentService;
 
     public AnswerOrchestrationService(
             RetrieveStep retrieveStep,
@@ -46,7 +52,10 @@ public class AnswerOrchestrationService {
             SseService sseService,
             QuestionDecomposerService questionDecomposerService,
             ProductExtractorService productExtractorService,
-            ProductFamilyRegistry productFamilyRegistry
+            ProductFamilyRegistry productFamilyRegistry,
+            AdaptiveRetrievalAgent adaptiveRetrievalAgent,
+            MultiHopRetriever multiHopRetriever,
+            CriticAgentService criticAgentService
     ) {
         this.retrieveStep = retrieveStep;
         this.verifyStep = verifyStep;
@@ -57,6 +66,9 @@ public class AnswerOrchestrationService {
         this.questionDecomposerService = questionDecomposerService;
         this.productExtractorService = productExtractorService;
         this.productFamilyRegistry = productFamilyRegistry;
+        this.adaptiveRetrievalAgent = adaptiveRetrievalAgent;
+        this.multiHopRetriever = multiHopRetriever;
+        this.criticAgentService = criticAgentService;
     }
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel) {
@@ -132,8 +144,66 @@ public class AnswerOrchestrationService {
             retrievalQuality = RetrievalQuality.UNFILTERED;
         }
 
+        // ── ADAPTIVE RETRIEVAL (fallback when 3-Level yields empty) ──
+        if (retrievedEvidences.isEmpty()) {
+            emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "STARTED", null);
+            try {
+                String productContext = extractedFamilies.isEmpty() ? "" : String.join(", ", extractedFamilies);
+                AdaptiveRetrievalAgent.AdaptiveResult adaptiveResult = executeWithRunLog(
+                        inquiryId, "ADAPTIVE_RETRIEVE",
+                        () -> adaptiveRetrievalAgent.retrieve(question, productContext, inquiryId));
+
+                if (adaptiveResult.status() == AdaptiveRetrievalAgent.AdaptiveResult.ResultStatus.NO_EVIDENCE) {
+                    log.info("AdaptiveRetrievalAgent returned NO_EVIDENCE inquiryId={}", inquiryId);
+                    emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "COMPLETED", "NO_EVIDENCE");
+                    // I Don't Know 경로: retrievedEvidences remains empty
+                } else {
+                    retrievedEvidences = toEvidenceItems(adaptiveResult.evidences());
+                    retrievalQuality = RetrievalQuality.ADAPTIVE;
+                    log.info("AdaptiveRetrievalAgent found {} evidences, confidence={} inquiryId={}",
+                            retrievedEvidences.size(), adaptiveResult.confidence(), inquiryId);
+                    emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "COMPLETED",
+                            "evidences=" + retrievedEvidences.size() + ", confidence=" +
+                                    String.format("%.2f", adaptiveResult.confidence()));
+                }
+            } catch (Exception e) {
+                log.warn("AdaptiveRetrievalAgent failed, continuing with empty results inquiryId={}", inquiryId, e);
+                emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "FAILED", e.getMessage());
+            }
+        }
+
         emitPipelineEvent(inquiryId, "RETRIEVE", "COMPLETED",
                 "retrievalQuality=" + retrievalQuality);
+
+        // ── MULTI_HOP (교차 추론) ────────────────────────────────
+        try {
+            emitPipelineEvent(inquiryId, "MULTI_HOP", "STARTED", null);
+            MultiHopRetriever.MultiHopResult multiHopResult = executeWithRunLog(
+                    inquiryId, "MULTI_HOP",
+                    () -> multiHopRetriever.retrieve(question, inquiryId));
+
+            if (!multiHopResult.isSingleHop()) {
+                List<EvidenceItem> multiHopEvidences = toEvidenceItems(multiHopResult.evidences());
+                if (!multiHopEvidences.isEmpty()) {
+                    // Merge multi-hop evidences, deduplicating by chunkId
+                    LinkedHashMap<String, EvidenceItem> merged = new LinkedHashMap<>();
+                    for (EvidenceItem ev : retrievedEvidences) {
+                        merged.putIfAbsent(ev.chunkId(), ev);
+                    }
+                    for (EvidenceItem ev : multiHopEvidences) {
+                        merged.putIfAbsent(ev.chunkId(), ev);
+                    }
+                    retrievedEvidences = new ArrayList<>(merged.values());
+                }
+                emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED",
+                        "hops=" + multiHopResult.hops().size() + ", newEvidences=" + multiHopEvidences.size());
+            } else {
+                emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED", "singleHop=true");
+            }
+        } catch (Exception e) {
+            log.warn("MultiHopRetriever failed, continuing with existing evidences inquiryId={}", inquiryId, e);
+            emitPipelineEvent(inquiryId, "MULTI_HOP", "FAILED", e.getMessage());
+        }
 
         // ── VERIFY ─────────────────────────────────────────────────
         final List<EvidenceItem> allEvidences = retrievedEvidences;
@@ -150,6 +220,29 @@ public class AnswerOrchestrationService {
                 () -> composeStep.execute(analysis, tone, channel, mergedInstructions, previousAnswerDraft));
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
 
+        // ── CRITIC (팩트 검증) ────────────────────────────────────
+        CriticAgentService.CriticResult criticResult = null;
+        try {
+            final String composedDraft = composed.draft();
+            emitPipelineEvent(inquiryId, "CRITIC", "STARTED", null);
+            criticResult = executeWithRunLog(inquiryId, "CRITIC",
+                    () -> criticAgentService.critique(composedDraft, question, allEvidences));
+            emitPipelineEvent(inquiryId, "CRITIC", "COMPLETED",
+                    "faithfulness=" + String.format("%.2f", criticResult.faithfulnessScore()));
+
+            if (criticResult.needsRevision()) {
+                log.info("Critic requires revision, recomposing inquiryId={}", inquiryId);
+                String criticFeedback = String.join("\n", criticResult.corrections());
+                emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", "critic 피드백 반영 재작성");
+                composed = executeWithRunLog(inquiryId, "COMPOSE",
+                        () -> composeStep.execute(analysis, tone, channel, criticFeedback, composedDraft));
+                emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", "critic 피드백 반영 완료");
+            }
+        } catch (Exception e) {
+            log.warn("CriticAgent failed, using original draft inquiryId={}", inquiryId, e);
+            emitPipelineEvent(inquiryId, "CRITIC", "FAILED", e.getMessage());
+        }
+
         // ── SELF_REVIEW ────────────────────────────────────────────
         String finalDraft = composed.draft();
         List<String> finalWarnings = composed.formatWarnings();
@@ -157,9 +250,10 @@ public class AnswerOrchestrationService {
 
         emitPipelineEvent(inquiryId, "SELF_REVIEW", "STARTED", null);
         try {
+            final ComposeStep.ComposeStepResult composedForReview = composed;
             SelfReviewStep.SelfReviewResult reviewResult = executeWithRunLog(
                     inquiryId, "SELF_REVIEW",
-                    () -> selfReviewStep.review(composed.draft(), analysis.evidences(), question)
+                    () -> selfReviewStep.review(composedForReview.draft(), analysis.evidences(), question)
             );
 
             if (reviewResult.passed()) {
@@ -205,7 +299,7 @@ public class AnswerOrchestrationService {
 
         return new OrchestrationResult(
                 analysis, finalDraft, finalWarnings, selfReviewIssues,
-                perQuestionEvidences, retrievalQuality, extractedFamilies);
+                perQuestionEvidences, retrievalQuality, extractedFamilies, criticResult);
     }
 
     /** 필터를 적용하여 검색을 수행하고 결과를 반환하는 내부 헬퍼. */
@@ -232,6 +326,20 @@ public class AnswerOrchestrationService {
     }
 
     private record RetrieveResult(List<EvidenceItem> evidences, List<PerQuestionEvidence> perQuestion) {}
+
+    /** RerankResult → EvidenceItem 변환 헬퍼 */
+    private List<EvidenceItem> toEvidenceItems(List<RerankingService.RerankResult> rerankResults) {
+        return rerankResults.stream()
+                .map(r -> new EvidenceItem(
+                        r.chunkId().toString(),
+                        r.documentId() != null ? r.documentId().toString() : null,
+                        r.rerankScore(),
+                        r.content(),
+                        r.sourceType(),
+                        null, null, null
+                ))
+                .toList();
+    }
 
     /**
      * 하위 질문별 증거를 flat하게 합치면서 chunkId 기준 중복 제거.
@@ -340,7 +448,9 @@ public class AnswerOrchestrationService {
         /** Level 1: 같은 카테고리 제품으로 확장 검색 */
         CATEGORY_EXPANDED,
         /** Level 2: 필터 없이 전체 검색 (또는 제품 추출 실패) */
-        UNFILTERED
+        UNFILTERED,
+        /** Level 3: AdaptiveRetrievalAgent로 검색 (3-Level Fallback 실패 시) */
+        ADAPTIVE
     }
 
     public record OrchestrationResult(
@@ -350,17 +460,18 @@ public class AnswerOrchestrationService {
             List<SelfReviewStep.QualityIssue> selfReviewIssues,
             List<PerQuestionEvidence> perQuestionEvidences,
             RetrievalQuality retrievalQuality,
-            Set<String> extractedProductFamilies
+            Set<String> extractedProductFamilies,
+            CriticAgentService.CriticResult criticResult
     ) {
         /** 하위 호환: selfReviewIssues 없이 생성 */
         public OrchestrationResult(AnalyzeResponse analysis, String draft, List<String> formatWarnings) {
-            this(analysis, draft, formatWarnings, List.of(), null, RetrievalQuality.UNFILTERED, Set.of());
+            this(analysis, draft, formatWarnings, List.of(), null, RetrievalQuality.UNFILTERED, Set.of(), null);
         }
 
         /** 하위 호환: perQuestionEvidences 없이 생성 */
         public OrchestrationResult(AnalyzeResponse analysis, String draft,
                                    List<String> formatWarnings, List<SelfReviewStep.QualityIssue> selfReviewIssues) {
-            this(analysis, draft, formatWarnings, selfReviewIssues, null, RetrievalQuality.UNFILTERED, Set.of());
+            this(analysis, draft, formatWarnings, selfReviewIssues, null, RetrievalQuality.UNFILTERED, Set.of(), null);
         }
 
         /** 하위 호환: retrievalQuality/extractedProductFamilies 없이 생성 */
@@ -368,7 +479,17 @@ public class AnswerOrchestrationService {
                                    List<SelfReviewStep.QualityIssue> selfReviewIssues,
                                    List<PerQuestionEvidence> perQuestionEvidences) {
             this(analysis, draft, formatWarnings, selfReviewIssues, perQuestionEvidences,
-                    RetrievalQuality.UNFILTERED, Set.of());
+                    RetrievalQuality.UNFILTERED, Set.of(), null);
+        }
+
+        /** 하위 호환: criticResult 없이 생성 (7-arg) */
+        public OrchestrationResult(AnalyzeResponse analysis, String draft, List<String> formatWarnings,
+                                   List<SelfReviewStep.QualityIssue> selfReviewIssues,
+                                   List<PerQuestionEvidence> perQuestionEvidences,
+                                   RetrievalQuality retrievalQuality,
+                                   Set<String> extractedProductFamilies) {
+            this(analysis, draft, formatWarnings, selfReviewIssues, perQuestionEvidences,
+                    retrievalQuality, extractedProductFamilies, null);
         }
     }
 }

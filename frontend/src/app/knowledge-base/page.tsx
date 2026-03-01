@@ -331,17 +331,19 @@ export default function KnowledgeBasePage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold tracking-tight">지식 기반 관리</h2>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
             onClick={handleIndexAll}
+            className="flex-1 sm:flex-none"
           >
             일괄 인덱싱
           </Button>
           <Button
             onClick={() => setShowUploadModal(true)}
+            className="flex-1 sm:flex-none"
           >
             문서 등록
           </Button>
@@ -350,24 +352,24 @@ export default function KnowledgeBasePage() {
 
       {/* Stats Cards */}
       {stats ? (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          <article className="rounded-xl border bg-card p-3 shadow-sm sm:p-5">
+            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
+            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
           </article>
-          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.indexedDocuments}건</p>
+          <article className="rounded-xl border bg-card p-3 shadow-sm sm:p-5">
+            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
+            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.indexedDocuments}건</p>
           </article>
-          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
+          <article className="col-span-2 rounded-xl border bg-card p-3 shadow-sm sm:col-span-1 sm:p-5">
+            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
+            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
           </article>
         </section>
       ) : (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={i}>
+            <article className={`rounded-xl border bg-card p-3 shadow-sm sm:p-5 ${i === 3 ? "col-span-2 sm:col-span-1" : ""}`} key={i}>
               <Skeleton className="h-3.5 w-20 mb-2" />
               <Skeleton className="h-8 w-[100px]" />
             </article>
@@ -379,7 +381,7 @@ export default function KnowledgeBasePage() {
       {stats && stats.byProductFamily && Object.keys(stats.byProductFamily).length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">제품군별 분포</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {Object.entries(stats.byProductFamily).map(([family, count]) => (
               <article key={family} className="rounded-xl border bg-card p-4 shadow-sm">
                 <p className="text-xs font-medium text-muted-foreground truncate">{labelProductFamily(family)}</p>
@@ -401,11 +403,27 @@ export default function KnowledgeBasePage() {
 
         {/* Loading skeleton */}
         {loading && !response && (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-11 w-full" />
-            ))}
-          </div>
+          <>
+            {/* Desktop skeleton */}
+            <div className="hidden md:block space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-11 w-full" />
+              ))}
+            </div>
+            {/* Mobile skeleton cards */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-3">
+                  <Skeleton className="h-4 w-3/4" />
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3 w-14" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
@@ -423,15 +441,46 @@ export default function KnowledgeBasePage() {
               />
             ) : (
               <>
-                <DataTable
-                  columns={columns}
-                  data={response.content}
-                  onRowClick={(item) => {
-                    setSelectedDoc(item);
-                    setShowDetailModal(true);
-                  }}
-                  emptyMessage="등록된 문서가 없습니다"
-                />
+                {/* Desktop table */}
+                <div className="hidden md:block">
+                  <DataTable
+                    columns={columns}
+                    data={response.content}
+                    onRowClick={(item) => {
+                      setSelectedDoc(item);
+                      setShowDetailModal(true);
+                    }}
+                    emptyMessage="등록된 문서가 없습니다"
+                  />
+                </div>
+
+                {/* Mobile card list */}
+                <div className="flex flex-col gap-3 md:hidden">
+                  {response.content.map((item) => (
+                    <button
+                      key={item.documentId}
+                      type="button"
+                      className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                      onClick={() => {
+                        setSelectedDoc(item);
+                        setShowDetailModal(true);
+                      }}
+                    >
+                      <p className="mb-2 text-sm font-medium leading-snug line-clamp-2">{item.title}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{labelKbCategory(item.category)}</span>
+                        {item.productFamily && (
+                          <Badge variant="info">{labelProductFamily(item.productFamily)}</Badge>
+                        )}
+                        <Badge variant={getStatusBadgeVariant(item.status)}>
+                          {(item.status === "INDEXING" || item.status === "REINDEXING") && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                          {labelDocStatus(item.status)}
+                        </Badge>
+                        {item.chunkCount !== null && <span>{item.chunkCount}청크</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
 
                 <Pagination
                   page={response.page}
@@ -461,7 +510,7 @@ export default function KnowledgeBasePage() {
           onClick={() => setShowDetailModal(false)}
         >
           <div
-            className="w-full max-w-3xl rounded-xl border bg-card p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200"
+            className="mx-4 w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 sm:mx-auto sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold">{selectedDoc.title}</h3>
@@ -491,7 +540,7 @@ export default function KnowledgeBasePage() {
 
             <hr className="border-t border-border" />
 
-            <div className="flex items-center gap-3 justify-end">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 sm:justify-end">
               <Button
                 variant="outline"
                 onClick={() => handleIndex(selectedDoc.documentId)}
@@ -517,6 +566,18 @@ export default function KnowledgeBasePage() {
         </div>
       )}
 
+      {/* Mobile FAB - Upload button */}
+      <button
+        type="button"
+        onClick={() => setShowUploadModal(true)}
+        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="문서 등록"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      </button>
     </div>
   );
 }

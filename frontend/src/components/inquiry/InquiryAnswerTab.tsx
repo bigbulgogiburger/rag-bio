@@ -1160,6 +1160,36 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
           </div>
         </div>
       )}
+
+      {/* Mobile sticky action footer */}
+      {answerDraft && answerDraft.status !== "SENT" && (
+        <div
+          className="fixed bottom-[60px] left-0 right-0 z-40 flex items-center justify-center gap-3 border-t border-border/50 bg-card/95 backdrop-blur-md px-4 py-3 md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          {answerDraft.status === "DRAFT" && !workflowResult && (
+            <Button
+              onClick={handleAutoWorkflow}
+              disabled={workflowLoading || loading}
+              className="flex-1 max-w-xs"
+              aria-busy={workflowLoading}
+            >
+              {workflowLoading && <SpinnerIcon />}
+              {workflowLoading ? "검토 중..." : "자동 검토 + 승인"}
+            </Button>
+          )}
+          {answerDraft.status === "APPROVED" && (
+            <Button
+              onClick={handleSend}
+              disabled={loading}
+              className="flex-1 max-w-xs"
+            >
+              {loading && <SpinnerIcon />}
+              발송하기
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

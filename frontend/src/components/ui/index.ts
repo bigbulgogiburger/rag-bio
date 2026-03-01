@@ -10,4 +10,6 @@ export { Button, buttonVariants } from './button';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card';
 export { Input } from './input';
 export { Skeleton } from './skeleton';
+export { PipelineProgressBadge } from './PipelineProgressBadge';
+export type { PipelineStep } from './PipelineProgressBadge';
 // PdfViewer, PdfExpandModal은 dynamic import로만 사용 (SSR 미지원)

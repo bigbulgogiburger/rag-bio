@@ -184,7 +184,7 @@ export default function InquiryCreateForm() {
         />
       )}
 
-      <form className="rounded-xl border bg-card p-6 shadow-sm space-y-6" onSubmit={handleSubmit(onSubmit)}>
+      <form className="rounded-xl border bg-card p-4 shadow-sm space-y-6 sm:p-6" onSubmit={handleSubmit(onSubmit)}>
         <h2 className="text-xl font-semibold tracking-tight">새 고객 문의 등록</h2>
         <p className="text-sm text-muted-foreground">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
 
@@ -376,14 +376,16 @@ export default function InquiryCreateForm() {
 
         <hr className="border-t border-border" />
 
-        <Button
-          size="lg"
-          className="w-full rounded-full"
-          type="submit"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "등록 중..." : "문의 등록"}
-        </Button>
+        <div className="sticky bottom-20 z-10 -mx-4 bg-card px-4 py-3 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 md:bottom-0">
+          <Button
+            size="lg"
+            className="w-full rounded-full"
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "등록 중..." : "문의 등록"}
+          </Button>
+        </div>
       </form>
     </div>
   );

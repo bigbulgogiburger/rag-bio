@@ -223,11 +223,27 @@ export default function InquiriesPage() {
 
         {/* Loading skeleton */}
         {loading && !response && (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-11 w-full" />
-            ))}
-          </div>
+          <>
+            {/* Desktop skeleton */}
+            <div className="hidden md:block space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-11 w-full" />
+              ))}
+            </div>
+            {/* Mobile skeleton cards */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-3">
+                  <Skeleton className="h-4 w-3/4" />
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}

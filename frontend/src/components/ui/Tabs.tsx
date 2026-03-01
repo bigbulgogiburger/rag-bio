@@ -12,6 +12,8 @@ interface Tab {
 interface TabsProps {
   tabs: Tab[];
   defaultTab?: string;
+  /** Additional className for the tab list (e.g. sticky positioning) */
+  listClassName?: string;
 }
 
 /**
@@ -26,11 +28,11 @@ interface TabsProps {
  *   ]}
  * />
  */
-export default function Tabs({ tabs, defaultTab }: TabsProps) {
+export default function Tabs({ tabs, defaultTab, listClassName }: TabsProps) {
   return (
     <TabsPrimitive.Root defaultValue={defaultTab || tabs[0]?.key}>
       <TabsPrimitive.List
-        className="flex border-b border-border mb-6"
+        className={cn("flex border-b border-border mb-6", listClassName)}
         aria-label="탭 목록"
       >
         {tabs.map((tab) => (

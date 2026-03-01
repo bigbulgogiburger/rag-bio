@@ -87,8 +87,12 @@ export default function InquiryDetailClient() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card p-6 shadow-sm">
-        <Tabs tabs={tabs} defaultTab={defaultTab} />
+      <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">
+        <Tabs
+          tabs={tabs}
+          defaultTab={defaultTab}
+          listClassName="sticky top-0 z-10 bg-card pt-1 -mx-4 px-4 sm:-mx-6 sm:px-6"
+        />
       </div>
     </div>
   );
