@@ -1,5 +1,6 @@
 package com.biorad.csrag.application.knowledge;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.document.DocumentTextExtractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +30,7 @@ public class DocumentMetadataAnalyzer {
     private final boolean openaiEnabled;
     private final RestClient restClient;
     private final String chatModel;
+    private final PromptRegistry promptRegistry;
 
     public DocumentMetadataAnalyzer(
             DocumentTextExtractor textExtractor,
@@ -36,12 +38,14 @@ public class DocumentMetadataAnalyzer {
             @Value("${openai.enabled:false}") boolean openaiEnabled,
             @Value("${openai.api-key:}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-4o-mini}") String chatModel
+            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            PromptRegistry promptRegistry
     ) {
         this.textExtractor = textExtractor;
         this.objectMapper = objectMapper;
         this.openaiEnabled = openaiEnabled;
         this.chatModel = chatModel;
+        this.promptRegistry = promptRegistry;
 
         if (openaiEnabled && apiKey != null && !apiKey.isBlank()) {
             this.restClient = RestClient.builder()
@@ -88,7 +92,9 @@ public class DocumentMetadataAnalyzer {
     }
 
     private MetadataSuggestion callOpenAi(String documentText) throws Exception {
-        String systemPrompt = """
+        String systemPrompt = promptRegistry != null
+                ? promptRegistry.get("metadata-analysis")
+                : """
                 당신은 Bio-Rad 기술 문서 분류 전문가입니다.
                 업로드된 문서의 텍스트를 분석하여 메타데이터를 추출하세요.
 

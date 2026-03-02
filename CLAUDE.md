@@ -92,6 +92,18 @@ Domain entities use factory methods (`Inquiry.create()`, `Inquiry.reconstitute()
 - **JPA Specification**: Dynamic query filters using `InquirySpecifications` and `KnowledgeBaseSpecifications` for paginated list APIs
 - **Flyway migrations**: `app-api/src/main/resources/db/migration/V1..V14` — H2 in PostgreSQL compatibility mode for dev, real PostgreSQL via Docker
 - **JaCoCo**: Test coverage reports generated on `./gradlew build`, CI prints line/branch coverage
+- **Prompt Registry**: 프롬프트가 `src/main/resources/prompts/*.txt`에 외부화됨. `PromptRegistry.get("name")` 또는 `get("name", Map.of("key", value))`로 사용
+
+### OpenAI 모델 티어링 전략
+
+`application.yml`에서 3-tier 모델 설정:
+
+| 티어 | 환경변수 | 기본값 | 용도 | 적용 클래스 |
+|------|---------|--------|------|------------|
+| Heavy | `OPENAI_CHAT_MODEL_HEAVY` | `gpt-5.2` | 복잡한 추론 (답변 작성, 사실 검증) | ComposeStep, CriticAgent, ReviewAgent |
+| Medium | `OPENAI_CHAT_MODEL_MEDIUM` | `gpt-4.1` | 중간 복잡도 (검증, 검색 에이전트) | VerifyStep, AdaptiveRetrieval, MultiHop, SearchToolAgent, Reranking, ImageAnalysis |
+| Light | `OPENAI_CHAT_MODEL_LIGHT` | `gpt-4.1-mini` | 경량 작업 (변환, 보강) | HyDE, ContextualEnricher, QueryTranslation, MetadataAnalyzer |
+| Embedding | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large` | 벡터 임베딩 | EmbeddingService |
 
 ### Frontend Structure
 

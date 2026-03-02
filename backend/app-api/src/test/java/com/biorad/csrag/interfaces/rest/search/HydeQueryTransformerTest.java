@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,8 +72,10 @@ class HydeQueryTransformerTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
+            PromptRegistry promptRegistry = mock(PromptRegistry.class);
+            when(promptRegistry.get(anyString())).thenReturn("You are a Bio-Rad expert.");
             openAiTransformer = new OpenAiHydeQueryTransformer(
-                    restClient, new ObjectMapper(), embeddingService, "gpt-4o-mini");
+                    restClient, new ObjectMapper(), embeddingService, "gpt-4o-mini", promptRegistry);
         }
 
         @Test

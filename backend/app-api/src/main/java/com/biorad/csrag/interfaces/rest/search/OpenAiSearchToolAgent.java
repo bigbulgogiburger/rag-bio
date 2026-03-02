@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +38,7 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiSearchToolAgent(
             HybridSearchService hybridSearchService,
@@ -44,8 +46,9 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
             ProductExtractorService productExtractorService,
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
-            ObjectMapper objectMapper
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            ObjectMapper objectMapper,
+            PromptRegistry promptRegistry
     ) {
         this.hybridSearchService = hybridSearchService;
         this.rerankingService = rerankingService;
@@ -57,6 +60,7 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
                 .build();
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
+        this.promptRegistry = promptRegistry;
     }
 
     // package-private constructor for testing
@@ -74,6 +78,7 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
+        this.promptRegistry = null;
     }
 
     @Override
@@ -103,14 +108,17 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
     }
 
     private List<ToolCall> selectTools(String question, UUID inquiryId) throws Exception {
-        String systemPrompt = """
+        String inquiryIdStr = inquiryId != null ? inquiryId.toString() : "none";
+        String systemPrompt = promptRegistry != null
+                ? promptRegistry.get("search-tool-agent", Map.of("inquiryId", inquiryIdStr))
+                : """
                 You are a Bio-Rad technical support search agent.
                 Analyze the user's question and select the most appropriate search tools.
                 You may call multiple tools if the question requires information from different sources.
 
                 Available context:
                 - inquiryId: %s (use this when searching inquiry-specific documents)
-                """.formatted(inquiryId != null ? inquiryId.toString() : "none");
+                """.formatted(inquiryIdStr);
 
         Map<String, Object> body = Map.of(
                 "model", chatModel,

@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,13 +30,15 @@ public class OpenAiComposeStep implements ComposeStep {
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final DefaultComposeStep fallback;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiComposeStep(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
             ObjectMapper objectMapper,
-            DefaultComposeStep fallback
+            DefaultComposeStep fallback,
+            PromptRegistry promptRegistry
     ) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -45,14 +48,16 @@ public class OpenAiComposeStep implements ComposeStep {
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
         this.fallback = fallback;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel) {
+        String systemPrompt = promptRegistry != null ? promptRegistry.get("compose-system") : SYSTEM_PROMPT;
         try {
             String prompt = buildPrompt(analysis, tone, channel);
 
-            String content = callLlm(SYSTEM_PROMPT, prompt);
+            String content = callLlm(systemPrompt, prompt);
 
             return new ComposeStepResult(content, fallback.execute(analysis, tone, channel).formatWarnings());
         } catch (Exception ex) {
@@ -88,7 +93,7 @@ public class OpenAiComposeStep implements ComposeStep {
         if (additionalInstructions != null && additionalInstructions.contains("[하위 질문별 증거 매핑]")) {
             try {
                 String prompt = buildPerQuestionPrompt(additionalInstructions, analysis, tone, channel);
-                String content = callLlm(SYSTEM_PROMPT, prompt);
+                String content = callLlm(promptRegistry != null ? promptRegistry.get("compose-system") : SYSTEM_PROMPT, prompt);
                 return new ComposeStepResult(content, fallback.execute(analysis, tone, channel).formatWarnings());
             } catch (Exception ex) {
                 log.warn("openai.compose.perQuestion.failed -> fallback: {}", ex.getMessage());
@@ -261,9 +266,9 @@ public class OpenAiComposeStep implements ComposeStep {
         sb.append("2) 마크다운 서식(##, **, -, ```) 절대 금지. 순수 텍스트만 작성\n");
         sb.append("3) 이모지, 과도한 느낌표 금지\n");
         sb.append("4) 과장/단정 금지, 근거에 없는 내용 추측 금지\n");
-        sb.append("5) 후속 확인 항목 1~3개 포함\n");
-        sb.append("6) channel=email이면 인사(\"안녕하세요.\")/마무리(\"감사합니다.\") 포함, messenger면 [요약] 태그로 시작하여 간결하게\n");
-        sb.append("7) 참고 자료의 내용을 인용할 때 해당 자료의 파일명과 페이지 번호를 괄호 안에 자연스럽게 표기할 것. 예: \"~기능이 제공됩니다 (10000107223.pdf, p.94-95)\". 근거가 없는 내용에는 출처 표기 금지\n");
+        sb.append("5) channel=email이면 인사(\"안녕하세요.\")/마무리(\"감사합니다.\") 포함, messenger면 [요약] 태그로 시작하여 간결하게\n");
+        sb.append("6) 참고 자료의 내용을 인용할 때 해당 자료의 파일명과 페이지 번호를 괄호 안에 자연스럽게 표기할 것. 예: \"~기능이 제공됩니다 (10000107223.pdf, p.94-95)\". 근거가 없는 내용에는 출처 표기 금지\n");
+        sb.append("7) 답변 끝에 고객에게 추가 질문이나 후속 확인 항목을 넣지 마라. 안내 내용만 작성하고 마무리하라\n");
 
         if ("gilseon".equalsIgnoreCase(tone)) {
             sb.append("\n[길선체 스타일 지시]\n");

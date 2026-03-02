@@ -1,10 +1,12 @@
 package com.biorad.csrag.interfaces.rest.vector;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.knowledge.KnowledgeDocumentJpaRepository;
 import com.biorad.csrag.interfaces.rest.chunk.ContextualChunkEnricher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,8 +20,27 @@ public class VectorizingService {
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
     private final ContextualChunkEnricher contextualChunkEnricher;
+    private final RagMetricsService ragMetricsService;
 
+    @Autowired
     public VectorizingService(
+            DocumentChunkJpaRepository chunkRepository,
+            KnowledgeDocumentJpaRepository kbDocRepository,
+            EmbeddingService embeddingService,
+            VectorStore vectorStore,
+            ContextualChunkEnricher contextualChunkEnricher,
+            RagMetricsService ragMetricsService
+    ) {
+        this.chunkRepository = chunkRepository;
+        this.kbDocRepository = kbDocRepository;
+        this.embeddingService = embeddingService;
+        this.vectorStore = vectorStore;
+        this.contextualChunkEnricher = contextualChunkEnricher;
+        this.ragMetricsService = ragMetricsService;
+    }
+
+    /** 테스트용 생성자 */
+    VectorizingService(
             DocumentChunkJpaRepository chunkRepository,
             KnowledgeDocumentJpaRepository kbDocRepository,
             EmbeddingService embeddingService,
@@ -31,6 +52,7 @@ public class VectorizingService {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.contextualChunkEnricher = contextualChunkEnricher;
+        this.ragMetricsService = null;
     }
 
     /**
@@ -40,6 +62,7 @@ public class VectorizingService {
      * @return 벡터화된 청크 수
      */
     public int upsertDocumentChunks(UUID documentId) {
+        long indexingStart = System.currentTimeMillis();
         // 기존 벡터 삭제 후 재생성 (ChunkingService가 새 UUID로 청크를 생성하므로 기존 벡터가 고아가 됨)
         vectorStore.deleteByDocumentId(documentId);
 
@@ -78,6 +101,7 @@ public class VectorizingService {
             }
         }
 
+        if (ragMetricsService != null) ragMetricsService.record(null, "INDEXING_TIME", System.currentTimeMillis() - indexingStart);
         return chunks.size();
     }
 }

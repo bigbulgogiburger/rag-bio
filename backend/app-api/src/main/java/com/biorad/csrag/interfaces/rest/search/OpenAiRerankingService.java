@@ -1,9 +1,12 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -48,13 +51,18 @@ public class OpenAiRerankingService implements RerankingService {
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final MockRerankingService fallback;
+    private final RagMetricsService ragMetricsService;
+    private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiRerankingService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
             ObjectMapper objectMapper,
-            MockRerankingService fallback
+            MockRerankingService fallback,
+            RagMetricsService ragMetricsService,
+            PromptRegistry promptRegistry
     ) {
         this(
                 RestClient.builder()
@@ -62,15 +70,24 @@ public class OpenAiRerankingService implements RerankingService {
                         .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .build(),
-                chatModel, objectMapper, fallback
+                chatModel, objectMapper, fallback, ragMetricsService, promptRegistry
         );
     }
 
-    OpenAiRerankingService(RestClient restClient, String chatModel, ObjectMapper objectMapper, MockRerankingService fallback) {
+    OpenAiRerankingService(RestClient restClient, String chatModel, ObjectMapper objectMapper,
+                           MockRerankingService fallback, RagMetricsService ragMetricsService) {
+        this(restClient, chatModel, objectMapper, fallback, ragMetricsService, null);
+    }
+
+    OpenAiRerankingService(RestClient restClient, String chatModel, ObjectMapper objectMapper,
+                           MockRerankingService fallback, RagMetricsService ragMetricsService,
+                           PromptRegistry promptRegistry) {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
         this.fallback = fallback;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -97,6 +114,12 @@ public class OpenAiRerankingService implements RerankingService {
                     .toList();
 
             log.info("openai.rerank: scored {} candidates, returning top-{}", candidates.size(), result.size());
+
+            if (!result.isEmpty() && !candidates.isEmpty()) {
+                double avgBefore = candidates.stream().mapToDouble(HybridSearchResult::fusedScore).average().orElse(0.0);
+                double avgAfter = result.stream().mapToDouble(RerankResult::rerankScore).average().orElse(0.0);
+                if (ragMetricsService != null) ragMetricsService.record(null, "RERANK_IMPROVEMENT", avgAfter - avgBefore);
+            }
             return result;
         } catch (Exception ex) {
             log.warn("openai.rerank.failed -> fallback to mock: {}", ex.getMessage());
@@ -112,7 +135,9 @@ public class OpenAiRerankingService implements RerankingService {
         Map<String, Object> body = Map.of(
                 "model", chatModel,
                 "messages", List.of(
-                        Map.of("role", "user", "content", String.format(RERANK_PROMPT, query, truncated))
+                        Map.of("role", "user", "content", promptRegistry != null
+                                ? promptRegistry.get("reranking-pair", Map.of("query", query, "document", truncated))
+                                : String.format(RERANK_PROMPT, query, truncated))
                 ),
                 "max_tokens", 100,
                 "temperature", 0.0

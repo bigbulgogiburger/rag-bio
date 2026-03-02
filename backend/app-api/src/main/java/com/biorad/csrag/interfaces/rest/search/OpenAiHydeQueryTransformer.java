@@ -1,5 +1,7 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,22 +27,21 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiHydeQueryTransformer.class);
 
-    private static final String SYSTEM_PROMPT = """
-            당신은 Bio-Rad 기술지원 전문가입니다.
-            다음 질문에 대해 기술 매뉴얼에 있을 법한 답변을 3-5문장으로 작성하세요.
-            구체적인 수치, 절차, 조건을 포함하세요. 추측이어도 괜찮습니다.""";
-
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final EmbeddingService embeddingService;
     private final String chatModel;
+    private final RagMetricsService ragMetricsService;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiHydeQueryTransformer(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-4o-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
-            EmbeddingService embeddingService) {
+            EmbeddingService embeddingService,
+            RagMetricsService ragMetricsService,
+            PromptRegistry promptRegistry) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -49,15 +50,20 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
         this.objectMapper = objectMapper;
         this.embeddingService = embeddingService;
         this.chatModel = chatModel;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = promptRegistry;
     }
 
     // visible-for-testing
     OpenAiHydeQueryTransformer(RestClient restClient, ObjectMapper objectMapper,
-                               EmbeddingService embeddingService, String chatModel) {
+                               EmbeddingService embeddingService, String chatModel,
+                               PromptRegistry promptRegistry) {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.embeddingService = embeddingService;
         this.chatModel = chatModel;
+        this.ragMetricsService = null;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -65,9 +71,11 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
         try {
             String hypotheticalAnswer = generateHypotheticalAnswer(question, productContext);
             log.info("hyde.transform question='{}' hypo_length={}", question, hypotheticalAnswer.length());
+            if (ragMetricsService != null) ragMetricsService.record(null, "HYDE_USAGE", 1.0);
             return embeddingService.embedDocument(hypotheticalAnswer);
         } catch (Exception ex) {
             log.warn("hyde.transform.failed -> falling back to query embedding: {}", ex.getMessage());
+            if (ragMetricsService != null) ragMetricsService.record(null, "HYDE_USAGE", 0.0);
             return embeddingService.embedQuery(question);
         }
     }
@@ -82,7 +90,7 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
                 .body(Map.of(
                         "model", chatModel,
                         "messages", List.of(
-                                Map.of("role", "system", "content", SYSTEM_PROMPT),
+                                Map.of("role", "system", "content", promptRegistry.get("hyde-system")),
                                 Map.of("role", "user", "content", userMessage)
                         ),
                         "max_tokens", 500,

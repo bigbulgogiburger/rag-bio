@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaRepository;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
@@ -23,6 +24,7 @@ public class HybridSearchService {
     private final KeywordSearchService keywordSearchService;
     private final DocumentMetadataJpaRepository documentRepository;
     private final HydeQueryTransformer hydeQueryTransformer;
+    private final RagMetricsService ragMetricsService;
 
     @Value("${search.hybrid.enabled:true}")
     private boolean hybridEnabled;
@@ -43,12 +45,14 @@ public class HybridSearchService {
                                VectorStore vectorStore,
                                KeywordSearchService keywordSearchService,
                                DocumentMetadataJpaRepository documentRepository,
-                               HydeQueryTransformer hydeQueryTransformer) {
+                               HydeQueryTransformer hydeQueryTransformer,
+                               RagMetricsService ragMetricsService) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.keywordSearchService = keywordSearchService;
         this.documentRepository = documentRepository;
         this.hydeQueryTransformer = hydeQueryTransformer;
+        this.ragMetricsService = ragMetricsService;
     }
 
     public List<HybridSearchResult> search(String query, int topK) {
@@ -121,6 +125,11 @@ public class HybridSearchService {
 
         log.info("hybrid.search query={} vector={} keyword={} fused={} filtered={} filter={}",
                 query, vectorResults.size(), keywordResults.size(), fused.size(), filtered.size(), filter);
+
+        if (!filtered.isEmpty()) {
+            double avgScore = filtered.stream().mapToDouble(HybridSearchResult::fusedScore).average().orElse(0.0);
+            ragMetricsService.record(null, "SEARCH_SCORE", avgScore);
+        }
 
         return filtered;
     }

@@ -32,7 +32,7 @@ class OpenAiMultiHopRetrieverTest {
         when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
-        retriever = new OpenAiMultiHopRetriever(adaptiveAgent, restClient, "gpt-5.2", new ObjectMapper());
+        retriever = new OpenAiMultiHopRetriever(adaptiveAgent, restClient, "gpt-5.2", new ObjectMapper(), null);
     }
 
     @Test

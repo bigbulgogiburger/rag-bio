@@ -30,7 +30,7 @@ class OpenAiCriticAgentServiceTest {
         when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
-        service = new OpenAiCriticAgentService(restClient, "gpt-5.2", new ObjectMapper());
+        service = new OpenAiCriticAgentService(restClient, "gpt-5.2", new ObjectMapper(), null /* ragMetricsService */);
     }
 
     @Test

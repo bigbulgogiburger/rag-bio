@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -28,11 +29,15 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final String chatModel;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiQueryTranslationService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            ObjectMapper objectMapper
+            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            ObjectMapper objectMapper,
+            PromptRegistry promptRegistry
     ) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -40,6 +45,8 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
         this.objectMapper = objectMapper;
+        this.chatModel = chatModel;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -57,9 +64,9 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
             String response = restClient.post()
                     .uri("/chat/completions")
                     .body(Map.of(
-                            "model", "gpt-4o-mini",
+                            "model", chatModel,
                             "messages", List.of(
-                                    Map.of("role", "system", "content", SYSTEM_PROMPT),
+                                    Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("query-translation") : SYSTEM_PROMPT),
                                     Map.of("role", "user", "content", question)
                             ),
                             "temperature", 0.0

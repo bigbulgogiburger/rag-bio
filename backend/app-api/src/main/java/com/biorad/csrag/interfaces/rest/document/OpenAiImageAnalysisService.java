@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.document;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -25,29 +26,19 @@ public class OpenAiImageAnalysisService implements ImageAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiImageAnalysisService.class);
 
-    private static final String SYSTEM_PROMPT = """
-            You are a Bio-Rad technical support image analyst.
-            Analyze this image and provide a JSON response with:
-            1. imageType: SCREENSHOT | GRAPH | PHOTO | DIAGRAM
-            2. extractedText: All visible text, error messages, labels, values
-            3. visualDescription: What the image shows
-            4. technicalContext: Identify any Bio-Rad product, software, instrument
-            5. suggestedQuery: What technical question is this image likely related to?
-            6. confidence: Your confidence in the analysis (0.0 to 1.0)
-            Respond ONLY with valid JSON. Respond in Korean.
-            """;
-
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final MockImageAnalysisService fallback;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiImageAnalysisService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-4o}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
             ObjectMapper objectMapper,
-            MockImageAnalysisService fallback
+            MockImageAnalysisService fallback,
+            PromptRegistry promptRegistry
     ) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -57,6 +48,7 @@ public class OpenAiImageAnalysisService implements ImageAnalysisService {
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
         this.fallback = fallback;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -69,7 +61,7 @@ public class OpenAiImageAnalysisService implements ImageAnalysisService {
             Map<String, Object> requestBody = Map.of(
                     "model", chatModel,
                     "messages", List.of(
-                            Map.of("role", "system", "content", SYSTEM_PROMPT),
+                            Map.of("role", "system", "content", promptRegistry.get("image-analysis")),
                             Map.of("role", "user", "content", List.of(
                                     Map.of("type", "image_url", "image_url",
                                             Map.of("url", "data:" + mimeType + ";base64," + base64Image))

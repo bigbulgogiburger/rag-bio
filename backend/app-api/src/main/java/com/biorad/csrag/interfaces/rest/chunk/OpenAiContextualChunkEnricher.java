@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.chunk;
 
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -44,13 +45,15 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final MockContextualChunkEnricher fallback;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiContextualChunkEnricher(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-4o-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
-            MockContextualChunkEnricher fallback
+            MockContextualChunkEnricher fallback,
+            PromptRegistry promptRegistry
     ) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -60,6 +63,7 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
         this.fallback = fallback;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -114,7 +118,9 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
 
     private String generateContextPrefix(String documentText, String chunkContent, String fileName) {
         try {
-            String prompt = String.format(CONTEXT_PROMPT, documentText, chunkContent, fileName);
+            String prompt = promptRegistry != null
+                    ? promptRegistry.get("contextual-enrichment", Map.of("documentText", documentText, "chunkContent", chunkContent, "fileName", fileName != null ? fileName : ""))
+                    : String.format(CONTEXT_PROMPT, documentText, chunkContent, fileName);
 
             Map<String, Object> message = Map.of("role", "user", "content", prompt);
             Map<String, Object> body = Map.of(

@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,13 +30,15 @@ public class OpenAiVerifyStep implements VerifyStep {
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final DefaultVerifyStep fallback;
+    private final PromptRegistry promptRegistry;
 
     public OpenAiVerifyStep(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-4o}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
             ObjectMapper objectMapper,
-            DefaultVerifyStep fallback
+            DefaultVerifyStep fallback,
+            PromptRegistry promptRegistry
     ) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -45,6 +48,7 @@ public class OpenAiVerifyStep implements VerifyStep {
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
         this.fallback = fallback;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class OpenAiVerifyStep implements VerifyStep {
                     .body(Map.of(
                             "model", chatModel,
                             "messages", new Object[]{
-                                    Map.of("role", "system", "content", SYSTEM_PROMPT),
+                                    Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("verify-system") : SYSTEM_PROMPT),
                                     Map.of("role", "user", "content", prompt)
                             },
                             "temperature", 0.1

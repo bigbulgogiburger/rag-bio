@@ -36,7 +36,7 @@ class OpenAiAdaptiveRetrievalAgentTest {
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
         agent = new OpenAiAdaptiveRetrievalAgent(
-                hybridSearchService, rerankingService, restClient, new ObjectMapper(), "gpt-5.2");
+                hybridSearchService, rerankingService, restClient, new ObjectMapper(), "gpt-5.2", null);
     }
 
     @Test

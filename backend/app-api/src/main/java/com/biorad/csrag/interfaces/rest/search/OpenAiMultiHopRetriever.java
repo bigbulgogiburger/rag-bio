@@ -1,9 +1,12 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -27,13 +30,18 @@ public class OpenAiMultiHopRetriever implements MultiHopRetriever {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
+    private final RagMetricsService ragMetricsService;
+    private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiMultiHopRetriever(
             AdaptiveRetrievalAgent adaptiveAgent,
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
-            ObjectMapper objectMapper
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            ObjectMapper objectMapper,
+            RagMetricsService ragMetricsService,
+            PromptRegistry promptRegistry
     ) {
         this(adaptiveAgent,
                 RestClient.builder()
@@ -41,16 +49,25 @@ public class OpenAiMultiHopRetriever implements MultiHopRetriever {
                         .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .build(),
-                chatModel, objectMapper);
+                chatModel, objectMapper, ragMetricsService, promptRegistry);
     }
 
     /** 테스트용 생성자 — RestClient를 직접 주입 */
     OpenAiMultiHopRetriever(AdaptiveRetrievalAgent adaptiveAgent, RestClient restClient,
-                             String chatModel, ObjectMapper objectMapper) {
+                             String chatModel, ObjectMapper objectMapper,
+                             RagMetricsService ragMetricsService) {
+        this(adaptiveAgent, restClient, chatModel, objectMapper, ragMetricsService, null);
+    }
+
+    OpenAiMultiHopRetriever(AdaptiveRetrievalAgent adaptiveAgent, RestClient restClient,
+                             String chatModel, ObjectMapper objectMapper,
+                             RagMetricsService ragMetricsService, PromptRegistry promptRegistry) {
         this.adaptiveAgent = adaptiveAgent;
         this.restClient = restClient;
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -102,7 +119,9 @@ public class OpenAiMultiHopRetriever implements MultiHopRetriever {
                     .map(r -> r.content().substring(0, Math.min(300, r.content().length())))
                     .collect(Collectors.joining("\n---\n"));
 
-            String prompt = String.format("""
+            String prompt = promptRegistry != null
+                    ? promptRegistry.get("multihop-system", Map.of("question", question, "excerpts", excerpts))
+                    : String.format("""
                 다음 질문에 답하기 위해 추가 문서 검색이 필요한지 판단하세요.
 
                 질문: %s

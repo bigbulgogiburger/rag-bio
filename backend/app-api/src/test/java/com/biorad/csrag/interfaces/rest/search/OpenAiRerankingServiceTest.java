@@ -33,7 +33,7 @@ class OpenAiRerankingServiceTest {
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
         fallback = new MockRerankingService();
-        service = new OpenAiRerankingService(restClient, "gpt-5.2", new ObjectMapper(), fallback);
+        service = new OpenAiRerankingService(restClient, "gpt-5.2", new ObjectMapper(), fallback, null);
     }
 
     @Test

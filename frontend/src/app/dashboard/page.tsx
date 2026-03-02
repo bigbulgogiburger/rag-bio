@@ -10,6 +10,7 @@ import {
   getKbUsage,
   getMetricsCsvUrl,
   type OpsMetrics,
+  type RagMetrics,
   type InquiryListItem,
   type InquiryListResponse,
   type TimelineData,
@@ -286,6 +287,11 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* RAG Pipeline Metrics */}
+      {metrics?.ragMetrics && (
+        <RagMetricsSection ragMetrics={metrics.ragMetrics} />
+      )}
+
       {/* Recent Inquiries Table */}
       <Card>
         <CardContent className="p-6">
@@ -362,6 +368,66 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function RagMetricsSection({ ragMetrics }: { ragMetrics: RagMetrics }) {
+  const ragCards = [
+    {
+      label: "검색 정확도",
+      value: `${(ragMetrics.avgSearchScore * 100).toFixed(1)}%`,
+    },
+    {
+      label: "리랭킹 개선",
+      value: `+${(ragMetrics.avgRerankImprovement * 100).toFixed(1)}%`,
+    },
+    {
+      label: "Critic 수정률",
+      value: `${(ragMetrics.criticRevisionRate * 100).toFixed(1)}%`,
+    },
+    {
+      label: "HyDE 사용률",
+      value: `${(ragMetrics.hydeUsageRate * 100).toFixed(1)}%`,
+    },
+    {
+      label: "Multi-Hop 활성화",
+      value: `${(ragMetrics.multiHopActivationRate * 100).toFixed(1)}%`,
+    },
+    {
+      label: "적응형 재시도",
+      value: `${(ragMetrics.adaptiveRetryRate * 100).toFixed(1)}%`,
+    },
+  ];
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <h3 className="mb-4 text-base font-semibold">RAG 파이프라인 성능</h3>
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))",
+          }}
+        >
+          {ragCards.map((card) => (
+            <article
+              key={card.label}
+              className="rounded-lg border bg-muted/20 p-3"
+            >
+              <p
+                className="text-xs font-medium uppercase tracking-wide"
+                style={{ color: "var(--color-text-secondary, var(--muted-foreground))" }}
+              >
+                {card.label}
+              </p>
+              <p className="mt-1 text-xl font-bold tracking-tight">
+                {card.value}
+              </p>
+            </article>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

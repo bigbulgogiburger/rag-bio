@@ -5,6 +5,7 @@ import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaEntit
 import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.inquiry.domain.model.Inquiry;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,10 +42,12 @@ class ReviewAgentServiceTest {
     @BeforeEach
     void setUp() {
         // openaiEnabled=false -> uses mock review
+        PromptRegistry promptRegistry = mock(PromptRegistry.class);
+        lenient().when(promptRegistry.get(anyString())).thenReturn("Review prompt");
         service = new ReviewAgentService(
                 false, "", "https://api.openai.com/v1", "gpt-4",
                 new ObjectMapper(), answerDraftRepository, aiReviewResultRepository,
-                inquiryRepository
+                inquiryRepository, promptRegistry
         );
     }
 

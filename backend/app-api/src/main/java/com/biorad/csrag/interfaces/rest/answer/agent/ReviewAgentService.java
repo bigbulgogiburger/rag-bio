@@ -4,6 +4,7 @@ import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaEntit
 import com.biorad.csrag.infrastructure.persistence.answer.AiReviewResultJpaRepository;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.answer.AnswerDraftJpaRepository;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.inquiry.domain.model.Inquiry;
 import com.biorad.csrag.inquiry.domain.model.InquiryId;
 import com.biorad.csrag.inquiry.domain.repository.InquiryRepository;
@@ -39,16 +40,18 @@ public class ReviewAgentService {
     private final AnswerDraftJpaRepository answerDraftRepository;
     private final AiReviewResultJpaRepository aiReviewResultRepository;
     private final InquiryRepository inquiryRepository;
+    private final PromptRegistry promptRegistry;
 
     public ReviewAgentService(
             @Value("${openai.enabled:false}") boolean openaiEnabled,
             @Value("${openai.api-key:}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
             ObjectMapper objectMapper,
             AnswerDraftJpaRepository answerDraftRepository,
             AiReviewResultJpaRepository aiReviewResultRepository,
-            InquiryRepository inquiryRepository
+            InquiryRepository inquiryRepository,
+            PromptRegistry promptRegistry
     ) {
         this.openaiEnabled = openaiEnabled;
         this.chatModel = chatModel;
@@ -56,6 +59,7 @@ public class ReviewAgentService {
         this.answerDraftRepository = answerDraftRepository;
         this.aiReviewResultRepository = aiReviewResultRepository;
         this.inquiryRepository = inquiryRepository;
+        this.promptRegistry = promptRegistry;
 
         if (openaiEnabled) {
             this.restClient = RestClient.builder()
@@ -132,7 +136,7 @@ public class ReviewAgentService {
                     .body(Map.of(
                             "model", chatModel,
                             "messages", new Object[]{
-                                    Map.of("role", "system", "content", SYSTEM_PROMPT),
+                                    Map.of("role", "system", "content", promptRegistry.get("review-agent")),
                                     Map.of("role", "user", "content", prompt)
                             },
                             "temperature", 0.1
@@ -228,19 +232,4 @@ public class ReviewAgentService {
         return sb.toString();
     }
 
-    private static final String SYSTEM_PROMPT =
-            "너는 Bio-Rad 고객 기술지원 답변 품질 검토 전문가다.\n"
-                    + "아래 7개 카테고리 기준으로 답변 초안을 철저히 검토하라:\n\n"
-                    + "1. **ACCURACY** — 답변의 기술적 정확성. 근거 자료와 일치하는지 확인.\n"
-                    + "2. **COMPLETENESS** — 고객 질문의 모든 측면에 빠짐없이 답변했는지 확인.\n"
-                    + "3. **CITATION** — 인용된 문서명/페이지 번호가 실제 근거 자료에 존재하는지 검증. 없는 문서를 인용하거나 잘못된 페이지를 참조하면 반드시 지적.\n"
-                    + "4. **HALLUCINATION** — 근거 자료에 없는 수치, 절차, 사양, 제품명 등이 답변에 포함되었는지 탐지. 근거 없는 정보는 반드시 지적.\n"
-                    + "5. **TONE** — 지정된 톤(정중체/기술상세/요약/길선체)에 부합하는지, 한국어 기술 문서 품질 기준 충족 여부.\n"
-                    + "6. **RISK** — 안전/규정 관련 부정확 정보, 위험한 권장사항 포함 여부.\n"
-                    + "7. **FORMAT** — 채널(이메일/메신저)에 적합한 형식, 구조적 완성도.\n\n"
-                    + "반드시 JSON 형식으로만 응답하라.\n"
-                    + "decision은 PASS(품질 기준 충족), REVISE(수정 필요), REJECT(재작성 필요) 중 하나다.\n"
-                    + "score는 0~100 사이 정수로, 70점 이상이면 PASS, 50~69면 REVISE, 50 미만이면 REJECT 기준이다.\n"
-                    + "CITATION이나 HALLUCINATION 이슈가 있으면 score에서 최소 15점 감점하라.\n"
-                    + "문제가 있으면 issues 배열에 구체적으로 기술하라.";
 }

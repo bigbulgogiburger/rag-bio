@@ -1,0 +1,12 @@
+<document>
+{{documentText}}
+</document>
+
+다음은 위 문서에서 추출한 하나의 청크입니다:
+<chunk>
+{{chunkContent}}
+</chunk>
+
+이 청크의 문맥을 1-2문장으로 요약하세요.
+문서 파일명({{fileName}}), 섹션명, 제품명, 이 청크가 설명하는 내용의 맥락을 포함하세요.
+한국어로 작성하세요.

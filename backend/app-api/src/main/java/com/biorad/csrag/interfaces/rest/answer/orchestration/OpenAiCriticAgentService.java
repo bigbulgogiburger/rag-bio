@@ -1,10 +1,13 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -28,26 +31,43 @@ public class OpenAiCriticAgentService implements CriticAgentService {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
+    private final RagMetricsService ragMetricsService;
+    private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiCriticAgentService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
-            ObjectMapper objectMapper
+            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
+            ObjectMapper objectMapper,
+            RagMetricsService ragMetricsService,
+            PromptRegistry promptRegistry
     ) {
         this(RestClient.builder()
                         .baseUrl(baseUrl)
                         .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .build(),
-                chatModel, objectMapper);
+                chatModel, objectMapper, ragMetricsService, promptRegistry);
     }
 
     /** 테스트용 생성자 — RestClient를 직접 주입 */
-    OpenAiCriticAgentService(RestClient restClient, String chatModel, ObjectMapper objectMapper) {
+    OpenAiCriticAgentService(RestClient restClient, String chatModel, ObjectMapper objectMapper,
+                              RagMetricsService ragMetricsService) {
         this.restClient = restClient;
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = null;
+    }
+
+    OpenAiCriticAgentService(RestClient restClient, String chatModel, ObjectMapper objectMapper,
+                              RagMetricsService ragMetricsService, PromptRegistry promptRegistry) {
+        this.restClient = restClient;
+        this.chatModel = chatModel;
+        this.objectMapper = objectMapper;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -55,8 +75,11 @@ public class OpenAiCriticAgentService implements CriticAgentService {
         try {
             String formattedEvidences = formatEvidences(evidences);
             String userPrompt = buildCriticPrompt(draft, question, formattedEvidences);
-            String response = callLlm(CRITIC_SYSTEM_PROMPT, userPrompt);
-            return parseCriticResponse(response);
+            String systemPrompt = promptRegistry != null ? promptRegistry.get("critic-system") : CRITIC_SYSTEM_PROMPT;
+            String response = callLlm(systemPrompt, userPrompt);
+            CriticResult result = parseCriticResponse(response);
+            if (ragMetricsService != null) ragMetricsService.record(null, "CRITIC_REVISION", result.needsRevision() ? 1.0 : 0.0);
+            return result;
         } catch (Exception e) {
             log.warn("critic.agent.failed, returning default passing result: {}", e.getMessage());
             return CriticResult.passing(1.0);

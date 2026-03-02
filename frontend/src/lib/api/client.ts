@@ -21,6 +21,17 @@ export interface OpsFailureReason {
   count: number;
 }
 
+export interface RagMetrics {
+  avgSearchScore: number;
+  avgRerankImprovement: number;
+  adaptiveRetryRate: number;
+  hydeUsageRate: number;
+  criticRevisionRate: number;
+  multiHopActivationRate: number;
+  avgAnswerGenerationTimeMs: number;
+  avgIndexingTimeMs: number;
+}
+
 export interface OpsMetrics {
   approvedOrSentCount: number;
   sentCount: number;
@@ -32,6 +43,7 @@ export interface OpsMetrics {
   totalDraftCount: number;
   fallbackDraftRate: number;
   topFailureReasons: OpsFailureReason[];
+  ragMetrics?: RagMetrics;
 }
 
 export interface InquiryDetail {

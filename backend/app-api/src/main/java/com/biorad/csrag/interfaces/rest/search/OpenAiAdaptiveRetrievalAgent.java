@@ -1,11 +1,14 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,14 +31,19 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
+    private final RagMetricsService ragMetricsService;
+    private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiAdaptiveRetrievalAgent(
             HybridSearchService hybridSearchService,
             RerankingService rerankingService,
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat:gpt-5.2}") String chatModel,
-            ObjectMapper objectMapper
+            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            ObjectMapper objectMapper,
+            RagMetricsService ragMetricsService,
+            PromptRegistry promptRegistry
     ) {
         this(hybridSearchService, rerankingService,
                 RestClient.builder()
@@ -43,7 +51,7 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                         .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .build(),
-                objectMapper, chatModel);
+                objectMapper, chatModel, ragMetricsService, promptRegistry);
     }
 
     /** 테스트용 생성자 — RestClient를 직접 주입 */
@@ -51,12 +59,25 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                                   RerankingService rerankingService,
                                   RestClient restClient,
                                   ObjectMapper objectMapper,
-                                  String chatModel) {
+                                  String chatModel,
+                                  RagMetricsService ragMetricsService) {
+        this(hybridSearchService, rerankingService, restClient, objectMapper, chatModel, ragMetricsService, null);
+    }
+
+    OpenAiAdaptiveRetrievalAgent(HybridSearchService hybridSearchService,
+                                  RerankingService rerankingService,
+                                  RestClient restClient,
+                                  ObjectMapper objectMapper,
+                                  String chatModel,
+                                  RagMetricsService ragMetricsService,
+                                  PromptRegistry promptRegistry) {
         this.hybridSearchService = hybridSearchService;
         this.rerankingService = rerankingService;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
+        this.ragMetricsService = ragMetricsService;
+        this.promptRegistry = promptRegistry;
     }
 
     @Override
@@ -83,6 +104,7 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                     attempt + 1, currentQuery, String.format("%.3f", topScore), inquiryId);
 
             if (topScore >= MIN_CONFIDENCE) {
+                if (ragMetricsService != null) ragMetricsService.record(null, "ADAPTIVE_RETRY", attempt);
                 return AdaptiveResult.success(bestResults, attempt + 1);
             }
 
@@ -91,6 +113,7 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
             }
         }
 
+        if (ragMetricsService != null) ragMetricsService.record(null, "ADAPTIVE_RETRY", MAX_RETRIES);
         return bestResults.isEmpty()
                 ? AdaptiveResult.noEvidence(question)
                 : AdaptiveResult.lowConfidence(bestResults, bestScore);
@@ -111,16 +134,22 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                     .reduce("", (a, b) -> a + "\n" + b);
 
             String prompt = switch (attempt) {
-                case 0 -> String.format("""
+                case 0 -> promptRegistry != null
+                        ? promptRegistry.get("adaptive-search-expand", Map.of("original", original, "excerpts", excerpts))
+                        : String.format("""
                         다음 검색 쿼리의 동의어와 관련어를 포함하여 쿼리를 확장하세요.
                         원본 쿼리: %s
                         검색 결과 일부: %s
                         확장된 쿼리만 반환하세요 (한 줄):""", original, excerpts);
-                case 1 -> String.format("""
+                case 1 -> promptRegistry != null
+                        ? promptRegistry.get("adaptive-search-broaden", Map.of("original", original))
+                        : String.format("""
                         다음 검색 쿼리를 더 상위 개념/포괄적 용어로 재구성하세요.
                         원본 쿼리: %s
                         상위 개념 쿼리만 반환하세요 (한 줄):""", original);
-                default -> String.format("""
+                default -> promptRegistry != null
+                        ? promptRegistry.get("adaptive-search-translate", Map.of("original", original))
+                        : String.format("""
                         다음 한국어 쿼리를 영어로 번역하세요. Bio-Rad 기술 용어를 정확히 번역하세요.
                         쿼리: %s
                         영어 번역만 반환하세요 (한 줄):""", original);

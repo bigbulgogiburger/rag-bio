@@ -33,7 +33,7 @@ class VectorizingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new VectorizingService(chunkRepository, kbDocRepository, embeddingService, vectorStore, contextualChunkEnricher);
+        service = new VectorizingService(chunkRepository, kbDocRepository, embeddingService, vectorStore, contextualChunkEnricher, null);
     }
 
     @Test
