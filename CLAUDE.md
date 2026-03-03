@@ -233,8 +233,10 @@ ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
   'cd /opt/app && docker compose down && docker compose up -d'
 
 # ─── 프론트엔드 배포 ──────────────────────────
+# IMPORTANT: .env.production에 NEXT_PUBLIC_API_BASE_URL=https://api.infottyt.com 이 설정되어 있음
+# npm run build 시 자동 적용됨. 별도 환경변수 지정 불필요.
 cd frontend
-NEXT_PUBLIC_API_BASE_URL=https://api.infottyt.com npm run build
+npm run build
 tar czf /tmp/frontend-out.tar.gz -C out .
 scp -i ~/.ssh/csrag-deployer /tmp/frontend-out.tar.gz ec2-user@<IP>:/tmp/
 ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
@@ -277,7 +279,11 @@ terraform output   # IP, 배포 명령어, DNS 가이드 출력
 ### Frontend Build Notes
 
 - `next.config.mjs`: `output: 'export'`, `trailingSlash: true`
-- `NEXT_PUBLIC_API_BASE_URL`은 빌드 타임에 임베딩됨 (런타임 변경 불가)
+- `NEXT_PUBLIC_API_BASE_URL`은 빌드 타임에 임베딩됨 (런타임 변경 불가). 환경별 `.env` 파일로 자동 관리:
+  - `frontend/.env.development` → `http://localhost:8081` (`npm run dev` 시 자동 로드)
+  - `frontend/.env.production` → `https://api.infottyt.com` (`npm run build` 시 자동 로드)
+  - `frontend/.env.example` → 참고용 템플릿 (자동 로드 안 됨)
+  - **배포 빌드 시 별도 환경변수 지정 불필요** — Next.js가 모드에 따라 해당 `.env` 파일을 자동 로드함
 - `middleware.ts` 없음 (static export 미지원, AuthProvider가 클라이언트 인증 처리)
 - 동적 라우트 `[id]`는 `generateStaticParams` + Suspense boundary 사용
 

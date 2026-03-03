@@ -28,6 +28,8 @@ uploads/
 .env
 .env.*
 !.env.example
+!.env.production
+!.env.development
 
 # Playwright MCP (browser test artifacts)
 .playwright-mcp/
