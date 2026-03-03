@@ -38,7 +38,7 @@ public class DocumentMetadataAnalyzer {
             @Value("${openai.enabled:false}") boolean openaiEnabled,
             @Value("${openai.api-key:}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-5-nano}") String chatModel,
             PromptRegistry promptRegistry
     ) {
         this.textExtractor = textExtractor;
@@ -117,8 +117,7 @@ public class DocumentMetadataAnalyzer {
                         "messages", new Object[]{
                                 Map.of("role", "system", "content", systemPrompt),
                                 Map.of("role", "user", "content", "문서 텍스트:\n\n" + documentText)
-                        },
-                        "temperature", 0.1
+                        }
                 ))
                 .retrieve()
                 .body(String.class);

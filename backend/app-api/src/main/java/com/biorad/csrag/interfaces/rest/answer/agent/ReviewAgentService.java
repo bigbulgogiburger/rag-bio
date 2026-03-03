@@ -46,7 +46,7 @@ public class ReviewAgentService {
             @Value("${openai.enabled:false}") boolean openaiEnabled,
             @Value("${openai.api-key:}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-heavy:gpt-5-mini}") String chatModel,
             ObjectMapper objectMapper,
             AnswerDraftJpaRepository answerDraftRepository,
             AiReviewResultJpaRepository aiReviewResultRepository,
@@ -138,8 +138,7 @@ public class ReviewAgentService {
                             "messages", new Object[]{
                                     Map.of("role", "system", "content", promptRegistry.get("review-agent")),
                                     Map.of("role", "user", "content", prompt)
-                            },
-                            "temperature", 0.1
+                            }
                     ))
                     .retrieve()
                     .body(String.class);

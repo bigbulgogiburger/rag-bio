@@ -35,7 +35,7 @@ public class OpenAiImageAnalysisService implements ImageAnalysisService {
     public OpenAiImageAnalysisService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
             MockImageAnalysisService fallback,
             PromptRegistry promptRegistry

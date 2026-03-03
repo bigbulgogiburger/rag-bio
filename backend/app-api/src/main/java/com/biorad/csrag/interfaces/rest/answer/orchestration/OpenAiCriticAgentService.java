@@ -38,7 +38,7 @@ public class OpenAiCriticAgentService implements CriticAgentService {
     public OpenAiCriticAgentService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-heavy:gpt-5-mini}") String chatModel,
             ObjectMapper objectMapper,
             RagMetricsService ragMetricsService,
             PromptRegistry promptRegistry
@@ -145,8 +145,7 @@ public class OpenAiCriticAgentService implements CriticAgentService {
                         "messages", new Object[]{
                                 Map.of("role", "system", "content", systemPrompt),
                                 Map.of("role", "user", "content", userPrompt)
-                        },
-                        "temperature", 0.1
+                        }
                 ))
                 .retrieve()
                 .body(String.class);

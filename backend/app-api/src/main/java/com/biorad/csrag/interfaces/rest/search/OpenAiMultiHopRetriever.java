@@ -38,7 +38,7 @@ public class OpenAiMultiHopRetriever implements MultiHopRetriever {
             AdaptiveRetrievalAgent adaptiveAgent,
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
             RagMetricsService ragMetricsService,
             PromptRegistry promptRegistry

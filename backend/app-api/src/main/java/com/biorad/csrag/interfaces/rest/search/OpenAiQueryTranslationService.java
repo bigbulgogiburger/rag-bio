@@ -35,7 +35,7 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
     public OpenAiQueryTranslationService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-5-nano}") String chatModel,
             ObjectMapper objectMapper,
             PromptRegistry promptRegistry
     ) {
@@ -68,8 +68,7 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
                             "messages", List.of(
                                     Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("query-translation") : SYSTEM_PROMPT),
                                     Map.of("role", "user", "content", question)
-                            ),
-                            "temperature", 0.0
+                            )
                     ))
                     .retrieve()
                     .body(String.class);

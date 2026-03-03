@@ -35,7 +35,7 @@ public class OpenAiComposeStep implements ComposeStep {
     public OpenAiComposeStep(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-heavy:gpt-5.2}") String chatModel,
+            @Value("${openai.model.chat-heavy:gpt-5-mini}") String chatModel,
             ObjectMapper objectMapper,
             DefaultComposeStep fallback,
             PromptRegistry promptRegistry
@@ -113,8 +113,7 @@ public class OpenAiComposeStep implements ComposeStep {
                         "messages", new Object[]{
                                 Map.of("role", "system", "content", systemPrompt),
                                 Map.of("role", "user", "content", userPrompt)
-                        },
-                        "temperature", 0.3
+                        }
                 ))
                 .retrieve()
                 .body(String.class);

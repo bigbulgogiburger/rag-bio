@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -40,13 +41,14 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
     private final String chatModel;
     private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiSearchToolAgent(
             HybridSearchService hybridSearchService,
             RerankingService rerankingService,
             ProductExtractorService productExtractorService,
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
             PromptRegistry promptRegistry
     ) {

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -34,10 +35,11 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
     private final RagMetricsService ragMetricsService;
     private final PromptRegistry promptRegistry;
 
+    @Autowired
     public OpenAiHydeQueryTransformer(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-5-nano}") String chatModel,
             ObjectMapper objectMapper,
             EmbeddingService embeddingService,
             RagMetricsService ragMetricsService,
@@ -93,8 +95,7 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
                                 Map.of("role", "system", "content", promptRegistry.get("hyde-system")),
                                 Map.of("role", "user", "content", userMessage)
                         ),
-                        "max_tokens", 500,
-                        "temperature", 0.7
+                        "max_completion_tokens", 4096
                 ))
                 .retrieve()
                 .body(String.class);

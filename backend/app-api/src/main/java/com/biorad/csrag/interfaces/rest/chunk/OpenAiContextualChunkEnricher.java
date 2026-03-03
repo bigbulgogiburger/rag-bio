@@ -50,7 +50,7 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
     public OpenAiContextualChunkEnricher(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-light:gpt-4.1-mini}") String chatModel,
+            @Value("${openai.model.chat-light:gpt-5-nano}") String chatModel,
             ObjectMapper objectMapper,
             MockContextualChunkEnricher fallback,
             PromptRegistry promptRegistry
@@ -126,8 +126,7 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
             Map<String, Object> body = Map.of(
                     "model", chatModel,
                     "messages", List.of(message),
-                    "temperature", 0.3,
-                    "max_tokens", 200
+                    "max_completion_tokens", 4096
             );
 
             String response = restClient.post()

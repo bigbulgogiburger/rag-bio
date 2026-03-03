@@ -58,7 +58,7 @@ public class OpenAiRerankingService implements RerankingService {
     public OpenAiRerankingService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
-            @Value("${openai.model.chat-medium:gpt-4.1}") String chatModel,
+            @Value("${openai.model.chat-medium:gpt-4.1-mini}") String chatModel,
             ObjectMapper objectMapper,
             MockRerankingService fallback,
             RagMetricsService ragMetricsService,
