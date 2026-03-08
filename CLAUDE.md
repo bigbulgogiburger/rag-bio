@@ -300,6 +300,8 @@ terraform output   # IP, 배포 명령어, DNS 가이드 출력
 
 ## Skills
 
+### 검증 스킬
+
 | 스킬 | 설명 |
 |------|------|
 | `manage-skills` | 세션 변경사항 분석 및 검증 스킬 유지보수 |
@@ -309,3 +311,27 @@ terraform output   # IP, 배포 명령어, DNS 가이드 출력
 | `verify-frontend-ui` | 프론트엔드 UI 컴포넌트 품질 검증 |
 | `verify-rag-pipeline` | RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증 |
 | `verify-inquiry-ui` | 문의 상세 페이지 UI 컴포넌트 검증 |
+| `verify-security` | 보안 검증 (RateLimitFilter, RBAC, CORS, JWT, 시크릿) |
+| `verify-api-contracts` | REST API 응답 DTO 일관성 + 에러 코드 표준 검증 |
+
+### 배포 스킬
+
+| 스킬 | 설명 |
+|------|------|
+| `deploy-backend` | 백엔드 배포 (JAR 빌드 → SCP → Docker 재시작) |
+| `deploy-frontend` | 프론트엔드 배포 (static export → SCP → nginx) |
+
+### 개발 생산성 스킬
+
+| 스킬 | 설명 |
+|------|------|
+| `add-flyway-migration` | Flyway 마이그레이션 파일 생성 + JPA 엔티티 동기화 |
+| `scaffold-openai-service` | OpenAI/Mock 이중 구현 스캐폴딩 (@ConditionalOnProperty) |
+| `add-api-endpoint` | REST API DDD 레이어 스캐폴딩 (Controller → UseCase → JPA) |
+
+### 분석/디버깅 스킬
+
+| 스킬 | 설명 |
+|------|------|
+| `analyze-llm-cost` | LLM 모델별 비용 분석 + 티어 변경 시뮬레이션 |
+| `troubleshoot-rag` | RAG 파이프라인 디버깅 (검색 품질, 할루시네이션, 인용 오류) |
