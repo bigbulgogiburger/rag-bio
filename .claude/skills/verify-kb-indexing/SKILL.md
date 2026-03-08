@@ -35,6 +35,7 @@ description: KB 비동기 인덱싱 파이프라인 검증. 인덱싱 관련 코
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java` | Qdrant 벡터 스토어 (컬렉션 자동 생성 + 벡터 삭제) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/MockVectorStore.java` | Mock 벡터 스토어 (동시성 안전 삭제) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/VectorizingService.java` | 청크 벡터화 서비스 (KB 청크의 productFamily를 부모 문서에서 조회) |
+| `backend/app-api/src/main/java/com/biorad/csrag/application/knowledge/DocumentMetadataAnalyzer.java` | 문서 메타데이터 분석 (PromptRegistry 기반 LLM 분석) |
 
 ## Workflow
 
@@ -194,18 +195,18 @@ grep -n "deleteByDocumentId\|RuntimeException\|ghost" backend/app-api/src/main/j
 **PASS:** QdrantVectorStore에서 RuntimeException throw + KnowledgeBaseService에서 try-catch 감싸기 + error 로그
 **FAIL:** QdrantVectorStore에서 예외 삼킴 또는 KnowledgeBaseService에서 벡터 삭제 실패 시 전체 롤백
 
-### Step 9d: ensureCollection GET 우선 확인 패턴
+### Step 9d: ensureCollection GET 우선 확인 + ReentrantLock 패턴
 
 **파일:** `QdrantVectorStore.java`
 
-**검사:** `ensureCollection()`이 컬렉션 존재 여부를 GET 요청으로 먼저 확인하고, 없을 때만 PUT으로 생성하며, 생성 실패 시 `collectionReady`를 true로 설정하지 않는지 확인.
+**검사:** `ensureCollection()`이 (1) `ReentrantLock`으로 동기화하고 (virtual thread 피닝 방지, `synchronized` 사용 금지), (2) 컬렉션 존재 여부를 GET 요청으로 먼저 확인하고, (3) 없을 때만 PUT으로 생성하며, (4) 생성 실패 시 `collectionReady`를 true로 설정하지 않는지 확인.
 
 ```bash
-grep -n "GET\|exists\|collectionReady\|return;" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
+grep -n "ReentrantLock\|collectionLock\|collectionReady\|synchronized" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
 ```
 
-**PASS:** GET 확인 → 미존재 시 PUT 생성 → 실패 시 early return (collectionReady 미설정)
-**FAIL:** GET 확인 없이 바로 PUT 또는 생성 실패에도 collectionReady = true
+**PASS:** `ReentrantLock` + `collectionLock.lock()/unlock()` (try-finally) + GET 확인 → PUT 생성 → 실패 시 early return, `synchronized` 키워드 없음
+**FAIL:** `synchronized` 사용 (virtual thread 피닝 유발) 또는 GET 확인 없이 바로 PUT 또는 생성 실패에도 collectionReady = true
 
 ### Step 9e: MockVectorStore 동시성 안전 삭제
 
@@ -285,18 +286,18 @@ grep -n "doesn't exist\|collection_not_found\|deleteByDocumentId" backend/app-ap
 **PASS:** `msg.contains("doesn't exist")` 시 로그만 남기고 skip, 그 외 예외는 RuntimeException throw
 **FAIL:** 컬렉션 미존재 시 무조건 예외 전파
 
-### Step 13: 스레드 풀 설정 검증
+### Step 13: Virtual Thread Executor 설정 검증
 
 **파일:** `AsyncConfig.java`
 
-**검사:** 스레드 풀 설정이 적절한지 확인.
+**검사:** SimpleAsyncTaskExecutor에서 virtual threads가 활성화되고, concurrencyLimit으로 동시 실행 수가 제한되는지 확인. t4g.small (2 vCPU, 2GB RAM) 환경에서 OpenAI API 과부하 방지.
 
 ```bash
-grep -n "corePoolSize\|maxPoolSize\|queueCapacity\|threadNamePrefix\|waitForTasks" backend/app-api/src/main/java/com/biorad/csrag/app/AsyncConfig.java
+grep -n "SimpleAsyncTaskExecutor\|setVirtualThreads\|setConcurrencyLimit\|kb-indexing\|doc-indexing" backend/app-api/src/main/java/com/biorad/csrag/app/AsyncConfig.java
 ```
 
-**PASS:** core=2, max=4, queue=50, prefix="kb-indexing-", waitForTasks=true
-**FAIL:** 설정값 누락 또는 graceful shutdown 미설정
+**PASS:** `SimpleAsyncTaskExecutor` + `setVirtualThreads(true)` + `setConcurrencyLimit(4)` 설정, prefix="kb-indexing-" 및 "doc-indexing-"
+**FAIL:** `ThreadPoolTaskExecutor` 사용 (platform threads) 또는 `setVirtualThreads(true)` 누락 또는 concurrencyLimit 미설정
 
 ### Step 16: VectorizingService KB productFamily 부모 조회 확인
 
@@ -326,12 +327,12 @@ grep -n "kbDocRepository\|KnowledgeDocumentJpaRepository\|KNOWLEDGE_BASE.*resolv
 | 9 | 워커 에러 핸들링 | PASS/FAIL | catch + markFailed |
 | 9b | 워커 null-safe 패턴 | PASS/FAIL | orElse(null) + return |
 | 9c | 벡터 삭제 예외 전파 | PASS/FAIL | RuntimeException + try-catch |
-| 9d | ensureCollection GET 우선 | PASS/FAIL | GET → PUT → early return |
+| 9d | ensureCollection ReentrantLock + GET 우선 | PASS/FAIL | ReentrantLock + GET → PUT → early return |
 | 9e | MockVectorStore 동시성 | PASS/FAIL | 키 수집 후 삭제 |
 | 10 | 워커 벡터 사전 삭제 | PASS/FAIL | deleteByDocumentId 호출 위치 |
 | 11 | 콘텐츠 기반 페이지 매핑 | PASS/FAIL | findMatchingPage 존재 |
 | 12 | 컬렉션 미존재 안전 처리 | PASS/FAIL | doesn't exist 처리 |
-| 13 | 스레드 풀 설정 | PASS/FAIL | 설정값 적절성 |
+| 13 | Virtual Thread Executor | PASS/FAIL | SimpleAsyncTaskExecutor + virtualThreads + concurrencyLimit |
 | 14 | MAX_PAGE_SPAN 제한 | PASS/FAIL | 과도한 span 허용 |
 | 15 | pageEnd 역전/span 검증 | PASS/FAIL | 역전 보정 + searchFromIndex |
 | 16 | KB productFamily 부모 조회 | PASS/FAIL | VectorizingService → kbDocRepository |

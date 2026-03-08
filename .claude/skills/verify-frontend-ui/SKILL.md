@@ -41,6 +41,7 @@ description: 프론트엔드 UI 컴포넌트 품질 검증 (shadcn/ui + Tailwind
 | `frontend/src/components/ui/PdfViewer.tsx` | PDF 미리보기 (shadcn Button, SSR 미지원, triggerBlobDownload) |
 | `frontend/src/components/ui/PdfExpandModal.tsx` | PDF 확대 모달 (@radix-ui/react-dialog, SSR 미지원, triggerBlobDownload) |
 | `frontend/src/components/ui/sonner.tsx` | Sonner Toaster 래퍼 (shadcn toast provider) |
+| `frontend/src/components/ui/PipelineProgressBadge.tsx` | 파이프라인 진행 상태 뱃지 (role=list, ARIA, CSS 변수 기반 색상) |
 | `frontend/src/components/ui/index.ts` | 배럴 export (PdfViewer 제외) |
 | `frontend/src/components/theme-provider.tsx` | next-themes ThemeProvider 래퍼 |
 | `frontend/src/components/theme-toggle.tsx` | 다크/라이트 모드 토글 버튼 |

@@ -39,6 +39,8 @@ description: 문의 상세 페이지 UI 컴포넌트 검증 (shadcn/ui + Tailwin
 | `frontend/src/lib/api/client.ts` | API 클라이언트 (타입 정의 + 헬퍼 함수) |
 | `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 함수 (labelReviewDecision, labelApprovalDecision 포함) |
 | `frontend/src/components/inquiry/WorkflowResultCard.tsx` | 워크플로우 결과 공유 컴포넌트 (showActions prop, 리뷰 이슈/게이트 결과 표시) |
+| `frontend/src/components/inquiry/PipelineProgress.tsx` | 파이프라인 진행 UI (Kawaii 고양이 + 6단계 진행 표시 + SSE 실시간 업데이트) |
+| `frontend/src/hooks/useInquiryEvents.ts` | SSE 이벤트 구독 훅 (pipeline-step named event + 재연결 + 탭 복원) |
 
 ## Workflow
 

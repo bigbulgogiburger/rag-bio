@@ -25,6 +25,10 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 18. **벡터 검색 필터 변환 (RF-04)** — HybridSearchService.resolveForVectorSearch()가 inquiryId를 documentIds로 변환하는지 확인
 19. **복수 제품 필터 검색 (PRD v6)** — SearchFilter.forProducts(), ProductFamilyRegistry.expand(), 3단계 retrieval fallback 확인
 20. **멀티 제품 추출** — ProductExtractorService.extractAll() 멀티 추출 + SubQuestion.productFamilies 확인
+21. **프롬프트 외부화** — PromptRegistry.get() 사용, 인라인 시스템 프롬프트 금지 확인
+22. **Agentic RAG 이중 구현** — OpenAi/Mock @ConditionalOnProperty 패턴 일관성 확인
+23. **모델 티어링** — HEAVY/MEDIUM/LIGHT 3-tier 모델 사용 확인
+24. **CriticAgent 자가 비평** — 답변 품질 평가 + 개선 루프 + 무한 루프 방지 확인
 
 ## When to Run
 
@@ -81,6 +85,22 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 | `backend/app-api/src/test/java/com/biorad/csrag/interfaces/rest/search/ProductExtractorServiceTest.java` | 멀티 제품 추출 테스트 |
 | `backend/app-api/src/test/java/com/biorad/csrag/interfaces/rest/search/SearchFilterTest.java` | 복수 제품 필터 테스트 |
 | `backend/app-api/src/test/java/com/biorad/csrag/interfaces/rest/search/ProductFamilyRegistryTest.java` | 제품군 레지스트리 테스트 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/AdaptiveRetrievalAgent.java` | Adaptive Retrieval 에이전트 인터페이스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiAdaptiveRetrievalAgent.java` | OpenAI Adaptive Retrieval 구현 (쿼리 복잡도 분석 → 전략 선택) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockAdaptiveRetrievalAgent.java` | Mock Adaptive Retrieval (테스트/오프라인용) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MultiHopRetriever.java` | Multi-Hop 검색 인터페이스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiMultiHopRetriever.java` | OpenAI Multi-Hop 구현 (반복 검색 + 정보 합성) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockMultiHopRetriever.java` | Mock Multi-Hop (테스트/오프라인용) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/SearchToolAgent.java` | Search Tool 에이전트 인터페이스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiSearchToolAgent.java` | OpenAI Search Tool 구현 (도구 호출 기반 검색) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockSearchToolAgent.java` | Mock Search Tool (테스트/오프라인용) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/RerankingService.java` | 리랭킹 서비스 인터페이스 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiRerankingService.java` | OpenAI Cross-Encoder 리랭킹 구현 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/CriticAgentService.java` | Critic 에이전트 인터페이스 (답변 품질 자가 비평) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiCriticAgentService.java` | OpenAI Critic 구현 (LLM 기반 비평 + 개선 루프) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/MockCriticAgentService.java` | Mock Critic (테스트/오프라인용) |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/prompt/PromptRegistry.java` | 프롬프트 외부화 레지스트리 (@PostConstruct 로드, {{var}} 템플릿) |
+| `backend/app-api/src/main/resources/prompts/*.txt` | 외부화된 프롬프트 파일 (17개) |
 
 ## Workflow
 
@@ -279,18 +299,18 @@ grep -n "edit-draft\|PatchMapping\|SENT.*edit\|Cannot edit" backend/app-api/src/
 **PASS:** PATCH edit-draft 존재 + SENT 상태 차단 (409 Conflict)
 **FAIL:** 엔드포인트 누락 또는 SENT 상태 편집 허용
 
-### Step 14: QdrantVectorStore ensureCollection 안전성 확인
+### Step 14: QdrantVectorStore ensureCollection ReentrantLock + 안전성 확인
 
 **파일:** `QdrantVectorStore.java`
 
-**검사:** ensureCollection이 GET으로 존재 확인 후 PUT 생성하고, 실패 시 collectionReady를 true로 설정하지 않는지 확인.
+**검사:** ensureCollection이 (1) `ReentrantLock`으로 동기화하고 (`synchronized` 사용 금지 — virtual thread 피닝 유발), (2) GET으로 존재 확인 후 PUT 생성하고, (3) 실패 시 collectionReady를 true로 설정하지 않는지 확인.
 
 ```bash
-grep -n "collectionReady\|GET.*collection\|return.*컬렉션" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
+grep -n "ReentrantLock\|collectionLock\|collectionReady\|synchronized" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
 ```
 
-**PASS:** GET 확인 → 조건부 PUT 생성 → 실패 시 early return
-**FAIL:** 무조건 PUT 또는 실패해도 collectionReady=true 설정
+**PASS:** `ReentrantLock` + `collectionLock.lock()/unlock()` (try-finally) + GET 확인 → 조건부 PUT 생성 → 실패 시 early return, `synchronized` 키워드 없음
+**FAIL:** `synchronized` 사용 또는 무조건 PUT 또는 실패해도 collectionReady=true 설정
 
 ### Step 15: QdrantVectorStore deleteByDocumentId 예외 전파 확인
 
@@ -441,7 +461,7 @@ grep -n "classifyQuestionPrior\|QuestionPrior" backend/app-api/src/main/java/com
 | 11 | @Transactional 설정 | PASS/FAIL | readOnly 누락 |
 | 12 | 4단 승인 게이트 | PASS/FAIL | 게이트 누락/과도한 차단 |
 | 13 | EditDraft 엔드포인트 | PASS/FAIL | SENT 차단 여부 |
-| 14 | ensureCollection 안전성 | PASS/FAIL | GET 확인 + early return |
+| 14 | ensureCollection ReentrantLock + 안전성 | PASS/FAIL | ReentrantLock + GET 확인 + early return |
 | 15 | deleteByDocumentId 예외 전파 | PASS/FAIL | 예외 삼킴 여부 |
 | 16 | 번역+하이브리드 검색 통합 | PASS/FAIL | retrieve()/analyze() 번역 호출 |
 | 17 | AnalyzeResponse translatedQuery | PASS/FAIL | 필드 존재 |
@@ -619,6 +639,10 @@ grep -n "checkSubQuestionCompleteness\|SUB_QUESTION_INCOMPLETE\|확인 후\|ques
 | 40 | 3단계 retrieval fallback | PASS/FAIL | EXACT → CATEGORY_EXPANDED → UNFILTERED |
 | 41 | SubQuestion productFamilies | PASS/FAIL | 필드 + enrichWithProductFamilies |
 | 42 | 멀티 제품 필터 검색 | PASS/FAIL | Qdrant any + Postgres IN |
+| 43 | PromptRegistry 외부화 | PASS/FAIL | 인라인 프롬프트 없음 + promptRegistry.get() 사용 |
+| 44 | Agentic RAG @ConditionalOnProperty | PASS/FAIL | OpenAi/Mock 이중 구현 일관성 |
+| 45 | 모델 티어링 (HEAVY/MEDIUM/LIGHT) | PASS/FAIL | 서비스별 올바른 모델 티어 사용 |
+| 46 | CriticAgent 자가 비평 루프 | PASS/FAIL | 개선 루프 + maxIterations 제한 |
 
 ### Step 36: PostgresKeywordSearchService normalizeKorean 전처리 확인 (RF-01)
 
@@ -711,6 +735,58 @@ grep -n "any\|productFamilies\|IN (" backend/app-api/src/main/java/com/biorad/cs
 **PASS:** Qdrant `"any": [...]` + Mock `anyMatch()` + Postgres `IN (?)` 동적 플레이스홀더 + MockKeyword 동일 패턴
 **FAIL:** 단일 제품 `"match": {"value": ...}` 또는 `= ?` 단일 비교
 
+### Step 43: PromptRegistry 외부화 패턴 확인
+
+**파일:** 13개 OpenAi 서비스 파일
+
+**검사:** 프롬프트를 사용하는 모든 OpenAi 서비스에서 `promptRegistry.get()` 호출이 존재하고, 서비스 클래스 내에 인라인 시스템 프롬프트(멀티라인 문자열로 작성된 LLM 지시문)가 없는지 확인.
+
+```bash
+grep -rn "promptRegistry" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiComposeStep.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiVerifyStep.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiCriticAgentService.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/agent/ReviewAgentService.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiAdaptiveRetrievalAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiMultiHopRetriever.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiSearchToolAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiHydeQueryTransformer.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiRerankingService.java
+```
+
+**PASS:** 모든 OpenAi 서비스에서 `promptRegistry.get("xxx")` 호출 존재, 인라인 프롬프트 없음
+**FAIL:** `promptRegistry` import/사용 없이 인라인 시스템 프롬프트 사용
+
+### Step 44: Agentic RAG @ConditionalOnProperty 이중 구현 확인
+
+**파일:** OpenAi/Mock 서비스 쌍 (AdaptiveRetrieval, MultiHop, SearchTool, Reranking, Critic)
+
+**검사:** 각 인터페이스에 OpenAi(enabled=true) 구현과 Mock(enabled=false/기본) 구현이 쌍으로 존재하고, `@ConditionalOnProperty`가 올바르게 설정되는지 확인.
+
+```bash
+grep -rn "@ConditionalOnProperty\|@Primary" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiAdaptiveRetrievalAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockAdaptiveRetrievalAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiMultiHopRetriever.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockMultiHopRetriever.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/OpenAiSearchToolAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/MockSearchToolAgent.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiCriticAgentService.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/MockCriticAgentService.java
+```
+
+**PASS:** 모든 OpenAi 구현에 `@ConditionalOnProperty(prefix="openai", name="enabled", havingValue="true")` + `@Primary`, Mock 구현은 기본 fallback
+**FAIL:** @ConditionalOnProperty 누락 또는 OpenAi/Mock 쌍 불완전
+
+### Step 45: 모델 티어링 확인 (HEAVY/MEDIUM/LIGHT)
+
+**파일:** `application.yml`, OpenAi 서비스 파일들
+
+**검사:** application.yml에 3-tier 모델 설정(chat-model-heavy, chat-model-medium, chat-model-light)이 존재하고, 서비스들이 복잡도에 맞는 모델 티어를 사용하는지 확인.
+
+```bash
+grep -n "chat-model-heavy\|chat-model-medium\|chat-model-light\|chatModelHeavy\|chatModelMedium\|chatModelLight" backend/app-api/src/main/resources/application.yml
+```
+
+**PASS:** 3개 티어 설정 존재 (heavy: 복잡 추론용, medium: 중간 복잡도, light: 경량 작업)
+**FAIL:** 단일 모델만 설정되어 있거나 티어 구분 없음
+
+### Step 46: CriticAgent 자가 비평 루프 확인
+
+**파일:** `OpenAiCriticAgentService.java`, `CriticAgentService.java`
+
+**검사:** Critic 에이전트가 답변 품질을 평가하고, 일정 점수 미달 시 개선을 시도하며, maxIterations로 무한 루프를 방지하는지 확인.
+
+```bash
+grep -n "maxIterations\|MAX_ITERATIONS\|iterate\|critique\|score\|threshold\|CriticResult" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiCriticAgentService.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/CriticAgentService.java
+```
+
+**PASS:** CriticAgentService 인터페이스 + OpenAi 구현에 반복 제한 (maxIterations ≤ 3) + 임계점 이상 시 조기 종료
+**FAIL:** 무한 루프 가능성 또는 반복 제한 없음
+
 ## Exceptions
 
 다음은 **위반이 아닙니다**:
@@ -722,3 +798,5 @@ grep -n "any\|productFamilies\|IN (" backend/app-api/src/main/java/com/biorad/cs
 5. **단일 질문의 비분해** — 하위 질문 패턴이 없는 단일 질문에 대해 QuestionDecomposerService가 isMultiQuestion=false를 반환하는 것은 정상
 6. **SearchFilter.none()** — 필터 없는 검색은 기존 호환성을 위한 정상 동작
 7. **RetrievalQuality.EXACT** — 제품 필터 첫 검색에서 결과가 충분한 경우 EXACT 반환은 정상 (fallback 불필요)
+8. **Mock 서비스의 인라인 응답** — Mock 서비스에서 하드코딩된 응답은 PromptRegistry 사용이 불필요 (테스트/오프라인 용도)
+9. **DefaultComposeStep의 인라인 템플릿** — OpenAI 비활성화 시 사용되는 규칙 기반 템플릿은 PromptRegistry 대상이 아님

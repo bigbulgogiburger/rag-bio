@@ -41,5 +41,8 @@ infra/terraform/*.tfstate.backup
 infra/terraform/*.tfvars
 !infra/terraform/terraform.tfvars.example
 
+# Claude Code (개인 설정 제외, 스킬은 공유)
+.claude/settings.local.json
+
 # Misc
 coverage/
