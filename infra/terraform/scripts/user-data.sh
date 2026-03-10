@@ -110,6 +110,17 @@ OPENAI_ENABLED=${openai_enabled}
 # Vector DB
 VECTOR_DB_PROVIDER=${vector_db_provider}
 
+# OpenAI Models
+OPENAI_CHAT_MODEL_HEAVY=gpt-5-mini
+OPENAI_CHAT_MODEL_MEDIUM=gpt-5-mini
+OPENAI_CHAT_MODEL_LIGHT=gpt-5-nano
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+
+# Qdrant
+QDRANT_URL=${qdrant_url}
+QDRANT_API_KEY=${qdrant_api_key}
+QDRANT_COLLECTION=csrag_chunks
+
 # CORS
 CORS_ALLOWED_ORIGINS=https://${app_domain},http://localhost:3001
 ENVEOF
