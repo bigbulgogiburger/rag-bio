@@ -37,9 +37,9 @@ class OpenAiRerankingServiceTest {
     }
 
     @Test
-    void rerank_validResponse_parsesScore() {
+    void rerank_validResponse_parsesScores() {
         String apiResponse = """
-                {"choices":[{"message":{"content":"{\\"score\\": 0.85, \\"reason\\": \\"directly relevant\\"}"}}]}
+                {"choices":[{"message":{"content":"[{\\"index\\": 0, \\"score\\": 0.85}]"}}]}
                 """;
         when(responseSpec.body(String.class)).thenReturn(apiResponse);
 
@@ -53,7 +53,7 @@ class OpenAiRerankingServiceTest {
     @Test
     void rerank_codeFencedResponse_parsesCorrectly() {
         String apiResponse = """
-                {"choices":[{"message":{"content":"```json\\n{\\"score\\": 0.72, \\"reason\\": \\"partially relevant\\"}\\n```"}}]}
+                {"choices":[{"message":{"content":"```json\\n[{\\"index\\": 0, \\"score\\": 0.72}]\\n```"}}]}
                 """;
         when(responseSpec.body(String.class)).thenReturn(apiResponse);
 
@@ -77,16 +77,11 @@ class OpenAiRerankingServiceTest {
 
     @Test
     void rerank_multipleCandidates_sortedByRerankScore() {
-        when(responseSpec.body(String.class))
-                .thenReturn("""
-                        {"choices":[{"message":{"content":"{\\"score\\": 0.3, \\"reason\\": \\"low\\"}"}}]}
-                        """)
-                .thenReturn("""
-                        {"choices":[{"message":{"content":"{\\"score\\": 0.95, \\"reason\\": \\"high\\"}"}}]}
-                        """)
-                .thenReturn("""
-                        {"choices":[{"message":{"content":"{\\"score\\": 0.6, \\"reason\\": \\"mid\\"}"}}]}
-                        """);
+        // Listwise: single call returns all scores
+        String apiResponse = """
+                {"choices":[{"message":{"content":"[{\\"index\\": 0, \\"score\\": 0.3}, {\\"index\\": 1, \\"score\\": 0.95}, {\\"index\\": 2, \\"score\\": 0.6}]"}}]}
+                """;
+        when(responseSpec.body(String.class)).thenReturn(apiResponse);
 
         List<HybridSearchResult> candidates = List.of(candidate(0.5), candidate(0.5), candidate(0.5));
         List<RerankingService.RerankResult> results = service.rerank("query", candidates, 2);
@@ -94,6 +89,8 @@ class OpenAiRerankingServiceTest {
         assertThat(results).hasSize(2);
         assertThat(results.get(0).rerankScore()).isEqualTo(0.95);
         assertThat(results.get(1).rerankScore()).isEqualTo(0.6);
+        // Only 1 API call (listwise), not 3 (pointwise)
+        verify(restClient, times(1)).post();
     }
 
     @Test
@@ -105,7 +102,7 @@ class OpenAiRerankingServiceTest {
         );
 
         String apiResponse = """
-                {"choices":[{"message":{"content":"{\\"score\\": 0.7, \\"reason\\": \\"relevant\\"}"}}]}
+                {"choices":[{"message":{"content":"[{\\"index\\": 0, \\"score\\": 0.7}]"}}]}
                 """;
         when(responseSpec.body(String.class)).thenReturn(apiResponse);
 
@@ -122,6 +119,37 @@ class OpenAiRerankingServiceTest {
 
         assertThat(results).isEmpty();
         verify(restClient, never()).post();
+    }
+
+    @Test
+    void rerank_objectWithRankingsKey_parsesCorrectly() {
+        // Some LLMs wrap the array in an object with "rankings" key
+        String apiResponse = """
+                {"choices":[{"message":{"content":"{\\"rankings\\": [{\\"index\\": 0, \\"score\\": 0.88}]}"}}]}
+                """;
+        when(responseSpec.body(String.class)).thenReturn(apiResponse);
+
+        List<RerankingService.RerankResult> results = service.rerank("query", List.of(candidate(0.5)), 1);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).rerankScore()).isEqualTo(0.88);
+    }
+
+    @Test
+    void rerank_missingIndex_fallsBackToFusedScore() {
+        // Response only includes index 0 but not index 1 — index 1 should fall back to fusedScore
+        String apiResponse = """
+                {"choices":[{"message":{"content":"[{\\"index\\": 0, \\"score\\": 0.9}]"}}]}
+                """;
+        when(responseSpec.body(String.class)).thenReturn(apiResponse);
+
+        List<HybridSearchResult> candidates = List.of(candidate(0.5), candidate(0.7));
+        List<RerankingService.RerankResult> results = service.rerank("query", candidates, 2);
+
+        assertThat(results).hasSize(2);
+        // First by score: 0.9 (index 0), then 0.7 (index 1 falls back to fusedScore)
+        assertThat(results.get(0).rerankScore()).isEqualTo(0.9);
+        assertThat(results.get(1).rerankScore()).isEqualTo(0.7);
     }
 
     private HybridSearchResult candidate(double fusedScore) {

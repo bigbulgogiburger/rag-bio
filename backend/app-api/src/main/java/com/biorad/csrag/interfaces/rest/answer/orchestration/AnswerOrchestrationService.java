@@ -207,40 +207,79 @@ public class AnswerOrchestrationService {
 
         // ── VERIFY ─────────────────────────────────────────────────
         final List<EvidenceItem> allEvidences = retrievedEvidences;
+        AnalyzeResponse analysis;
         emitPipelineEvent(inquiryId, "VERIFY", "STARTED", null);
-        AnalyzeResponse analysis = executeWithRunLog(inquiryId, "VERIFY",
-                () -> verifyStep.execute(inquiryId, question, allEvidences));
-        emitPipelineEvent(inquiryId, "VERIFY", "COMPLETED", null);
+        try {
+            analysis = executeWithRunLog(inquiryId, "VERIFY",
+                    () -> verifyStep.execute(inquiryId, question, allEvidences));
+            emitPipelineEvent(inquiryId, "VERIFY", "COMPLETED", null);
+        } catch (Exception e) {
+            log.warn("Verify step failed, using default analysis inquiryId={}: {}", inquiryId, e.getMessage());
+            emitPipelineEvent(inquiryId, "VERIFY", "FAILED", e.getMessage());
+            double avgScore = allEvidences.stream().mapToDouble(EvidenceItem::score).average().orElse(0.5);
+            String defaultVerdict = avgScore >= 0.7 ? "SUPPORTED" : avgScore >= 0.4 ? "CONDITIONAL" : "REFUTED";
+            analysis = new AnalyzeResponse(inquiryId.toString(), defaultVerdict, avgScore,
+                    "검증 단계 실패 - 근거 점수 기반 기본 판정", List.of("VERIFY_FAILED"), allEvidences, null);
+        }
+
+        final AnalyzeResponse finalAnalysis = analysis;
+
+        // ── ROUTING (비용 최적화) ──────────────────────────────
+        boolean skipCritic = false;
+        boolean skipSelfReview = false;
+
+        double topEvidenceScore = allEvidences.isEmpty() ? 0.0
+                : allEvidences.stream().mapToDouble(EvidenceItem::score).max().orElse(0.0);
+
+        if (topEvidenceScore >= 0.85 && finalAnalysis.confidence() >= 0.8) {
+            // High confidence path: skip critic and self-review
+            skipCritic = true;
+            skipSelfReview = true;
+            log.info("pipeline.routing: HIGH_CONFIDENCE path, skipping Critic+SelfReview inquiryId={} topScore={} confidence={}",
+                    inquiryId, topEvidenceScore, analysis.confidence());
+            emitPipelineEvent(inquiryId, "ROUTING", "HIGH_CONFIDENCE",
+                    "topScore=" + String.format("%.2f", topEvidenceScore));
+        } else if (topEvidenceScore < 0.3 && allEvidences.size() <= 2) {
+            // Low evidence path: still run full pipeline but flag it
+            log.info("pipeline.routing: LOW_EVIDENCE path inquiryId={} topScore={} evidenceCount={}",
+                    inquiryId, topEvidenceScore, allEvidences.size());
+            emitPipelineEvent(inquiryId, "ROUTING", "LOW_EVIDENCE", null);
+        }
 
         // ── COMPOSE ────────────────────────────────────────────────
         String mergedInstructions = buildMergedInstructions(additionalInstructions, perQuestionEvidences);
 
         emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", null);
         ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE",
-                () -> composeStep.execute(analysis, tone, channel, mergedInstructions, previousAnswerDraft));
+                () -> composeStep.execute(finalAnalysis, tone, channel, mergedInstructions, previousAnswerDraft));
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
 
         // ── CRITIC (팩트 검증) ────────────────────────────────────
         CriticAgentService.CriticResult criticResult = null;
-        try {
-            final String composedDraft = composed.draft();
-            emitPipelineEvent(inquiryId, "CRITIC", "STARTED", null);
-            criticResult = executeWithRunLog(inquiryId, "CRITIC",
-                    () -> criticAgentService.critique(composedDraft, question, allEvidences));
-            emitPipelineEvent(inquiryId, "CRITIC", "COMPLETED",
-                    "faithfulness=" + String.format("%.2f", criticResult.faithfulnessScore()));
+        if (!skipCritic) {
+            try {
+                final String composedDraft = composed.draft();
+                emitPipelineEvent(inquiryId, "CRITIC", "STARTED", null);
+                criticResult = executeWithRunLog(inquiryId, "CRITIC",
+                        () -> criticAgentService.critique(composedDraft, question, allEvidences));
+                emitPipelineEvent(inquiryId, "CRITIC", "COMPLETED",
+                        "faithfulness=" + String.format("%.2f", criticResult.faithfulnessScore()));
 
-            if (criticResult.needsRevision()) {
-                log.info("Critic requires revision, recomposing inquiryId={}", inquiryId);
-                String criticFeedback = String.join("\n", criticResult.corrections());
-                emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", "critic 피드백 반영 재작성");
-                composed = executeWithRunLog(inquiryId, "COMPOSE",
-                        () -> composeStep.execute(analysis, tone, channel, criticFeedback, composedDraft));
-                emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", "critic 피드백 반영 완료");
+                if (criticResult.needsRevision()) {
+                    log.info("Critic requires revision, recomposing inquiryId={}", inquiryId);
+                    String criticFeedback = String.join("\n", criticResult.corrections());
+                    emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", "critic 피드백 반영 재작성");
+                    composed = executeWithRunLog(inquiryId, "COMPOSE",
+                            () -> composeStep.execute(finalAnalysis, tone, channel, criticFeedback, composedDraft));
+                    emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", "critic 피드백 반영 완료");
+                }
+            } catch (Exception e) {
+                log.warn("CriticAgent failed, using original draft inquiryId={}", inquiryId, e);
+                emitPipelineEvent(inquiryId, "CRITIC", "FAILED", e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("CriticAgent failed, using original draft inquiryId={}", inquiryId, e);
-            emitPipelineEvent(inquiryId, "CRITIC", "FAILED", e.getMessage());
+        } else {
+            log.info("pipeline.routing: skipping CRITIC (high confidence) inquiryId={}", inquiryId);
+            emitPipelineEvent(inquiryId, "CRITIC", "SKIPPED", "high confidence routing");
         }
 
         // ── SELF_REVIEW ────────────────────────────────────────────
@@ -248,53 +287,58 @@ public class AnswerOrchestrationService {
         List<String> finalWarnings = composed.formatWarnings();
         List<SelfReviewStep.QualityIssue> selfReviewIssues = List.of();
 
-        emitPipelineEvent(inquiryId, "SELF_REVIEW", "STARTED", null);
-        try {
-            final ComposeStep.ComposeStepResult composedForReview = composed;
-            SelfReviewStep.SelfReviewResult reviewResult = executeWithRunLog(
-                    inquiryId, "SELF_REVIEW",
-                    () -> selfReviewStep.review(composedForReview.draft(), analysis.evidences(), question)
-            );
+        if (!skipSelfReview) {
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "STARTED", null);
+            try {
+                final ComposeStep.ComposeStepResult composedForReview = composed;
+                SelfReviewStep.SelfReviewResult reviewResult = executeWithRunLog(
+                        inquiryId, "SELF_REVIEW",
+                        () -> selfReviewStep.review(composedForReview.draft(), finalAnalysis.evidences(), question)
+                );
 
-            if (reviewResult.passed()) {
-                selfReviewIssues = reviewResult.issues();
-            } else {
-                String currentDraft = composed.draft();
-                SelfReviewStep.SelfReviewResult latestReview = reviewResult;
+                if (reviewResult.passed()) {
+                    selfReviewIssues = reviewResult.issues();
+                } else {
+                    String currentDraft = composed.draft();
+                    SelfReviewStep.SelfReviewResult latestReview = reviewResult;
 
-                for (int attempt = 1; attempt <= MAX_RECOMPOSE_ATTEMPTS; attempt++) {
-                    log.info("self-review retry attempt={} inquiryId={}", attempt, inquiryId);
-                    emitPipelineEvent(inquiryId, "SELF_REVIEW", "RETRY",
-                            "재작성 시도 " + attempt + "/" + MAX_RECOMPOSE_ATTEMPTS);
+                    for (int attempt = 1; attempt <= MAX_RECOMPOSE_ATTEMPTS; attempt++) {
+                        log.info("self-review retry attempt={} inquiryId={}", attempt, inquiryId);
+                        emitPipelineEvent(inquiryId, "SELF_REVIEW", "RETRY",
+                                "재작성 시도 " + attempt + "/" + MAX_RECOMPOSE_ATTEMPTS);
 
-                    String feedback = latestReview.feedback();
-                    ComposeStep.ComposeStepResult recomposed = composeStep.execute(
-                            analysis, tone, channel, feedback, currentDraft);
+                        String feedback = latestReview.feedback();
+                        ComposeStep.ComposeStepResult recomposed = composeStep.execute(
+                                analysis, tone, channel, feedback, currentDraft);
 
-                    latestReview = selfReviewStep.review(recomposed.draft(), analysis.evidences(), question);
-                    currentDraft = recomposed.draft();
-                    finalWarnings = recomposed.formatWarnings();
+                        latestReview = selfReviewStep.review(recomposed.draft(), analysis.evidences(), question);
+                        currentDraft = recomposed.draft();
+                        finalWarnings = recomposed.formatWarnings();
 
-                    if (latestReview.passed()) {
-                        break;
+                        if (latestReview.passed()) {
+                            break;
+                        }
+                    }
+
+                    finalDraft = currentDraft;
+                    selfReviewIssues = latestReview.issues();
+
+                    if (!latestReview.passed()) {
+                        finalWarnings = new ArrayList<>(finalWarnings);
+                        finalWarnings.add("SELF_REVIEW_INCOMPLETE");
+                        log.warn("self-review did not pass after {} retries inquiryId={}",
+                                MAX_RECOMPOSE_ATTEMPTS, inquiryId);
                     }
                 }
-
-                finalDraft = currentDraft;
-                selfReviewIssues = latestReview.issues();
-
-                if (!latestReview.passed()) {
-                    finalWarnings = new ArrayList<>(finalWarnings);
-                    finalWarnings.add("SELF_REVIEW_INCOMPLETE");
-                    log.warn("self-review did not pass after {} retries inquiryId={}",
-                            MAX_RECOMPOSE_ATTEMPTS, inquiryId);
-                }
+                emitPipelineEvent(inquiryId, "SELF_REVIEW", "COMPLETED", null);
+            } catch (Exception e) {
+                log.warn("self-review failed, using original draft inquiryId={}", inquiryId, e);
+                emitPipelineEvent(inquiryId, "SELF_REVIEW", "FAILED", e.getMessage());
+                // Fall through with original draft - self-review is non-blocking
             }
-            emitPipelineEvent(inquiryId, "SELF_REVIEW", "COMPLETED", null);
-        } catch (Exception e) {
-            log.warn("self-review failed, using original draft inquiryId={}", inquiryId, e);
-            emitPipelineEvent(inquiryId, "SELF_REVIEW", "FAILED", e.getMessage());
-            // Fall through with original draft - self-review is non-blocking
+        } else {
+            log.info("pipeline.routing: skipping SELF_REVIEW (high confidence) inquiryId={}", inquiryId);
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "SKIPPED", "high confidence routing");
         }
 
         return new OrchestrationResult(

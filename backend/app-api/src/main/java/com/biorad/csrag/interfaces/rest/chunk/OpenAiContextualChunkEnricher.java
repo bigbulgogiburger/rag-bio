@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.chunk;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -123,10 +124,8 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
                     : String.format(CONTEXT_PROMPT, documentText, chunkContent, fileName);
 
             Map<String, Object> message = Map.of("role", "user", "content", prompt);
-            Map<String, Object> body = Map.of(
-                    "model", chatModel,
-                    "messages", List.of(message),
-                    "max_completion_tokens", 4096
+            Map<String, Object> body = OpenAiRequestUtils.chatBody(
+                    chatModel, List.of(message), 4096
             );
 
             String response = restClient.post()

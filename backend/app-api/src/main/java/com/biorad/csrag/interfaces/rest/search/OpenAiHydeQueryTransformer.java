@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.search;
 
 import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -89,13 +90,13 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
 
         String response = restClient.post()
                 .uri("/chat/completions")
-                .body(Map.of(
-                        "model", chatModel,
-                        "messages", List.of(
+                .body(OpenAiRequestUtils.chatBody(
+                        chatModel,
+                        List.of(
                                 Map.of("role", "system", "content", promptRegistry.get("hyde-system")),
                                 Map.of("role", "user", "content", userMessage)
                         ),
-                        "max_completion_tokens", 4096
+                        4096
                 ))
                 .retrieve()
                 .body(String.class);

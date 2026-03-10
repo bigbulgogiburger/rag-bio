@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.search;
 
 import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -134,11 +135,10 @@ public class OpenAiMultiHopRetriever implements MultiHopRetriever {
                 JSON만 반환하세요.
                 """, question, excerpts);
 
-            Map<String, Object> body = Map.of(
-                    "model", chatModel,
-                    "messages", List.of(Map.of("role", "user", "content", prompt)),
-                    "max_tokens", 200,
-                    "temperature", 0.1
+            Map<String, Object> body = OpenAiRequestUtils.chatBody(
+                    chatModel,
+                    List.of(Map.of("role", "user", "content", prompt)),
+                    200, 0.1
             );
 
             String json = restClient.post()

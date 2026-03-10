@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.document;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,16 +59,16 @@ public class OpenAiImageAnalysisService implements ImageAnalysisService {
             String base64Image = Base64.getEncoder().encodeToString(imageBytes);
             String mimeType = detectMimeType(imagePath);
 
-            Map<String, Object> requestBody = Map.of(
-                    "model", chatModel,
-                    "messages", List.of(
+            Map<String, Object> requestBody = OpenAiRequestUtils.chatBody(
+                    chatModel,
+                    List.of(
                             Map.of("role", "system", "content", promptRegistry.get("image-analysis")),
                             Map.of("role", "user", "content", List.of(
                                     Map.of("type", "image_url", "image_url",
                                             Map.of("url", "data:" + mimeType + ";base64," + base64Image))
                             ))
                     ),
-                    "max_tokens", 2000
+                    2000
             );
 
             String response = restClient.post()

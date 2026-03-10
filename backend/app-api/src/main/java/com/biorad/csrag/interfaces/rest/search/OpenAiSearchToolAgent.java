@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -122,16 +123,17 @@ public class OpenAiSearchToolAgent implements SearchToolAgent {
                 - inquiryId: %s (use this when searching inquiry-specific documents)
                 """.formatted(inquiryIdStr);
 
-        Map<String, Object> body = Map.of(
-                "model", chatModel,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", question)
-                ),
-                "tools", buildToolDefinitions(),
-                "tool_choice", "auto",
-                "temperature", 0.0
-        );
+        var body = new java.util.LinkedHashMap<String, Object>();
+        body.put("model", chatModel);
+        body.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", question)
+        ));
+        body.put("tools", buildToolDefinitions());
+        body.put("tool_choice", "auto");
+        if (!OpenAiRequestUtils.isReasoningModel(chatModel)) {
+            body.put("temperature", 0.0);
+        }
 
         String response = restClient.post()
                 .uri("/chat/completions")

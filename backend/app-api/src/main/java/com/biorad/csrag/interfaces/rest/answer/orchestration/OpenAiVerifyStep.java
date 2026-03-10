@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
@@ -60,16 +61,19 @@ public class OpenAiVerifyStep implements VerifyStep {
         try {
             String prompt = buildPrompt(question, evidences);
 
+            var body = new java.util.LinkedHashMap<String, Object>();
+            body.put("model", chatModel);
+            body.put("messages", new Object[]{
+                    Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("verify-system") : SYSTEM_PROMPT),
+                    Map.of("role", "user", "content", prompt)
+            });
+            if (!OpenAiRequestUtils.isReasoningModel(chatModel)) {
+                body.put("temperature", 0.1);
+            }
+
             String response = restClient.post()
                     .uri("/chat/completions")
-                    .body(Map.of(
-                            "model", chatModel,
-                            "messages", new Object[]{
-                                    Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("verify-system") : SYSTEM_PROMPT),
-                                    Map.of("role", "user", "content", prompt)
-                            },
-                            "temperature", 0.1
-                    ))
+                    .body(body)
                     .retrieve()
                     .body(String.class);
 

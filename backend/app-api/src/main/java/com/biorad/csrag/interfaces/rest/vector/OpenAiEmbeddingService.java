@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -16,8 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Component
-@Primary
+@Component("openAiEmbeddingService")
 @ConditionalOnProperty(prefix = "openai", name = "enabled", havingValue = "true")
 public class OpenAiEmbeddingService implements EmbeddingService {
 

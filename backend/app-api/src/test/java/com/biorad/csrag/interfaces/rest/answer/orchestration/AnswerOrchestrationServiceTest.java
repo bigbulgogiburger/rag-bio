@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Set;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AnswerOrchestrationServiceTest {
 
     @Mock private RetrieveStep retrieveStep;
@@ -159,7 +162,7 @@ class AnswerOrchestrationServiceTest {
     }
 
     @Test
-    void run_verifyStepFails_logsRetrieveSuccessAndVerifyFailure() {
+    void run_verifyStepFails_usesDefaultAnalysisAndContinues() {
         UUID inquiryId = UUID.randomUUID();
         List<EvidenceItem> evidences = List.of();
         stubSingleQuestionDecompose("q");
@@ -167,19 +170,18 @@ class AnswerOrchestrationServiceTest {
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList()))
                 .thenThrow(new RuntimeException("verify error"));
+        when(composeStep.execute(any(), anyString(), any(), any(), any()))
+                .thenReturn(new ComposeStep.ComposeStepResult("fallback draft", List.of()));
+        when(selfReviewStep.review(anyString(), anyList(), anyString()))
+                .thenReturn(new SelfReviewStep.SelfReviewResult(true, List.of(), ""));
         when(runRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> service.run(inquiryId, "q", "professional", "email"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("verify error");
+        // Verify step failure is now caught; pipeline continues with default analysis
+        AnswerOrchestrationService.OrchestrationResult result = service.run(inquiryId, "q", "professional", "email");
 
-        ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(5)).save(captor.capture());
-        // DECOMPOSE=SUCCESS, RETRIEVE=SUCCESS, ADAPTIVE_RETRIEVE=SUCCESS, MULTI_HOP=SUCCESS, VERIFY=FAILED
-        assertThat(captor.getAllValues().get(0).getStep()).isEqualTo("DECOMPOSE");
-        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo("SUCCESS");
-        assertThat(captor.getAllValues().get(4).getStatus()).isEqualTo("FAILED");
-        assertThat(captor.getAllValues().get(4).getStep()).isEqualTo("VERIFY");
+        assertThat(result.draft()).isEqualTo("fallback draft");
+        // Default analysis should have risk flag VERIFY_FAILED
+        assertThat(result.analysis().riskFlags()).contains("VERIFY_FAILED");
     }
 
     @Test

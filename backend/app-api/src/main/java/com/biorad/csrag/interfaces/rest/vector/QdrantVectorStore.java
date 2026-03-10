@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Component
 @Primary
@@ -30,6 +31,7 @@ public class QdrantVectorStore implements VectorStore {
     private final ObjectMapper objectMapper;
     private final String collection;
     private volatile boolean collectionReady = false;
+    private final ReentrantLock collectionLock = new ReentrantLock();
 
     public QdrantVectorStore(
             @Value("${vector.qdrant.url}") String qdrantUrl,
@@ -223,8 +225,8 @@ public class QdrantVectorStore implements VectorStore {
             log.info("qdrant.deleteByDocumentId.success documentId={}", documentId);
         } catch (Exception ex) {
             String msg = ex.getMessage() != null ? ex.getMessage() : "";
-            if (msg.contains("doesn't exist")) {
-                log.info("qdrant.deleteByDocumentId.skipped documentId={} reason=collection_not_found", documentId);
+            if (msg.contains("doesn't exist") || msg.contains("Index required but not found")) {
+                log.info("qdrant.deleteByDocumentId.skipped documentId={} reason=collection_or_index_not_ready", documentId);
             } else {
                 log.error("qdrant.deleteByDocumentId.failed documentId={} reason={}", documentId, msg);
                 throw new RuntimeException("Failed to delete vectors for documentId=" + documentId, ex);
@@ -237,7 +239,8 @@ public class QdrantVectorStore implements VectorStore {
             return;
         }
 
-        synchronized (this) {
+        collectionLock.lock();
+        try {
             if (collectionReady) {
                 return;
             }
@@ -289,6 +292,8 @@ public class QdrantVectorStore implements VectorStore {
             }
 
             collectionReady = true;
+        } finally {
+            collectionLock.unlock();
         }
     }
 }

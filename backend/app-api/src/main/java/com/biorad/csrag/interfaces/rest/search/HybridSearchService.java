@@ -114,6 +114,9 @@ public class HybridSearchService {
                         e.sourceType, e.getMatchSource()))
                 .collect(Collectors.toList());
 
+        // Normalize RRF scores to 0.0-1.0 range (min-max normalization)
+        fused = normalizeScores(fused);
+
         List<HybridSearchResult> filtered = fused.stream()
                 .filter(r -> r.vectorScore() == 0.0 || r.vectorScore() >= minVectorScore)
                 .collect(Collectors.toList());
@@ -156,6 +159,51 @@ public class HybridSearchService {
                 : Set.of("KNOWLEDGE_BASE");
 
         return new SearchFilter(filter.inquiryId(), inquiryDocIds, filter.productFamilies(), sourceTypes);
+    }
+
+    /**
+     * RRF 점수를 0.0~1.0 범위로 정규화 (min-max normalization).
+     * 점수 분포가 좁은 RRF 출력을 직관적인 범위로 변환.
+     */
+    private List<HybridSearchResult> normalizeScores(List<HybridSearchResult> results) {
+        if (results.size() <= 1) {
+            // Single result gets score 1.0
+            if (results.size() == 1) {
+                HybridSearchResult r = results.get(0);
+                return List.of(new HybridSearchResult(
+                        r.chunkId(), r.documentId(), r.content(),
+                        r.vectorScore(), r.keywordScore(), 1.0,
+                        r.sourceType(), r.matchSource()));
+            }
+            return results;
+        }
+
+        double maxScore = results.stream().mapToDouble(HybridSearchResult::fusedScore).max().orElse(1.0);
+        double minScore = results.stream().mapToDouble(HybridSearchResult::fusedScore).min().orElse(0.0);
+        double range = maxScore - minScore;
+
+        if (range < 1e-9) {
+            // All same score — assign uniform 0.5
+            return results.stream()
+                    .map(r -> new HybridSearchResult(
+                            r.chunkId(), r.documentId(), r.content(),
+                            r.vectorScore(), r.keywordScore(), 0.5,
+                            r.sourceType(), r.matchSource()))
+                    .collect(Collectors.toList());
+        }
+
+        return results.stream()
+                .map(r -> {
+                    double normalized = (r.fusedScore() - minScore) / range;
+                    // Apply floor of 0.1 for top results (never show 0.0 for a matched result)
+                    normalized = Math.max(0.1, normalized);
+                    return new HybridSearchResult(
+                            r.chunkId(), r.documentId(), r.content(),
+                            r.vectorScore(), r.keywordScore(),
+                            Math.round(normalized * 1000.0) / 1000.0,
+                            r.sourceType(), r.matchSource());
+                })
+                .collect(Collectors.toList());
     }
 
     private static class RrfEntry {

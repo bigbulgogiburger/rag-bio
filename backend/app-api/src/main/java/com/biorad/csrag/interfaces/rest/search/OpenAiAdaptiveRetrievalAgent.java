@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.search;
 
 import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -155,11 +156,10 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                         영어 번역만 반환하세요 (한 줄):""", original);
             };
 
-            Map<String, Object> body = Map.of(
-                    "model", chatModel,
-                    "messages", List.of(Map.of("role", "user", "content", prompt)),
-                    "max_tokens", 100,
-                    "temperature", 0.3
+            Map<String, Object> body = OpenAiRequestUtils.chatBody(
+                    chatModel,
+                    List.of(Map.of("role", "user", "content", prompt)),
+                    100, 0.3
             );
 
             String json = restClient.post()

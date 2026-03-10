@@ -1,6 +1,7 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
 import com.biorad.csrag.application.ops.RagMetricsService;
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -140,12 +141,13 @@ public class OpenAiCriticAgentService implements CriticAgentService {
     private String callLlm(String systemPrompt, String userPrompt) {
         String response = restClient.post()
                 .uri("/chat/completions")
-                .body(Map.of(
-                        "model", chatModel,
-                        "messages", new Object[]{
+                .body(OpenAiRequestUtils.chatBody(
+                        chatModel,
+                        new Object[]{
                                 Map.of("role", "system", "content", systemPrompt),
                                 Map.of("role", "user", "content", userPrompt)
-                        }
+                        },
+                        4096
                 ))
                 .retrieve()
                 .body(String.class);
