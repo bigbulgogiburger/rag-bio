@@ -77,6 +77,8 @@ resource "aws_instance" "backend" {
     openai_api_key     = var.openai_api_key
     openai_enabled     = var.openai_enabled
     vector_db_provider = var.vector_db_provider
+    qdrant_url         = var.qdrant_url
+    qdrant_api_key     = var.qdrant_api_key
     api_domain         = "${var.api_subdomain}.${var.domain_name}"
     app_domain         = "${var.app_subdomain}.${var.domain_name}"
   })

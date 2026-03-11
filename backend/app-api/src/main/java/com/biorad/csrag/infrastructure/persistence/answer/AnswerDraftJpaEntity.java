@@ -102,6 +102,12 @@ public class AnswerDraftJpaEntity {
     @Column(name = "workflow_run_count", nullable = false)
     private int workflowRunCount;
 
+    @Column(name = "sub_question_count", nullable = false)
+    private int subQuestionCount = 1;
+
+    @Column(name = "decomposed_questions", columnDefinition = "TEXT")
+    private String decomposedQuestions;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -157,6 +163,8 @@ public class AnswerDraftJpaEntity {
     public int getRefinementCount() { return refinementCount; }
     public String getAdditionalInstructions() { return additionalInstructions; }
     public int getWorkflowRunCount() { return workflowRunCount; }
+    public int getSubQuestionCount() { return subQuestionCount; }
+    public String getDecomposedQuestions() { return decomposedQuestions; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -224,6 +232,14 @@ public class AnswerDraftJpaEntity {
         this.approvalDecision = null;
         this.approvalReason = null;
         this.updatedAt = Instant.now();
+    }
+
+    public void setSubQuestionCount(int subQuestionCount) {
+        this.subQuestionCount = subQuestionCount;
+    }
+
+    public void setDecomposedQuestions(String decomposedQuestions) {
+        this.decomposedQuestions = decomposedQuestions;
     }
 
     public void incrementWorkflowRunCount() {

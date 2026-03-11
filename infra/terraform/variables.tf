@@ -91,3 +91,16 @@ variable "vector_db_provider" {
   type        = string
   default     = "mock"
 }
+
+variable "qdrant_url" {
+  description = "Qdrant Cloud URL"
+  type        = string
+  default     = ""
+}
+
+variable "qdrant_api_key" {
+  description = "Qdrant API 키"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

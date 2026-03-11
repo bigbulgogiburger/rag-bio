@@ -27,7 +27,7 @@ export interface IndexingProgressData {
 }
 
 export interface DraftStepData {
-  step: "RETRIEVE" | "VERIFY" | "COMPOSE" | "SELF_REVIEW";
+  step: string;
   status: "IN_PROGRESS" | "COMPLETED" | "FAILED" | "RETRY";
   message?: string;
 }
@@ -175,6 +175,20 @@ export function useInquiryEvents(
     };
 
     es.onmessage = handleMessage;
+
+    // Named SSE events — backend sends "pipeline-step" as a named event
+    es.addEventListener("pipeline-step", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onDraftStepRef.current?.({
+          step: data.step,
+          status: data.status === "STARTED" ? "IN_PROGRESS" : data.status,
+          message: data.error || undefined,
+        });
+      } catch {
+        // Ignore malformed events
+      }
+    });
 
     es.onerror = () => {
       es.close();

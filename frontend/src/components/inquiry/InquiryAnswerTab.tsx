@@ -30,6 +30,7 @@ import {
   labelRetrievalQuality,
 } from "@/lib/i18n/labels";
 import WorkflowResultCard from "./WorkflowResultCard";
+import PipelineProgress from "./PipelineProgress";
 import { Badge, EmptyState } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -451,78 +452,10 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
     return parts.length > 0 ? parts : text;
   };
 
-  // Draft step label mapping
-  const draftStepLabel = (step: string): string => {
-    switch (step) {
-      case "RETRIEVE": return "검색 중";
-      case "VERIFY": return "검증 중";
-      case "COMPOSE": return "작성 중";
-      case "SELF_REVIEW": return "자체 검증";
-      default: return step;
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* SSE Draft Step Progress */}
-      {draftGenerating && draftSteps.length > 0 && (
-        <div
-          className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 space-y-3"
-          role="status"
-          aria-label="답변 생성 진행 중"
-        >
-          <div className="flex items-center gap-2 text-sm font-medium text-primary">
-            <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            답변 생성 중...
-          </div>
-          <div className="flex items-center gap-4">
-            {(["RETRIEVE", "VERIFY", "COMPOSE", "SELF_REVIEW"] as const).map((step) => {
-              const stepData = draftSteps.find((s) => s.step === step);
-              const currentStep = draftSteps.filter((s) => s.status === "IN_PROGRESS")[0];
-              const isActive = currentStep?.step === step;
-              const isDone = stepData?.status === "COMPLETED";
-              const isFailed = stepData?.status === "FAILED";
-              const isRetrying = stepData?.status === "RETRY";
-              return (
-                <div
-                  key={step}
-                  className={cn(
-                    "flex items-center gap-2 text-sm",
-                    isDone && "text-emerald-600 dark:text-emerald-400",
-                    (isActive || isRetrying) && "text-primary font-semibold",
-                    isFailed && "text-destructive",
-                    !isDone && !isActive && !isFailed && !isRetrying && "text-muted-foreground"
-                  )}
-                >
-                  {isDone ? (
-                    <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                  ) : isActive || isRetrying ? (
-                    <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : isFailed ? (
-                    <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <span className="h-4 w-4 rounded-full border-2 border-current" aria-hidden="true" />
-                  )}
-                  <span>{draftStepLabel(step)}{isRetrying ? " (재시도)" : ""}</span>
-                </div>
-              );
-            })}
-          </div>
-          {draftSteps.at(-1)?.message && (
-            <p className="text-xs text-muted-foreground">{draftSteps.at(-1)!.message}</p>
-          )}
-        </div>
-      )}
+      {/* Pipeline Progress with cute cat animation */}
+      <PipelineProgress steps={draftSteps} isGenerating={draftGenerating} />
 
       {/* Indexing Warning Banner */}
       {indexingInProgress && (

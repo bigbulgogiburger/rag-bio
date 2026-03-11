@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -62,15 +63,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static class RateLimitBucket {
         private final AtomicInteger count = new AtomicInteger(0);
         private volatile long windowStart = System.currentTimeMillis();
+        private final ReentrantLock lock = new ReentrantLock();
 
         boolean tryConsume() {
             long now = System.currentTimeMillis();
             if (now - windowStart > WINDOW_MS) {
-                synchronized (this) {
+                lock.lock();
+                try {
                     if (now - windowStart > WINDOW_MS) {
                         count.set(0);
                         windowStart = now;
                     }
+                } finally {
+                    lock.unlock();
                 }
             }
             return count.incrementAndGet() <= MAX_REQUESTS_PER_MINUTE;

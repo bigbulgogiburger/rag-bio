@@ -66,7 +66,7 @@ openai:
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   model:
     chat-heavy: ${OPENAI_CHAT_MODEL_HEAVY:gpt-5-mini}
-    chat-medium: ${OPENAI_CHAT_MODEL_MEDIUM:gpt-4.1-mini}
+    chat-medium: ${OPENAI_CHAT_MODEL_MEDIUM:gpt-5-mini}
     chat-light: ${OPENAI_CHAT_MODEL_LIGHT:gpt-5-nano}
     embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-large}
 

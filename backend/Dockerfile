@@ -13,4 +13,4 @@ WORKDIR /app
 COPY --from=build /app/app-api/build/libs/*.jar app.jar
 RUN mkdir -p /app/uploads
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Djdk.tracePinnedThreads=short", "-jar", "app.jar"]

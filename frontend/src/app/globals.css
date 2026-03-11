@@ -134,3 +134,37 @@ html, body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ===== Pipeline Progress Animations ===== */
+@keyframes pipeline-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pipeline-blink {
+  0%, 90%, 100% { transform: scaleY(1); transform-origin: center; }
+  95% { transform: scaleY(0.05); transform-origin: center; }
+}
+
+@keyframes pipeline-pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.6; }
+}
+
+@keyframes pipeline-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Pixel dog panting (tongue in/out) */
+@keyframes pixel-pant {
+  0%, 75%, 100% { opacity: 1; }
+  80%, 92% { opacity: 0; }
+}
+
+/* Pixel dog tail wag */
+@keyframes pixel-wag {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(12deg); }
+  60% { transform: rotate(-8deg); }
+}
