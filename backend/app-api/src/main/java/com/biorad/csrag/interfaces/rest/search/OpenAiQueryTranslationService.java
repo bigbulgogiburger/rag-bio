@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.search;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,12 +64,13 @@ public class OpenAiQueryTranslationService implements QueryTranslationService {
         try {
             String response = restClient.post()
                     .uri("/chat/completions")
-                    .body(Map.of(
-                            "model", chatModel,
-                            "messages", List.of(
+                    .body(OpenAiRequestUtils.chatBody(
+                            chatModel,
+                            List.of(
                                     Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("query-translation") : SYSTEM_PROMPT),
                                     Map.of("role", "user", "content", question)
-                            )
+                            ),
+                            4096
                     ))
                     .retrieve()
                     .body(String.class);

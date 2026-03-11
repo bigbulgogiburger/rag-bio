@@ -125,7 +125,7 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
 
             Map<String, Object> message = Map.of("role", "user", "content", prompt);
             Map<String, Object> body = OpenAiRequestUtils.chatBody(
-                    chatModel, List.of(message), 4096
+                    chatModel, List.of(message), 16384
             );
 
             String response = restClient.post()

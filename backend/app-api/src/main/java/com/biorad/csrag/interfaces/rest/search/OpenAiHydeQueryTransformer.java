@@ -96,7 +96,7 @@ public class OpenAiHydeQueryTransformer implements HydeQueryTransformer {
                                 Map.of("role", "system", "content", promptRegistry.get("hyde-system")),
                                 Map.of("role", "user", "content", userMessage)
                         ),
-                        4096
+                        16384
                 ))
                 .retrieve()
                 .body(String.class);
