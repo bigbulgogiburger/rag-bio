@@ -7,11 +7,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
 public class ProductExtractorService {
+
+    private final ProductFamilyRegistry productFamilyRegistry;
+
+    public ProductExtractorService(ProductFamilyRegistry productFamilyRegistry) {
+        this.productFamilyRegistry = productFamilyRegistry;
+    }
 
     public record ExtractedProduct(String productName, String productFamily, double confidence) {}
 
@@ -89,7 +96,8 @@ public class ProductExtractorService {
         }
 
         double confidence = bestExact ? 0.9 : 0.6;
-        return new ExtractedProduct(bestMatch.trim(), bestFamily, confidence);
+        String resolvedFamily = resolveFamily(bestFamily);
+        return new ExtractedProduct(bestMatch.trim(), resolvedFamily, confidence);
     }
 
     /**
@@ -110,9 +118,10 @@ public class ProductExtractorService {
             while (matcher.find()) {
                 String matched = matcher.group().trim();
                 double confidence = pp.exact() ? 0.9 : 0.6;
-                ExtractedProduct candidate = new ExtractedProduct(matched, pp.productFamily(), confidence);
+                String resolvedFamily = resolveFamily(pp.productFamily());
+                ExtractedProduct candidate = new ExtractedProduct(matched, resolvedFamily, confidence);
 
-                bestByFamily.merge(pp.productFamily(), candidate,
+                bestByFamily.merge(resolvedFamily, candidate,
                         (existing, newer) -> newer.confidence() > existing.confidence() ? newer : existing);
             }
         }
@@ -125,5 +134,18 @@ public class ProductExtractorService {
                 .sorted(Comparator.comparingDouble(ExtractedProduct::confidence).reversed())
                 .limit(MAX_EXTRACT_COUNT)
                 .toList();
+    }
+
+    /**
+     * 레지스트리에서 prefix 매칭으로 정확한 제품군명을 해석한다.
+     * 매칭 결과가 1개면 해당 이름으로 치환, 복수이면 원본 유지 (SearchFilter에서 확장 처리).
+     */
+    private String resolveFamily(String rawFamily) {
+        Set<String> resolved = productFamilyRegistry.findByPrefix(rawFamily);
+        if (resolved.size() == 1) {
+            return resolved.iterator().next();
+        }
+        // 복수 매칭이거나 매칭 없으면 원본 반환 (Registry.resolveAndExpand에서 확장)
+        return rawFamily;
     }
 }

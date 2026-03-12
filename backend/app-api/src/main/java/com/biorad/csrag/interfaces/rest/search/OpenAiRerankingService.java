@@ -152,7 +152,7 @@ public class OpenAiRerankingService implements RerankingService {
                 ? promptRegistry.get("reranking-listwise", Map.of("query", query, "documents", documentList.toString()))
                 : String.format(LISTWISE_PROMPT, query, documentList);
 
-        Map<String, Object> body = OpenAiRequestUtils.chatBody(
+        Map<String, Object> body = OpenAiRequestUtils.chatBodyWithJsonMode(
                 chatModel,
                 List.of(Map.of("role", "user", "content", prompt)),
                 2048, 0.0
@@ -168,9 +168,9 @@ public class OpenAiRerankingService implements RerankingService {
         String content = root.path("choices").path(0).path("message").path("content").asText("");
         String json = stripCodeFences(content.strip());
 
-        // Parse as array of {index, score}
+        // Parse as array of {index, score} — JSON Mode guarantees valid JSON
         JsonNode rankings = objectMapper.readTree(json);
-        // Handle both array and object with "rankings" key
+        // Handle both array and object with "rankings" key (JSON Mode may wrap in object)
         if (rankings.has("rankings")) {
             rankings = rankings.get("rankings");
         }

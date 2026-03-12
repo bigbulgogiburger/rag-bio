@@ -15,7 +15,7 @@ class ProductExtractorServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProductExtractorService();
+        service = new ProductExtractorService(new ProductFamilyRegistry());
     }
 
     @Test

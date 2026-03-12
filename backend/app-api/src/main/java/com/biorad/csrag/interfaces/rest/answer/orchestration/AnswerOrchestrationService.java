@@ -175,34 +175,45 @@ public class AnswerOrchestrationService {
         emitPipelineEvent(inquiryId, "RETRIEVE", "COMPLETED",
                 "retrievalQuality=" + retrievalQuality);
 
-        // ── MULTI_HOP (교차 추론) ────────────────────────────────
-        try {
-            emitPipelineEvent(inquiryId, "MULTI_HOP", "STARTED", null);
-            MultiHopRetriever.MultiHopResult multiHopResult = executeWithRunLog(
-                    inquiryId, "MULTI_HOP",
-                    () -> multiHopRetriever.retrieve(question, inquiryId));
+        // ── MULTI_HOP (교차 추론) — 조건부 실행 ────────────────────
+        double topScore = retrievedEvidences.isEmpty() ? 0.0
+                : retrievedEvidences.stream().mapToDouble(EvidenceItem::score).max().orElse(0.0);
+        boolean sufficientEvidence = topScore >= 0.7 && retrievedEvidences.size() >= 3;
 
-            if (!multiHopResult.isSingleHop()) {
-                List<EvidenceItem> multiHopEvidences = toEvidenceItems(multiHopResult.evidences());
-                if (!multiHopEvidences.isEmpty()) {
-                    // Merge multi-hop evidences, deduplicating by chunkId
-                    LinkedHashMap<String, EvidenceItem> merged = new LinkedHashMap<>();
-                    for (EvidenceItem ev : retrievedEvidences) {
-                        merged.putIfAbsent(ev.chunkId(), ev);
+        if (!sufficientEvidence) {
+            try {
+                emitPipelineEvent(inquiryId, "MULTI_HOP", "STARTED", null);
+                MultiHopRetriever.MultiHopResult multiHopResult = executeWithRunLog(
+                        inquiryId, "MULTI_HOP",
+                        () -> multiHopRetriever.retrieve(question, inquiryId));
+
+                if (!multiHopResult.isSingleHop()) {
+                    List<EvidenceItem> multiHopEvidences = toEvidenceItems(multiHopResult.evidences());
+                    if (!multiHopEvidences.isEmpty()) {
+                        // Merge multi-hop evidences, deduplicating by chunkId
+                        LinkedHashMap<String, EvidenceItem> merged = new LinkedHashMap<>();
+                        for (EvidenceItem ev : retrievedEvidences) {
+                            merged.putIfAbsent(ev.chunkId(), ev);
+                        }
+                        for (EvidenceItem ev : multiHopEvidences) {
+                            merged.putIfAbsent(ev.chunkId(), ev);
+                        }
+                        retrievedEvidences = new ArrayList<>(merged.values());
                     }
-                    for (EvidenceItem ev : multiHopEvidences) {
-                        merged.putIfAbsent(ev.chunkId(), ev);
-                    }
-                    retrievedEvidences = new ArrayList<>(merged.values());
+                    emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED",
+                            "hops=" + multiHopResult.hops().size() + ", newEvidences=" + multiHopEvidences.size());
+                } else {
+                    emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED", "singleHop=true");
                 }
-                emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED",
-                        "hops=" + multiHopResult.hops().size() + ", newEvidences=" + multiHopEvidences.size());
-            } else {
-                emitPipelineEvent(inquiryId, "MULTI_HOP", "COMPLETED", "singleHop=true");
+            } catch (Exception e) {
+                log.warn("MultiHopRetriever failed, continuing with existing evidences inquiryId={}", inquiryId, e);
+                emitPipelineEvent(inquiryId, "MULTI_HOP", "FAILED", e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("MultiHopRetriever failed, continuing with existing evidences inquiryId={}", inquiryId, e);
-            emitPipelineEvent(inquiryId, "MULTI_HOP", "FAILED", e.getMessage());
+        } else {
+            log.info("pipeline.multihop.skipped: sufficient evidence found topScore={} count={} inquiryId={}",
+                    String.format("%.3f", topScore), retrievedEvidences.size(), inquiryId);
+            emitPipelineEvent(inquiryId, "MULTI_HOP", "SKIPPED",
+                    "sufficient evidence: topScore=" + String.format("%.2f", topScore) + " count=" + retrievedEvidences.size());
         }
 
         // ── VERIFY ─────────────────────────────────────────────────

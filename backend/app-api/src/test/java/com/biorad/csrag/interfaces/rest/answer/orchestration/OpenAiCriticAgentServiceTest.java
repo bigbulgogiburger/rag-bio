@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,12 @@ class OpenAiCriticAgentServiceTest {
         when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
 
-        service = new OpenAiCriticAgentService(restClient, "gpt-5.2", new ObjectMapper(), null /* ragMetricsService */);
+        PromptRegistry promptRegistry = mock(PromptRegistry.class);
+        when(promptRegistry.get("critic-system")).thenReturn(
+                "당신은 Bio-Rad 기술 문서 사실 검증 전문가입니다. 항상 JSON 형식으로 응답하세요.");
+
+        service = new OpenAiCriticAgentService(restClient, "gpt-5.2", new ObjectMapper(),
+                null /* ragMetricsService */, promptRegistry);
     }
 
     @Test

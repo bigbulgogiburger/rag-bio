@@ -76,7 +76,7 @@ public class OpenAiCriticAgentService implements CriticAgentService {
         try {
             String formattedEvidences = formatEvidences(evidences);
             String userPrompt = buildCriticPrompt(draft, question, formattedEvidences);
-            String systemPrompt = promptRegistry != null ? promptRegistry.get("critic-system") : CRITIC_SYSTEM_PROMPT;
+            String systemPrompt = promptRegistry.get("critic-system");
             String response = callLlm(systemPrompt, userPrompt);
             CriticResult result = parseCriticResponse(response);
             if (ragMetricsService != null) ragMetricsService.record(null, "CRITIC_REVISION", result.needsRevision() ? 1.0 : 0.0);
@@ -86,12 +86,6 @@ public class OpenAiCriticAgentService implements CriticAgentService {
             return CriticResult.passing(1.0);
         }
     }
-
-    private static final String CRITIC_SYSTEM_PROMPT = """
-            당신은 Bio-Rad 기술 문서 사실 검증 전문가입니다.
-            답변의 각 주장이 제공된 근거 자료에 기반하는지 엄밀히 검증합니다.
-            항상 JSON 형식으로 응답하세요.
-            """;
 
     private String buildCriticPrompt(String draft, String question, String formattedEvidences) {
         return String.format("""

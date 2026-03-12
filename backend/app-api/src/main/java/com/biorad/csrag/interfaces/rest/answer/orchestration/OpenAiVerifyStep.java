@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Component
+@Primary
 @ConditionalOnProperty(prefix = "openai", name = "enabled", havingValue = "true")
 public class OpenAiVerifyStep implements VerifyStep {
 
@@ -61,15 +63,11 @@ public class OpenAiVerifyStep implements VerifyStep {
         try {
             String prompt = buildPrompt(question, evidences);
 
-            var body = new java.util.LinkedHashMap<String, Object>();
-            body.put("model", chatModel);
-            body.put("messages", new Object[]{
+            var messages = List.of(
                     Map.of("role", "system", "content", promptRegistry != null ? promptRegistry.get("verify-system") : SYSTEM_PROMPT),
                     Map.of("role", "user", "content", prompt)
-            });
-            if (!OpenAiRequestUtils.isReasoningModel(chatModel)) {
-                body.put("temperature", 0.1);
-            }
+            );
+            var body = OpenAiRequestUtils.chatBodyWithJsonMode(chatModel, messages, 2048, 0.1);
 
             String response = restClient.post()
                     .uri("/chat/completions")

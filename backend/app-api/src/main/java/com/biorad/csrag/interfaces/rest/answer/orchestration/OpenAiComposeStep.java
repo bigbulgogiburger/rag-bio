@@ -1,5 +1,6 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.openai.OpenAiRequestUtils;
 import com.biorad.csrag.infrastructure.prompt.PromptRegistry;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
@@ -53,8 +54,8 @@ public class OpenAiComposeStep implements ComposeStep {
 
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel) {
-        String systemPrompt = promptRegistry != null ? promptRegistry.get("compose-system") : SYSTEM_PROMPT;
         try {
+            String systemPrompt = promptRegistry.get("compose-system");
             String prompt = buildPrompt(analysis, tone, channel);
 
             String content = callLlm(systemPrompt, prompt);
@@ -93,7 +94,7 @@ public class OpenAiComposeStep implements ComposeStep {
         if (additionalInstructions != null && additionalInstructions.contains("[하위 질문별 증거 매핑]")) {
             try {
                 String prompt = buildPerQuestionPrompt(additionalInstructions, analysis, tone, channel);
-                String content = callLlm(promptRegistry != null ? promptRegistry.get("compose-system") : SYSTEM_PROMPT, prompt);
+                String content = callLlm(promptRegistry.get("compose-system"), prompt);
                 return new ComposeStepResult(content, fallback.execute(analysis, tone, channel).formatWarnings());
             } catch (Exception ex) {
                 log.warn("openai.compose.perQuestion.failed -> fallback: {}", ex.getMessage());
@@ -108,12 +109,14 @@ public class OpenAiComposeStep implements ComposeStep {
     private String callLlm(String systemPrompt, String userPrompt) {
         String response = restClient.post()
                 .uri("/chat/completions")
-                .body(Map.of(
-                        "model", chatModel,
-                        "messages", new Object[]{
+                .body(OpenAiRequestUtils.chatBody(
+                        chatModel,
+                        new Object[]{
                                 Map.of("role", "system", "content", systemPrompt),
                                 Map.of("role", "user", "content", userPrompt)
-                        }
+                        },
+                        4096,
+                        0.3
                 ))
                 .retrieve()
                 .body(String.class);
@@ -321,15 +324,4 @@ public class OpenAiComposeStep implements ComposeStep {
         return sb.toString();
     }
 
-    private static final String SYSTEM_PROMPT =
-            "너는 Bio-Rad 고객 서비스팀의 한국어 비즈니스 이메일 작성 전문가이다.\n"
-                    + "반드시 다음 규칙을 지켜라:\n"
-                    + "1. 격식체 존댓말 사용 (~드립니다, ~바랍니다, ~겠습니다)\n"
-                    + "2. 반드시 제공된 근거 자료의 내용만 사용하여 답변하라\n"
-                    + "3. 근거에 없는 수치, 절차, 제품명을 절대 추측하지 마라\n"
-                    + "4. 구체적인 수치(농도, 온도, 범위 등)가 근거에 있으면 반드시 포함하라\n"
-                    + "5. 근거가 불충분한 질문에는 '해당 내용은 현재 등록된 자료에서 확인되지 않아, 확인 후 별도로 답변드리겠습니다.'로 응답하라\n"
-                    + "6. 인용은 (파일명, p.XX) 형식으로 본문 내 자연스럽게 표기\n"
-                    + "7. 마크다운 서식 절대 금지. 순수 텍스트만\n"
-                    + "8. 복수 질문 시 #1), #2), #3) 형식으로 구분하여 답변\n";
 }

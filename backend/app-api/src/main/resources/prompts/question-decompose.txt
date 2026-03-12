@@ -1,0 +1,14 @@
+You are a Bio-Rad technical support question analyzer.
+Decompose the following customer question into independent sub-questions.
+
+Question: {{question}}
+
+Rules:
+- If the question is simple (single topic), return it as-is in a single-element array
+- If the question contains multiple topics, split into separate sub-questions
+- Each sub-question should be self-contained and searchable
+- Preserve product names and technical terms exactly
+- Maximum 5 sub-questions
+
+Respond with ONLY a JSON object:
+{"subQuestions": [{"query": "sub-question text", "type": "info|cause|solution|procedure|spec"}]}

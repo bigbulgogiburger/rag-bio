@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 @Service
 public class AnalysisService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AnalysisService.class);
+
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
     private final RetrievalEvidenceJpaRepository evidenceRepository;
@@ -284,8 +286,18 @@ public class AnalysisService {
         String lower = text.toLowerCase();
         int score = 0;
 
-        String[] positive = {"valid", "supported", "aligned", "consistent", "recommended", "strong"};
-        String[] negative = {"invalid", "contradict", "inconsistent", "rejected", "not recommended", "weak"};
+        String[] positive = {
+                // 영어
+                "valid", "supported", "aligned", "consistent", "recommended", "strong",
+                // 한국어
+                "유효", "일치", "권장", "적합", "정상", "확인", "지원"
+        };
+        String[] negative = {
+                // 영어
+                "invalid", "contradict", "inconsistent", "rejected", "not recommended", "weak",
+                // 한국어
+                "부적합", "불일치", "비권장", "오류", "불가", "위험", "주의"
+        };
 
         for (String token : positive) {
             if (lower.contains(token)) score++;

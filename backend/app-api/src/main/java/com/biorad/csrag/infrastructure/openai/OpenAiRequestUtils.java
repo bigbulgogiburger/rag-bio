@@ -66,4 +66,25 @@ public final class OpenAiRequestUtils {
         }
         return body;
     }
+
+    /**
+     * JSON Mode 활성화된 Chat completions 요청 body 빌드 (토큰 제한).
+     * {@code response_format: {"type": "json_object"}}를 포함하여
+     * OpenAI가 반드시 유효한 JSON만 반환하도록 강제한다.
+     */
+    public static Map<String, Object> chatBodyWithJsonMode(String model, Object messages, int maxTokens) {
+        var body = chatBody(model, messages, maxTokens);
+        body.put("response_format", Map.of("type", "json_object"));
+        return body;
+    }
+
+    /**
+     * JSON Mode 활성화된 Chat completions 요청 body 빌드 (토큰 제한 + temperature).
+     * reasoning 모델이면 temperature를 자동으로 생략.
+     */
+    public static Map<String, Object> chatBodyWithJsonMode(String model, Object messages, int maxTokens, double temperature) {
+        var body = chatBody(model, messages, maxTokens, temperature);
+        body.put("response_format", Map.of("type", "json_object"));
+        return body;
+    }
 }

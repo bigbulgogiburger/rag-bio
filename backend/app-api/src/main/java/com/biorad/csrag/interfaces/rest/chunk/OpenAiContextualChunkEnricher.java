@@ -27,21 +27,6 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiContextualChunkEnricher.class);
 
-    private static final String CONTEXT_PROMPT = """
-            <document>
-            %s
-            </document>
-
-            다음은 위 문서에서 추출한 하나의 청크입니다:
-            <chunk>
-            %s
-            </chunk>
-
-            이 청크의 문맥을 1-2문장으로 요약하세요.
-            문서 파일명(%s), 섹션명, 제품명, 이 청크가 설명하는 내용의 맥락을 포함하세요.
-            한국어로 작성하세요.
-            """;
-
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
@@ -119,9 +104,7 @@ public class OpenAiContextualChunkEnricher implements ContextualChunkEnricher {
 
     private String generateContextPrefix(String documentText, String chunkContent, String fileName) {
         try {
-            String prompt = promptRegistry != null
-                    ? promptRegistry.get("contextual-enrichment", Map.of("documentText", documentText, "chunkContent", chunkContent, "fileName", fileName != null ? fileName : ""))
-                    : String.format(CONTEXT_PROMPT, documentText, chunkContent, fileName);
+            String prompt = promptRegistry.get("contextual-enrichment", Map.of("documentText", documentText, "chunkContent", chunkContent, "fileName", fileName != null ? fileName : ""));
 
             Map<String, Object> message = Map.of("role", "user", "content", prompt);
             Map<String, Object> body = OpenAiRequestUtils.chatBody(
