@@ -46,6 +46,7 @@ public class OpenAiQuestionDecomposerService implements QuestionDecomposerServic
     private final ProductExtractorService productExtractorService;
     private final RegexQuestionDecomposerService regexFallback;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OpenAiQuestionDecomposerService(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
