@@ -16,10 +16,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Component
 @Primary
@@ -89,40 +93,89 @@ public class OpenAiComposeStep implements ComposeStep {
     @Override
     public ComposeStepResult execute(AnalyzeResponse analysis, String tone, String channel,
                                       String additionalInstructions, String previousAnswerDraft) {
-        // Refinement mode: has previous draft + instructions
+        PromptPair prompts = resolvePrompts(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+        if (prompts == null) {
+            return execute(analysis, tone, channel);
+        }
+
+        try {
+            String content = callLlm(prompts.system(), prompts.user());
+            List<String> warnings = prompts.isRefinement()
+                    ? fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft).formatWarnings()
+                    : fallback.execute(analysis, tone, channel).formatWarnings();
+            return new ComposeStepResult(content, warnings);
+        } catch (Exception ex) {
+            log.warn("openai.compose.{}.failed -> fallback: {}", prompts.mode(), ex.getMessage());
+            return prompts.isRefinement()
+                    ? fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft)
+                    : fallback.execute(analysis, tone, channel, additionalInstructions, null);
+        }
+    }
+
+    @Override
+    public ComposeStepResult executeStreaming(
+            AnalyzeResponse analysis, String tone, String channel,
+            String additionalInstructions, String previousAnswerDraft,
+            Consumer<String> onToken) {
+        try {
+            PromptPair prompts = resolvePrompts(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+            String systemPrompt;
+            String userPrompt;
+            boolean refinement;
+
+            if (prompts != null) {
+                systemPrompt = prompts.system();
+                userPrompt = prompts.user();
+                refinement = prompts.isRefinement();
+            } else {
+                // Default single-question compose
+                systemPrompt = promptRegistry.get("compose-system");
+                userPrompt = buildPrompt(analysis, tone, channel);
+                refinement = false;
+            }
+
+            String draft = callLlmStreaming(systemPrompt, userPrompt, onToken);
+
+            List<String> warnings = refinement
+                    ? fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft).formatWarnings()
+                    : fallback.execute(analysis, tone, channel).formatWarnings();
+            return new ComposeStepResult(draft, warnings);
+        } catch (Exception e) {
+            log.warn("Streaming failed, falling back to blocking call: {}", e.getMessage());
+            return execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+        }
+    }
+
+    /**
+     * Resolves system/user prompt pair based on compose mode.
+     * Returns null if the default single-question compose should be used.
+     */
+    private PromptPair resolvePrompts(AnalyzeResponse analysis, String tone, String channel,
+                                       String additionalInstructions, String previousAnswerDraft) {
+        // Refinement mode
         if (previousAnswerDraft != null && !previousAnswerDraft.isBlank()
                 && additionalInstructions != null && !additionalInstructions.isBlank()) {
-            try {
-                String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
-                String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
-
-                String systemPrompt = buildRefinementSystemPrompt(normalizedTone);
-                String userPrompt = buildRefinementUserPrompt(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel);
-
-                String refined = callLlm(systemPrompt, userPrompt);
-
-                List<String> warnings = fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft).formatWarnings();
-                return new ComposeStepResult(refined, warnings);
-            } catch (Exception ex) {
-                log.warn("openai.compose.refine.failed -> fallback to default compose: {}", ex.getMessage());
-                return fallback.execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
-            }
+            String normalizedTone = (tone == null || tone.isBlank()) ? "gilseon" : tone.trim().toLowerCase();
+            String normalizedChannel = (channel == null || channel.isBlank()) ? "email" : channel.trim().toLowerCase();
+            return new PromptPair(
+                    buildRefinementSystemPrompt(normalizedTone),
+                    buildRefinementUserPrompt(previousAnswerDraft, additionalInstructions, analysis, normalizedTone, normalizedChannel),
+                    "refine");
         }
 
-        // Per-question compose: has sub-question mapping
+        // Per-question compose
         if (additionalInstructions != null && additionalInstructions.contains("[하위 질문별 증거 매핑]")) {
-            try {
-                String prompt = buildPerQuestionPrompt(additionalInstructions, analysis, tone, channel);
-                String content = callLlm(promptRegistry.get("compose-system"), prompt);
-                return new ComposeStepResult(content, fallback.execute(analysis, tone, channel).formatWarnings());
-            } catch (Exception ex) {
-                log.warn("openai.compose.perQuestion.failed -> fallback: {}", ex.getMessage());
-                return fallback.execute(analysis, tone, channel, additionalInstructions, null);
-            }
+            return new PromptPair(
+                    promptRegistry.get("compose-system"),
+                    buildPerQuestionPrompt(additionalInstructions, analysis, tone, channel),
+                    "perQuestion");
         }
 
-        // Default single-question compose
-        return execute(analysis, tone, channel);
+        return null;
+    }
+
+    private record PromptPair(String system, String user, String mode) {
+        boolean isRefinement() { return "refine".equals(mode); }
     }
 
     private String callLlm(String systemPrompt, String userPrompt) {
@@ -152,6 +205,94 @@ public class OpenAiComposeStep implements ComposeStep {
         } catch (Exception e) {
             throw new IllegalStateException("openai compose response parse failed", e);
         }
+    }
+
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_BACKOFF_MS = 1000;
+
+    private String callLlmStreaming(String systemPrompt, String userPrompt, Consumer<String> onToken) {
+        Object[] messages = new Object[]{
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)
+        };
+
+        Map<String, Object> body = OpenAiRequestUtils.chatBodyStreaming(chatModel, messages, 4096, 0.3);
+
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            StringBuilder fullResponse = new StringBuilder();
+
+            try {
+                restClient.post()
+                        .uri("/chat/completions")
+                        .body(body)
+                        .exchange((request, response) -> {
+                            int statusCode = response.getStatusCode().value();
+                            if (statusCode == 429) {
+                                throw new RateLimitException("OpenAI rate limit exceeded (429)");
+                            }
+                            if (statusCode >= 400) {
+                                throw new IllegalStateException(
+                                        "OpenAI streaming request failed with status " + statusCode);
+                            }
+
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    if (!line.startsWith("data: ")) continue;
+                                    String payload = line.substring(6).trim();
+                                    if ("[DONE]".equals(payload)) break;
+
+                                    JsonNode node = objectMapper.readTree(payload);
+                                    JsonNode delta = node.at("/choices/0/delta/content");
+                                    if (delta != null && !delta.isNull() && !delta.isMissingNode()) {
+                                        String chunk = delta.asText();
+                                        fullResponse.append(chunk);
+                                        onToken.accept(chunk);
+                                    }
+
+                                    JsonNode usage = node.get("usage");
+                                    if (usage != null && !usage.isNull()) {
+                                        log.debug("streaming.usage prompt={} completion={} total={}",
+                                                usage.path("prompt_tokens").asInt(),
+                                                usage.path("completion_tokens").asInt(),
+                                                usage.path("total_tokens").asInt());
+                                    }
+                                }
+                            }
+                            return fullResponse.toString();
+                        });
+
+                String result = fullResponse.toString();
+                if (result.isBlank()) {
+                    throw new IllegalStateException("openai compose streaming empty content");
+                }
+                return result;
+
+            } catch (RateLimitException e) {
+                if (attempt >= MAX_RETRIES) {
+                    throw new IllegalStateException("OpenAI rate limit exceeded after " + (MAX_RETRIES + 1) + " attempts", e);
+                }
+                long backoffMs = INITIAL_BACKOFF_MS * (1L << attempt);
+                log.warn("streaming.rateLimited attempt={}/{} backoff={}ms", attempt + 1, MAX_RETRIES + 1, backoffMs);
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted during rate limit backoff", ie);
+                }
+            }
+        }
+
+        throw new IllegalStateException("openai compose streaming exhausted retries");
+    }
+
+    /**
+     * Internal exception to signal 429 rate-limit responses during streaming,
+     * enabling exponential backoff retry within {@link #callLlmStreaming}.
+     */
+    private static class RateLimitException extends RuntimeException {
+        RateLimitException(String message) { super(message); }
     }
 
     private String buildRefinementSystemPrompt(String tone) {

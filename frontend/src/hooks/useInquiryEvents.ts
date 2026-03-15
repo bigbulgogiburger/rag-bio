@@ -43,6 +43,16 @@ export interface StatusChangedData {
   newStatus: string;
 }
 
+export interface ComposeTokenData {
+  chunk: string;
+  index: number;
+}
+
+export interface ComposeCompleteData {
+  draft: string;
+  tokenCount: number;
+}
+
 export interface InquiryEvent {
   type: InquiryEventType;
   inquiryId: string;
@@ -65,6 +75,10 @@ interface UseInquiryEventsOptions {
   onDraftStep?: (data: DraftStepData) => void;
   /** 답변 생성 완료 이벤트 전용 핸들러 */
   onDraftCompleted?: (data: DraftCompletedData) => void;
+  /** COMPOSE 토큰 스트리밍 핸들러 */
+  onComposeToken?: (data: ComposeTokenData) => void;
+  /** COMPOSE 스트리밍 완료 핸들러 */
+  onComposeDone?: (data: ComposeCompleteData) => void;
   /** 연결 상태 변경 핸들러 */
   onConnectionChange?: (status: ConnectionStatus) => void;
   /** SSE 활성화 여부 (기본: true) */
@@ -99,6 +113,8 @@ export function useInquiryEvents(
     onIndexingProgress,
     onDraftStep,
     onDraftCompleted,
+    onComposeToken,
+    onComposeDone,
     onConnectionChange,
     enabled = true,
   } = options;
@@ -113,12 +129,16 @@ export function useInquiryEvents(
   const onIndexingProgressRef = useRef(onIndexingProgress);
   const onDraftStepRef = useRef(onDraftStep);
   const onDraftCompletedRef = useRef(onDraftCompleted);
+  const onComposeTokenRef = useRef(onComposeToken);
+  const onComposeDoneRef = useRef(onComposeDone);
   const onConnectionChangeRef = useRef(onConnectionChange);
 
   useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
   useEffect(() => { onIndexingProgressRef.current = onIndexingProgress; }, [onIndexingProgress]);
   useEffect(() => { onDraftStepRef.current = onDraftStep; }, [onDraftStep]);
   useEffect(() => { onDraftCompletedRef.current = onDraftCompleted; }, [onDraftCompleted]);
+  useEffect(() => { onComposeTokenRef.current = onComposeToken; }, [onComposeToken]);
+  useEffect(() => { onComposeDoneRef.current = onComposeDone; }, [onComposeDone]);
   useEffect(() => { onConnectionChangeRef.current = onConnectionChange; }, [onConnectionChange]);
 
   const updateStatus = useCallback((status: ConnectionStatus) => {
@@ -185,6 +205,26 @@ export function useInquiryEvents(
           status: data.status === "STARTED" ? "IN_PROGRESS" : data.status,
           message: data.error || undefined,
         });
+      } catch {
+        // Ignore malformed events
+      }
+    });
+
+    // COMPOSE streaming token chunks
+    es.addEventListener("compose-token", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as ComposeTokenData;
+        onComposeTokenRef.current?.(data);
+      } catch {
+        // Ignore malformed events
+      }
+    });
+
+    // COMPOSE streaming complete
+    es.addEventListener("compose-done", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as ComposeCompleteData;
+        onComposeDoneRef.current?.(data);
       } catch {
         // Ignore malformed events
       }

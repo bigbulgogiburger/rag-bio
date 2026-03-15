@@ -97,6 +97,17 @@ public final class OpenAiRequestUtils {
      * @param responseBody 이미 파싱된 OpenAI API 응답 Map
      * @return 추출된 토큰 사용량 정보
      */
+    /**
+     * 스트리밍 Chat completions 요청 body 빌드 (stream: true + stream_options).
+     * 토큰 사용량 추적을 위해 include_usage: true 옵션 포함.
+     */
+    public static Map<String, Object> chatBodyStreaming(String model, Object messages, int maxTokens, double temperature) {
+        var body = chatBody(model, messages, maxTokens, temperature);
+        body.put("stream", true);
+        body.put("stream_options", Map.of("include_usage", true));
+        return body;
+    }
+
     public static TokenUsageInfo extractTokenUsage(Map<String, Object> responseBody) {
         return OpenAiResponseParser.extractTokenUsage(responseBody);
     }

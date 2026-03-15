@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   draftInquiryAnswer,
@@ -36,7 +36,7 @@ import { Badge, EmptyState, Skeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/lib/toast";
-import { useInquiryEvents, type DraftStepData, type IndexingProgressData } from "@/hooks/useInquiryEvents";
+import { useInquiryEvents, type DraftStepData, type IndexingProgressData, type ComposeTokenData } from "@/hooks/useInquiryEvents";
 import { usePipelineStatus } from "@/hooks/usePipelineStatus";
 import { copyForGmail } from "@/lib/editor/gmailCopy";
 
@@ -141,6 +141,13 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
   const [draftSteps, setDraftSteps] = useState<DraftStepData[]>([]);
   const [draftGenerating, setDraftGenerating] = useState(false);
 
+  // COMPOSE streaming state
+  const [streamingDraft, setStreamingDraft] = useState<string>("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingTokenCount, setStreamingTokenCount] = useState(0);
+  const pendingChunksRef = useRef<string[]>([]);
+  const streamingRef = useRef<HTMLDivElement>(null);
+
   // Evidence detail toggle
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
 
@@ -201,6 +208,20 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
     }
   }, [pipelineStatus]);
 
+  // requestAnimationFrame batched token handler
+  const handleComposeToken = useCallback((data: ComposeTokenData) => {
+    pendingChunksRef.current.push(data.chunk);
+    setStreamingTokenCount(data.index + 1);
+
+    if (pendingChunksRef.current.length === 1) {
+      requestAnimationFrame(() => {
+        const batch = pendingChunksRef.current.join('');
+        pendingChunksRef.current = [];
+        setStreamingDraft(prev => prev + batch);
+      });
+    }
+  }, []);
+
   // SSE should be connected when generating (locally started or server-restored)
   const shouldConnectSSE = draftGenerating || pipelineStatus?.status === 'GENERATING';
 
@@ -255,9 +276,23 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
         }
         return [...prev, data];
       });
+
+      // Enter streaming mode when COMPOSE starts
+      if (data.step === "COMPOSE" && data.status === "IN_PROGRESS") {
+        setIsStreaming(true);
+        setStreamingDraft("");
+        setStreamingTokenCount(0);
+        pendingChunksRef.current = [];
+      }
+    },
+    onComposeToken: handleComposeToken,
+    onComposeDone: (data) => {
+      setIsStreaming(false);
+      setStreamingDraft(data.draft); // Replace with full answer for consistency
     },
     onDraftCompleted: () => {
       setDraftGenerating(false);
+      setIsStreaming(false);
     },
   });
 
@@ -271,6 +306,13 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
       setIndexingInProgress(hasIndexing);
     }).catch(() => {});
   }, [inquiryId]);
+
+  // Auto-scroll streaming content into view
+  useEffect(() => {
+    if (isStreaming && streamingRef.current) {
+      streamingRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [streamingDraft, isStreaming]);
 
   const handleDraftAnswer = async () => {
     setLoading(true);
@@ -643,6 +685,40 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
           </p>
         )}
       </div>
+
+      {/* COMPOSE Streaming — real-time token output */}
+      {isStreaming && (
+        <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <h4 className="text-base font-semibold">답변 작성 중...</h4>
+            <div className="animate-pulse text-xs text-muted-foreground">
+              실시간 생성 · {streamingTokenCount}토큰
+            </div>
+          </div>
+          <div
+            ref={streamingRef}
+            className="rounded-lg border bg-muted/10 p-4 text-sm leading-relaxed whitespace-pre-wrap"
+          >
+            {streamingDraft}
+            <span className="inline-block w-[2px] h-[1em] bg-primary animate-pulse ml-[1px] align-middle" />
+          </div>
+        </div>
+      )}
+
+      {/* Streaming done, CRITIC/SELF_REVIEW in progress */}
+      {!isStreaming && draftGenerating && streamingDraft && (
+        <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <h4 className="text-base font-semibold">답변 검증 중...</h4>
+            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+              검증 중
+            </span>
+          </div>
+          <div className="rounded-lg border bg-muted/10 p-4 text-sm leading-relaxed whitespace-pre-wrap opacity-60">
+            {streamingDraft}
+          </div>
+        </div>
+      )}
 
       {/* Draft Result - Split Pane */}
       {answerDraft && (

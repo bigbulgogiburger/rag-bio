@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -337,8 +338,23 @@ public class AnswerOrchestrationService {
         String mergedInstructions = buildMergedInstructions(additionalInstructions, perQuestionEvidences);
 
         emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", null);
+
+        final AtomicInteger tokenIndex = new AtomicInteger(0);
         ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE",
-                () -> composeStep.execute(finalAnalysis, tone, channel, mergedInstructions, previousAnswerDraft));
+                () -> composeStep.executeStreaming(
+                        finalAnalysis, tone, channel, mergedInstructions, previousAnswerDraft,
+                        chunk -> {
+                            sseService.sendChunk(inquiryId, chunk, tokenIndex.getAndIncrement());
+                        }
+                )
+        );
+
+        // 스트리밍 완료 후 전체 답변 확정 이벤트
+        sseService.send(inquiryId, "compose-done", Map.of(
+                "draft", composed.draft(),
+                "tokenCount", tokenIndex.get()
+        ));
+
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
         recordUsageFromTrace(budgetManager, "COMPOSE");
 
@@ -357,8 +373,22 @@ public class AnswerOrchestrationService {
                     log.info("Critic requires revision, recomposing inquiryId={}", inquiryId);
                     String criticFeedback = String.join("\n", criticResult.corrections());
                     emitPipelineEvent(inquiryId, "COMPOSE", "STARTED", "critic 피드백 반영 재작성");
+
+                    tokenIndex.set(0);
                     composed = executeWithRunLog(inquiryId, "COMPOSE",
-                            () -> composeStep.execute(finalAnalysis, tone, channel, criticFeedback, composedDraft));
+                            () -> composeStep.executeStreaming(
+                                    finalAnalysis, tone, channel, criticFeedback, composedDraft,
+                                    chunk -> {
+                                        sseService.sendChunk(inquiryId, chunk, tokenIndex.getAndIncrement());
+                                    }
+                            )
+                    );
+
+                    sseService.send(inquiryId, "compose-done", Map.of(
+                            "draft", composed.draft(),
+                            "tokenCount", tokenIndex.get()
+                    ));
+
                     emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", "critic 피드백 반영 완료");
                 }
             } catch (Exception e) {

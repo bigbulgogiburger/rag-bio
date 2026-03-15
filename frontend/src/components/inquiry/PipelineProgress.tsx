@@ -48,9 +48,11 @@ interface PipelineProgressProps {
   connectionStatus?: string;
   onRetry?: () => void;
   error?: string;
+  streamingTokenCount?: number;
+  isStreaming?: boolean;
 }
 
-export default function PipelineProgress({ steps, isGenerating, startedAt, connectionStatus, onRetry, error }: PipelineProgressProps) {
+export default function PipelineProgress({ steps, isGenerating, startedAt, connectionStatus, onRetry, error, streamingTokenCount, isStreaming }: PipelineProgressProps) {
   const [waitIdx, setWaitIdx] = useState(0);
   const [dots, setDots] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -208,7 +210,9 @@ export default function PipelineProgress({ steps, isGenerating, startedAt, conne
                       st === "failed" && "text-destructive",
                     )}
                   >
-                    {step.label}
+                    {step.key === "COMPOSE" && st === "active" && isStreaming
+                      ? `실시간 생성 중${streamingTokenCount ? ` · ${streamingTokenCount}토큰` : ''}`
+                      : step.label}
                   </span>
                 </div>
               </Fragment>

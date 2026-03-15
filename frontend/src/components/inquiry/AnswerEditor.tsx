@@ -35,6 +35,7 @@ interface AnswerEditorProps {
   onChange?: (html: string) => void;
   onCopyForGmail?: () => void;
   editable?: boolean;
+  streaming?: boolean;
 }
 
 export default function AnswerEditor({
@@ -44,9 +45,12 @@ export default function AnswerEditor({
   onChange,
   onCopyForGmail,
   editable = true,
+  streaming = false,
 }: AnswerEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadingRef = useRef(false);
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
+  const isEditable = streaming ? false : editable;
 
   const editor = useEditor({
     extensions: [
@@ -71,7 +75,7 @@ export default function AnswerEditor({
       TableHeader,
     ],
     content: draftFormat === 'TEXT' ? convertPlainTextToHtml(content) : content,
-    editable,
+    editable: isEditable,
     onUpdate: ({ editor: ed }) => {
       onChange?.(ed.getHTML());
     },
@@ -81,19 +85,33 @@ export default function AnswerEditor({
   const prevContentRef = useRef(content);
   useEffect(() => {
     if (!editor) return;
-    if (content !== prevContentRef.current) {
+    if (streaming) {
+      // In streaming mode, always sync content
+      if (content !== editor.getHTML()) {
+        const html = draftFormat === 'TEXT' ? convertPlainTextToHtml(content) : content;
+        editor.commands.setContent(html);
+      }
+    } else if (content !== prevContentRef.current) {
       prevContentRef.current = content;
       const html = draftFormat === 'TEXT' ? convertPlainTextToHtml(content) : content;
       editor.commands.setContent(html);
     }
-  }, [content, draftFormat, editor]);
+  }, [content, draftFormat, editor, streaming]);
 
   // Update editable state
   useEffect(() => {
     if (editor) {
-      editor.setEditable(editable);
+      editor.setEditable(isEditable);
     }
-  }, [editable, editor]);
+  }, [isEditable, editor]);
+
+  // Auto-scroll to bottom during streaming
+  useEffect(() => {
+    if (streaming && editorWrapperRef.current) {
+      const el = editorWrapperRef.current;
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [content, streaming]);
 
   // Cleanup
   useEffect(() => {
@@ -203,8 +221,23 @@ export default function AnswerEditor({
 
   return (
     <div className="border rounded-md overflow-hidden">
+      {/* Streaming cursor animation */}
+      {streaming && (
+        <style>{`
+          @keyframes streaming-blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+          }
+          .streaming-editor .ProseMirror::after {
+            content: '\\25CD';
+            animation: streaming-blink 0.8s infinite;
+            color: hsl(var(--primary));
+          }
+        `}</style>
+      )}
+
       {/* Toolbar */}
-      {editable && (
+      {!streaming && isEditable && (
         <div className="flex items-center gap-1 p-1 border-b bg-muted/30 flex-wrap">
           <Button
             type="button"
@@ -321,10 +354,15 @@ export default function AnswerEditor({
       />
 
       {/* Editor content */}
-      <EditorContent
-        editor={editor}
-        className="prose prose-sm max-w-none p-4 min-h-[300px] focus-within:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[280px]"
-      />
+      <div ref={editorWrapperRef} className={cn(streaming && "max-h-[400px] overflow-y-auto")}>
+        <EditorContent
+          editor={editor}
+          className={cn(
+            "prose prose-sm max-w-none p-4 min-h-[300px] focus-within:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[280px]",
+            streaming && "streaming-editor",
+          )}
+        />
+      </div>
     </div>
   );
 }

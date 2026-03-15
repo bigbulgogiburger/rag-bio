@@ -5,6 +5,7 @@ import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -336,6 +337,31 @@ public class DefaultComposeStep implements ComposeStep {
             notices.add("안전 또는 규제 관련 위험 신호가 감지되어 보수적으로 안내드립니다.");
         }
         return notices.isEmpty() ? draft : String.join("\n", notices) + "\n\n" + draft;
+    }
+
+    @Override
+    public ComposeStepResult executeStreaming(
+            AnalyzeResponse analysis, String tone, String channel,
+            String additionalInstructions, String previousAnswerDraft,
+            Consumer<String> onToken) {
+
+        // 1. 기존 execute()로 mockDraft 생성
+        ComposeStepResult result = execute(analysis, tone, channel, additionalInstructions, previousAnswerDraft);
+        String mockDraft = result.draft();
+
+        // 2. 3글자 단위로 분할하여 스트리밍 시뮬레이션
+        for (int i = 0; i < mockDraft.length(); i += 3) {
+            String chunk = mockDraft.substring(i, Math.min(i + 3, mockDraft.length()));
+            onToken.accept(chunk);
+            try {
+                Thread.sleep(20);  // 20ms 간격
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        return result;
     }
 
     private String formatByChannel(String draft, String channel, List<String> riskFlags, String tone) {

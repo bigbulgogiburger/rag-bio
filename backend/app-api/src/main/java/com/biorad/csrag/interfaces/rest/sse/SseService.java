@@ -68,6 +68,16 @@ public class SseService {
         }
     }
 
+    /**
+     * COMPOSE 스트리밍 토큰 청크 전송 — compose-token 이벤트.
+     */
+    public void sendChunk(UUID inquiryId, String chunk, int index) {
+        send(inquiryId, "compose-token", Map.of(
+                "chunk", chunk,
+                "index", index
+        ));
+    }
+
     @Scheduled(fixedRate = 30_000)
     public void sendHeartbeat() {
         emitters.forEach((inquiryId, list) -> {
