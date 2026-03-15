@@ -46,3 +46,26 @@ infra/terraform/*.tfvars
 
 # Misc
 coverage/
+
+# Screenshots & temp images
+*.png
+
+# Pencil design files
+*.pen
+
+# Root-level lock files (frontend has its own)
+/package-lock.json
+
+# Frontend serve config
+frontend/serve.json
+
+# PPT generation scripts
+scripts/generate_*.py
+
+# Docs: generated presentations & images
+docs/*.pptx
+docs/product-intro-images/
+docs/rag-detail-images/
+docs/rag-pipeline-images/
+docs/KB_*.md
+docs/RAG_Pipeline_*.md
