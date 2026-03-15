@@ -458,17 +458,18 @@ public class AnswerOrchestrationService {
 
     private record RetrieveResult(List<EvidenceItem> evidences, List<PerQuestionEvidence> perQuestion) {}
 
-    /** RerankResult → EvidenceItem 변환 헬퍼 */
+    /** RerankResult → EvidenceItem 변환 헬퍼 (DB 메타데이터 보강: fileName, pageStart, pageEnd, productFamily) */
     private List<EvidenceItem> toEvidenceItems(List<RerankingService.RerankResult> rerankResults) {
+        if (retrieveStep instanceof DefaultRetrieveStep defaultStep) {
+            return defaultStep.enrichEvidenceMetadata(rerankResults);
+        }
+        // Fallback: 메타데이터 없이 변환
         return rerankResults.stream()
                 .map(r -> new EvidenceItem(
                         r.chunkId().toString(),
                         r.documentId() != null ? r.documentId().toString() : null,
-                        r.rerankScore(),
-                        r.content(),
-                        r.sourceType(),
-                        null, null, null
-                ))
+                        r.rerankScore(), r.content(), r.sourceType(),
+                        null, null, null, null))
                 .toList();
     }
 

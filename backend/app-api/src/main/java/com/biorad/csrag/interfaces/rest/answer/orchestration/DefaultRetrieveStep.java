@@ -29,4 +29,9 @@ public class DefaultRetrieveStep implements RetrieveStep {
     public List<PerQuestionEvidence> executePerQuestion(UUID inquiryId, List<SubQuestion> subQuestions, int topK, SearchFilter filter) {
         return analysisService.retrievePerQuestion(inquiryId, subQuestions, topK, filter);
     }
+
+    /** RerankResult → EvidenceItem 변환 (DB 메타데이터 보강: fileName, pageStart, pageEnd, productFamily) */
+    public List<EvidenceItem> enrichEvidenceMetadata(List<com.biorad.csrag.interfaces.rest.search.RerankingService.RerankResult> rerankResults) {
+        return analysisService.enrichEvidenceMetadata(rerankResults);
+    }
 }

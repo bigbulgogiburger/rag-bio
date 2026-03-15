@@ -102,6 +102,58 @@ public class AnalysisService {
         return results;
     }
 
+    /**
+     * RerankResult 목록에 DB 메타데이터(fileName, pageStart, pageEnd, productFamily)를 보강하여 EvidenceItem으로 변환.
+     * AnswerOrchestrationService.toEvidenceItems()에서 호출.
+     */
+    public List<EvidenceItem> enrichEvidenceMetadata(List<RerankingService.RerankResult> rerankResults) {
+        if (rerankResults == null || rerankResults.isEmpty()) return List.of();
+
+        Set<UUID> chunkIds = rerankResults.stream().map(RerankingService.RerankResult::chunkId).collect(Collectors.toSet());
+        Set<UUID> docIds = rerankResults.stream().map(RerankingService.RerankResult::documentId).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<UUID, DocumentChunkJpaEntity> chunkMap = chunkRepository.findAllById(chunkIds)
+                .stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
+
+        Set<UUID> parentIds = chunkMap.values().stream()
+                .filter(c -> "CHILD".equals(c.getChunkLevel()) && c.getParentChunkId() != null)
+                .map(DocumentChunkJpaEntity::getParentChunkId).collect(Collectors.toSet());
+        Map<UUID, DocumentChunkJpaEntity> parentMap = parentIds.isEmpty() ? Map.of()
+                : chunkRepository.findAllById(parentIds).stream().collect(Collectors.toMap(DocumentChunkJpaEntity::getId, c -> c));
+
+        Set<UUID> sourceIds = chunkMap.values().stream().map(DocumentChunkJpaEntity::getSourceId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<UUID> allLookupIds = new HashSet<>(docIds);
+        allLookupIds.addAll(sourceIds);
+
+        Map<UUID, String> fileNameMap = new HashMap<>();
+        documentRepository.findAllById(allLookupIds).forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
+        kbDocRepository.findAllById(allLookupIds).forEach(d -> fileNameMap.put(d.getId(), d.getFileName()));
+
+        return rerankResults.stream().map(r -> {
+            DocumentChunkJpaEntity chunk = chunkMap.get(r.chunkId());
+            String fileName = r.documentId() != null ? fileNameMap.get(r.documentId()) : null;
+            if (fileName == null && chunk != null && chunk.getSourceId() != null) {
+                fileName = fileNameMap.get(chunk.getSourceId());
+            }
+            String contentForLlm = r.content();
+            if (chunk != null && "CHILD".equals(chunk.getChunkLevel()) && chunk.getParentChunkId() != null) {
+                DocumentChunkJpaEntity parent = parentMap.get(chunk.getParentChunkId());
+                if (parent != null) contentForLlm = parent.getContent();
+            }
+            return new EvidenceItem(
+                    r.chunkId().toString(),
+                    r.documentId() != null ? r.documentId().toString() : null,
+                    r.rerankScore(),
+                    summarize(contentForLlm),
+                    r.sourceType(),
+                    fileName,
+                    chunk != null ? chunk.getPageStart() : null,
+                    chunk != null ? chunk.getPageEnd() : null,
+                    chunk != null ? chunk.getProductFamily() : null
+            );
+        }).toList();
+    }
+
     private List<EvidenceItem> doRetrieve(UUID inquiryId, String searchQuery, int topK, SearchFilter filter) {
         // 리랭킹을 위해 더 많은 후보 검색 (topK * 5)
         int candidateCount = topK * 5;
