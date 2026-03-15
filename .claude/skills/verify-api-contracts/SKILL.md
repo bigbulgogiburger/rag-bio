@@ -104,6 +104,26 @@ grep -n "label\|Label" frontend/src/lib/i18n/labels.ts
 - [ ] 응답: `content`, `page`, `size`, `totalElements`, `totalPages`
 - [ ] 프론트엔드 Pagination 컴포넌트와 일치
 
+### 8. 답변 피드백 엔드포인트 확인
+
+**파일**: `AnswerFeedbackController.java`
+
+피드백 API 엔드포인트가 올바르게 정의되어 있는지 확인합니다:
+
+- [ ] `POST /api/v1/inquiries/{inquiryId}/answers/{answerId}/feedback` — 피드백 생성
+- [ ] `GET /api/v1/inquiries/{inquiryId}/answers/{answerId}/feedback` — 피드백 조회
+- [ ] 요청/응답 DTO가 `record` 타입인가?
+- [ ] GlobalExceptionHandler를 통한 에러 처리가 되는가?
+- [ ] 프론트엔드 `client.ts`에 피드백 API 호출이 추가되었는가?
+
+```bash
+# 피드백 엔드포인트 확인
+grep -n "@PostMapping\|@GetMapping\|feedback\|Feedback" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/feedback/AnswerFeedbackController.java
+
+# 프론트엔드 동기화 확인
+grep -n "feedback" frontend/src/lib/api/client.ts
+```
+
 ## Related Files
 
 | File | Purpose |
@@ -113,3 +133,4 @@ grep -n "label\|Label" frontend/src/lib/i18n/labels.ts
 | `backend/app-api/src/main/java/.../interfaces/rest/` | REST Controller + DTO |
 | `frontend/src/lib/api/client.ts` | 프론트엔드 API 클라이언트 |
 | `frontend/src/lib/i18n/labels.ts` | 한국어 라벨 매핑 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/feedback/AnswerFeedbackController.java` | 답변 피드백 엔드포인트 (POST/GET feedback) |

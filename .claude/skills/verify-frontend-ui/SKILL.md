@@ -132,6 +132,8 @@ grep -rn "onKeyDown\|ArrowLeft\|ArrowRight\|Enter\| Space" frontend/src/componen
 **PASS:** 모든 키보드 이벤트 핸들러 존재
 **FAIL:** 키보드 내비게이션 누락
 
+**예외:** Tabs.tsx가 `@radix-ui/react-tabs`를 사용하는 경우, Radix UI가 빌트인 키보드 내비게이션(ArrowLeft/ArrowRight 탭 전환)을 제공하므로 소스 코드에 명시적 onKeyDown/Arrow 핸들러가 없어도 PASS로 판정. import 문에서 `@radix-ui/react-tabs` 사용 여부를 확인할 것.
+
 ### Step 6: 다크 모드 설정 확인
 
 **파일:** `frontend/tailwind.config.ts`, `frontend/src/app/layout.tsx`

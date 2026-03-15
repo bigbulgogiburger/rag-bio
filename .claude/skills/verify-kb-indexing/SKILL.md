@@ -338,7 +338,7 @@ grep -n "kbDocRepository\|KnowledgeDocumentJpaRepository\|KNOWLEDGE_BASE.*resolv
 | 16 | KB productFamily 부모 조회 | PASS/FAIL | VectorizingService → kbDocRepository |
 | 17 | 파일명 프리픽스 (RF-03) | PASS/FAIL | applyFileNamePrefix + 오프셋 드리프트 방지 |
 | 18 | 헤딩 인식 청킹 (RF-05) | PASS/FAIL | HEADING_PATTERN + isHeading() |
-| 19 | 오버랩 300자 (RF-02) | PASS/FAIL | OVERLAP_CHARS = 300 |
+| 19 | 오버랩 300자 (RF-02) | PASS/FAIL | OVERLAP_CHARS = 300 또는 @Value 프로퍼티 |
 | 20 | productFamily 파라미터 전파 | PASS/FAIL | chunkAndStore 오버로드 + setProductFamily |
 
 ### Step 17: ChunkingService 파일명 프리픽스 확인 (RF-03)
@@ -371,14 +371,14 @@ grep -n "HEADING_PATTERN\|isHeading\|heading" backend/app-api/src/main/java/com/
 
 **파일:** `ChunkingService.java`
 
-**검사:** `OVERLAP_CHARS` 상수가 300인지 확인. 100에서 300으로 증가하여 인접 청크 간 문맥 연속성 강화.
+**검사:** 오버랩이 300자로 설정되어 있는지 확인. `OVERLAP_CHARS` 상수 또는 `@Value("${rag.chunking.overlap:300}")` 프로퍼티 기반 설정 모두 허용.
 
 ```bash
-grep -n "OVERLAP_CHARS" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
+grep -n "OVERLAP_CHARS\|rag.chunking.overlap" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/chunk/ChunkingService.java
 ```
 
-**PASS:** `OVERLAP_CHARS = 300`
-**FAIL:** `OVERLAP_CHARS = 100` 또는 다른 값
+**PASS:** `OVERLAP_CHARS = 300` 상수 또는 `@Value("${rag.chunking.overlap:300}")` 프로퍼티 설정 (기본값 300)
+**FAIL:** 오버랩이 300이 아닌 다른 값으로 설정
 
 ### Step 20: ChunkingService productFamily 파라미터 전파 확인
 

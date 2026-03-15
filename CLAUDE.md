@@ -1,302 +1,119 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 # language
 한국어로 대답해줘
 
 ## Project Overview
 
-Bio-Rad CS 대응 허브 — a RAG-based multi-agent consulting application for Bio-Rad customer service. CS agents submit technical questions with documents (PDF/Word), the system indexes them, runs a Retrieve → Verify → Compose pipeline, and generates answer drafts with citations for human-in-the-loop approval before sending via email/messenger. Additionally, a Knowledge Base module allows pre-registering reference documents (manuals, protocols, FAQ, spec sheets) that are searched alongside inquiry-attached documents during analysis.
+Bio-Rad CS 대응 허브 — RAG 기반 멀티 에이전트 컨설팅 앱. CS 상담원이 기술 질문+문서를 제출하면 Retrieve→Verify→Compose 파이프라인으로 답변 초안을 생성하고, 사람이 검토/승인 후 발송.
 
-## Build & Run Commands
-
-### Docker Compose (Full Stack)
-
-```bash
-cd infra
-docker compose up -d --build   # Postgres 16 + Backend + Frontend
-docker compose down            # Stop all services
-docker compose logs -f backend # Follow backend logs
-```
-
-Services: postgres(:5432), backend(:8081), frontend(:3001)
-
-### Backend (Spring Boot 3.3.8 / Java 21 / Gradle)
-
-```bash
-cd backend
-./gradlew build                    # build all modules + run tests
-./gradlew :app-api:bootRun         # run API server (localhost:8081)
-./gradlew :app-api:test            # run app-api tests only
-./gradlew :contexts:inquiry-context:test  # run a single context module's tests
-./gradlew :app-api:jacocoTestReport      # generate coverage report
-```
-
-### Frontend (Next.js 14 / React 18 / TypeScript)
-
-```bash
-cd frontend
-npm install
-npm run dev       # dev server (localhost:3001)
-npm run build     # production build (static export → out/)
-npm run lint      # ESLint
-```
-
-### Environment
-
-```bash
-cp .env.example .env   # then fill OPENAI_API_KEY, vector DB keys, etc.
-```
-
-Backend reads env vars via `application.yml` placeholders. Key toggles:
-- `OPENAI_ENABLED=false` — set `true` for real OpenAI calls; `false` uses mock/fallback services
-- `VECTOR_DB_PROVIDER=mock` — options: `mock`, `qdrant`, `pinecone`, `weaviate`
-- `SPRING_PROFILES_ACTIVE=docker` — used in docker-compose for PostgreSQL connection
+**Tech Stack**: Spring Boot 3.3.8 / Java 21 / Gradle | Next.js 14 / React 18 / TypeScript | PostgreSQL 16 | Qdrant | OpenAI API
 
 ## Architecture
 
-### Monorepo Layout
+```mermaid
+graph TB
+    subgraph Frontend["Frontend (Next.js 14)"]
+        UI[App Router Pages]
+        API_CLIENT[Typed API Client]
+    end
 
-- `backend/` — Spring Boot multi-module (Gradle), DDD bounded contexts
-- `frontend/` — Next.js App Router (`src/app/`, `src/components/`, `src/lib/`)
-- `infra/` — docker-compose (local: Postgres + Backend + Frontend), Terraform (AWS: EC2 + RDS + S3 + CloudFront)
-- `docs/` — architecture, API, testing strategy, workflow reports, sprint backlogs
-- `scripts/` — sprint evaluation scripts (Node.js/Bash)
+    subgraph Backend["Backend (Spring Boot)"]
+        subgraph REST["interfaces/rest"]
+            CTRL[Controllers]
+            SEARCH[HybridSearch + Reranking]
+            ANALYSIS[AnalysisService]
+            ORCHESTRATION[AnswerOrchestrationService]
+            CHUNK[ChunkingService]
+            VECTOR_SVC[VectorizingService]
+            FEEDBACK[FeedbackController]
+        end
+        subgraph INFRA["infrastructure"]
+            OPENAI[OpenAI Adapters]
+            PERSISTENCE[JPA Entities + Repos]
+            RAG_INFRA[TokenBudget + CostGuard + SemanticCache]
+            PROMPT[PromptRegistry]
+        end
+        subgraph CONTEXTS["contexts (DDD)"]
+            INQUIRY[inquiry-context]
+        end
+    end
 
-### Backend Module Structure
+    subgraph External
+        QDRANT[(Qdrant Vector DB)]
+        PG[(PostgreSQL 16)]
+        OAI[OpenAI API]
+    end
 
-**`app-api`** — The deployable Spring Boot application. Contains REST controllers, infrastructure adapters (JPA entities/repositories, OpenAI/vector/OCR integrations), Flyway migrations, and the orchestration service.
-
-**`contexts/*`** — DDD bounded context modules. Each has `domain/`, `application/`, `infrastructure/` layers:
-- `inquiry-context` — Core domain (Inquiry entity, AskQuestionUseCase, InquirySpecifications). Most mature context with full DDD layers and QueryDSL.
-- `ingestion-context`, `knowledge-retrieval-context`, `verification-context`, `response-composition-context`, `communication-context`, `audit-context` — Marker/scaffold modules awaiting implementation.
-
-### Backend Layering (within each context)
-
-```
-domain/model/       — Entities, Value Objects (pure Java, no framework deps)
-domain/repository/  — Repository interfaces
-application/usecase — Commands, Results, UseCase interfaces + Service impls
-infrastructure/     — JPA adapters, external service clients
-interfaces/rest/    — Controllers, request/response DTOs
-```
-
-Domain entities use factory methods (`Inquiry.create()`, `Inquiry.reconstitute()`) — no public constructors.
-
-### Key Backend Patterns
-
-- **Orchestration pipeline**: `AnswerOrchestrationService` chains `RetrieveStep → VerifyStep → ComposeStep` with per-step audit logging
-- **Provider-based routing**: Vector store and embedding services are selected at runtime based on `VECTOR_DB_PROVIDER` / `OPENAI_ENABLED` config (e.g., `MockVectorStore` vs `QdrantVectorStore`)
-- **Integrated search**: `AnalysisService.retrieve()` searches both inquiry-attached chunks and Knowledge Base chunks, with `sourceType` field distinguishing `INQUIRY` vs `KNOWLEDGE_BASE`
-- **JPA Specification**: Dynamic query filters using `InquirySpecifications` and `KnowledgeBaseSpecifications` for paginated list APIs
-- **Flyway migrations**: `app-api/src/main/resources/db/migration/V1..V14` — H2 in PostgreSQL compatibility mode for dev, real PostgreSQL via Docker
-- **JaCoCo**: Test coverage reports generated on `./gradlew build`, CI prints line/branch coverage
-- **Prompt Registry**: 프롬프트가 `src/main/resources/prompts/*.txt`에 외부화됨. `PromptRegistry.get("name")` 또는 `get("name", Map.of("key", value))`로 사용
-
-### OpenAI 모델 티어링 전략
-
-`application.yml`에서 3-tier 모델 설정:
-
-| 티어 | 환경변수 | 기본값 | 용도 | 적용 클래스 |
-|------|---------|--------|------|------------|
-| Heavy | `OPENAI_CHAT_MODEL_HEAVY` | `gpt-5-mini` | 복잡한 추론 (답변 작성, 사실 검증) | ComposeStep, CriticAgent, ReviewAgent |
-| Medium | `OPENAI_CHAT_MODEL_MEDIUM` | `gpt-5-mini` | 중간 복잡도 (검증, 검색 에이전트) | VerifyStep, AdaptiveRetrieval, MultiHop, SearchToolAgent, Reranking, ImageAnalysis |
-| Light | `OPENAI_CHAT_MODEL_LIGHT` | `gpt-5-nano` | 경량 작업 (변환, 보강) | HyDE, ContextualEnricher, QueryTranslation, MetadataAnalyzer |
-| Embedding | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large` | 벡터 임베딩 | EmbeddingService |
-
-### Frontend Structure
-
-```
-src/app/                          — Next.js App Router pages
-├── page.tsx                      — Client redirect to /dashboard
-├── dashboard/page.tsx            — Ops dashboard (metrics + recent 5 inquiries)
-├── inquiries/page.tsx            — Inquiry list (filter, pagination, search)
-├── inquiries/new/page.tsx        — Create inquiry form
-├── inquiries/[id]/page.tsx       — Inquiry detail (server wrapper + Suspense + generateStaticParams)
-├── inquiries/[id]/InquiryDetailClient.tsx — Inquiry detail client (4 tabs: info, answer, history)
-├── inquiry/new/page.tsx          — Client redirect → /inquiries/new
-└── knowledge-base/page.tsx       — Knowledge Base management (CRUD, indexing, stats)
-
-src/components/
-├── app-shell-nav.tsx             — Top navigation (4 menus: 대시보드, 문의 목록, 문의 작성, 지식 기반)
-├── ui/                           — Design system components (7)
-│   ├── Badge.tsx                 — Status badge (variant: info/success/warn/danger/neutral)
-│   ├── DataTable.tsx             — Generic table (columns, row click, keyboard nav)
-│   ├── Pagination.tsx            — Page navigation + size selector
-│   ├── Tabs.tsx                  — Tab switching (arrow keys, ARIA)
-│   ├── Toast.tsx                 — Auto-dismiss notifications
-│   ├── EmptyState.tsx            — Empty state with CTA
-│   ├── FilterBar.tsx             — Filter fields (select/text/date) + search
-│   └── index.ts                  — Barrel export
-└── inquiry/                      — Inquiry detail tab components (decomposed from inquiry-form.tsx)
-    ├── InquiryCreateForm.tsx     — Create form (question + channel + documents)
-    ├── InquiryInfoTab.tsx        — Info tab (query details + document list + indexing)
-    ├── InquiryAnalysisTab.tsx    — Analysis tab (evidence search + verdict + sourceType badges)
-    ├── InquiryAnswerTab.tsx      — Answer tab (draft → review → approve → send workflow)
-    ├── InquiryHistoryTab.tsx     — History tab (version history)
-    └── index.ts                  — Barrel export
-
-src/lib/
-├── api/client.ts                 — Typed API client (inquiry CRUD, document, indexing, analysis, answer workflow, KB CRUD, ops metrics)
-└── i18n/labels.ts                — Korean label mappings (verdict, status, doc status, risk flags, tone, channel, error, KB category)
+    UI --> API_CLIENT --> CTRL
+    CTRL --> ORCHESTRATION
+    ORCHESTRATION --> ANALYSIS --> SEARCH
+    SEARCH --> QDRANT
+    SEARCH --> PG
+    ORCHESTRATION --> OPENAI --> OAI
+    CHUNK --> VECTOR_SVC --> QDRANT
+    PERSISTENCE --> PG
+    RAG_INFRA --> PERSISTENCE
 ```
 
-- **Design tokens**: `globals.css` uses CSS variables (`--color-*`, `--space-*`, `--font-*`, `--radius-*`, `--shadow-*`, `--transition-*`)
-- **Responsive**: Breakpoints at 1279px (tablet) and 767px (mobile)
-- **Accessibility**: `focus-visible`, ARIA roles (tablist/tab/tabpanel, table, alert), keyboard navigation
-- UI language is Korean (ko)
-
-### API Endpoints (all under `/api/v1/`)
-
-**Inquiry**
-- `GET /inquiries` — List inquiries (paginated, filters: status, channel, keyword, from, to)
-- `POST /inquiries` — Create inquiry
-- `GET /inquiries/{id}` — Get inquiry detail
-- `POST /inquiries/{id}/documents` — Upload document (multipart)
-- `GET /inquiries/{id}/documents` — List documents
-- `GET /inquiries/{id}/documents/indexing-status` — Indexing status
-- `POST /inquiries/{id}/documents/indexing/run` — Trigger indexing
-- `POST /inquiries/{id}/analysis` — Analyze (retrieve + verify, returns sourceType per evidence)
-- `POST /inquiries/{id}/answers/draft` — Generate answer draft (full orchestration)
-- `POST /inquiries/{id}/answers/{answerId}/review` — Review draft
-- `POST /inquiries/{id}/answers/{answerId}/approve` — Approve draft
-- `POST /inquiries/{id}/answers/{answerId}/send` — Send approved draft
-- `GET /inquiries/{id}/answers/latest` — Latest draft
-- `GET /inquiries/{id}/answers/history` — Draft history
-
-**Knowledge Base**
-- `POST /knowledge-base/documents` — Upload KB document (multipart + metadata)
-- `GET /knowledge-base/documents` — List KB documents (paginated, filters: category, productFamily, status, keyword)
-- `GET /knowledge-base/documents/{docId}` — KB document detail
-- `DELETE /knowledge-base/documents/{docId}` — Delete KB document (+ chunks + vectors)
-- `POST /knowledge-base/documents/{docId}/indexing/run` — Index single KB document
-- `POST /knowledge-base/indexing/run` — Batch index all unindexed KB documents
-- `GET /knowledge-base/stats` — KB statistics (totals, by category, by product family)
-
-**Ops**
-- `GET /ops/metrics` — Operational metrics
-
-### Answer Draft Workflow State Machine
-
-`DRAFT → REVIEWED → APPROVED → SENT` (human-in-the-loop; RBAC via `X-User-Id` / `X-User-Roles` headers)
-
-### Knowledge Base Integration
-
-- KB documents share `document_chunks` table with inquiry documents, distinguished by `source_type` column (`INQUIRY` / `KNOWLEDGE_BASE`)
-- `ChunkingService` has overloaded `chunkAndStore()` accepting `sourceType` and `sourceId` parameters
-- `VectorStore` interface includes `deleteByDocumentId()` and `upsert()` with `sourceType` metadata
-- `VectorSearchResult` includes `sourceType` field, propagated through `AnalysisService` to `EvidenceItem`
-
-## Live Deployment (AWS)
-
-### Architecture
-
+### RAG Pipeline (8단계)
 ```
-[가비아 DNS]
-  ├── app.infottyt.com → A → EC2 Elastic IP
-  └── api.infottyt.com → A → EC2 Elastic IP
-
-[EC2 t4g.small (ARM, 2GB RAM)]
-  nginx (Let's Encrypt TLS)
-  ├── app.infottyt.com → /opt/frontend/ (정적 파일 서빙)
-  └── api.infottyt.com → localhost:8081 (리버스 프록시)
-
-  Docker
-  └── backend (eclipse-temurin:21-jre, -Xmx1g)
-        └── /opt/app/app.jar
-
-[RDS db.t4g.micro] ← PostgreSQL 16
-[S3 csrag-frontend-prod] ← 프론트엔드 백업 (CloudFront 연결, 현재 미사용)
+DECOMPOSE → RETRIEVE(3-level) → ADAPTIVE_RETRIEVE → MULTI_HOP
+    → VERIFY → COMPOSE → CRITIC → SELF_REVIEW
 ```
 
-### Key Facts
-
-- **리전**: ap-northeast-2 (서울)
-- **EC2 IP**: `terraform output ec2_public_ip` (Elastic IP)
-- **SSH**: `ssh -i ~/.ssh/csrag-deployer ec2-user@<IP>`
-- **프론트엔드**: Next.js static export (`output: 'export'`) → nginx 직접 서빙
-- **백엔드**: Spring Boot JAR → Docker 컨테이너 (포트 8081)
-- **TLS**: Let's Encrypt via Certbot (자동 갱신)
-- **CORS**: `CORS_ALLOWED_ORIGINS` 환경변수 (`/opt/app/.env`)
-- **로그인**: ID `bunh` / PW `ghGHgh123@`
-
-### Deploy Commands
+## Commands
 
 ```bash
-# ─── 백엔드 배포 ───────────────────────────────
+# ── Backend ──
 cd backend
-./gradlew :app-api:bootJar -x test
-scp -i ~/.ssh/csrag-deployer app-api/build/libs/app-api-0.1.0-SNAPSHOT.jar \
-  ec2-user@<IP>:/opt/app/app.jar
-ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
-  'cd /opt/app && docker compose down && docker compose up -d'
+./gradlew build                         # build + test + coverage
+./gradlew :app-api:bootRun              # dev server (:8081)
+./gradlew :app-api:test                 # tests only
+./gradlew :app-api:bootJar -x test      # production JAR
 
-# ─── 프론트엔드 배포 ──────────────────────────
-# IMPORTANT: .env.production에 NEXT_PUBLIC_API_BASE_URL=https://api.infottyt.com 이 설정되어 있음
-# npm run build 시 자동 적용됨. 별도 환경변수 지정 불필요.
+# ── Frontend ──
 cd frontend
-npm run build
-tar czf /tmp/frontend-out.tar.gz -C out .
-scp -i ~/.ssh/csrag-deployer /tmp/frontend-out.tar.gz ec2-user@<IP>:/tmp/
-ssh -i ~/.ssh/csrag-deployer ec2-user@<IP> \
-  'sudo rm -rf /opt/frontend/* && sudo tar xzf /tmp/frontend-out.tar.gz -C /opt/frontend && sudo chown -R nginx:nginx /opt/frontend && rm /tmp/frontend-out.tar.gz'
+npm run dev                             # dev server (:3001)
+npm run build                           # static export → out/
+npm run lint                            # ESLint
+
+# ── Docker (Full Stack) ──
+cd infra && docker compose up -d --build  # Postgres + Backend + Frontend
 ```
 
-### EC2 File Layout
+## Environment
 
-```
-/opt/app/
-├── .env                    # 환경변수 (DB, OpenAI, CORS)
-├── docker-compose.yml      # 백엔드 컨테이너 정의
-├── app.jar                 # Spring Boot JAR
-├── uploads/                # 업로드 파일
-└── setup-tls.sh            # Let's Encrypt 초기 설정 스크립트
-
-/opt/frontend/              # Next.js static export 파일
-├── index.html
-├── _next/static/           # JS/CSS 번들
-├── login/index.html
-├── dashboard/index.html
-├── inquiries/index.html
-└── ...
-
-/etc/nginx/conf.d/
-├── backend.conf            # api.infottyt.com → localhost:8081
-└── frontend.conf           # app.infottyt.com → /opt/frontend/
-```
-
-### Terraform
-
-인프라 코드: `infra/terraform/`
 ```bash
-cd infra/terraform
-terraform plan     # 변경사항 확인
-terraform apply    # 적용
-terraform output   # IP, 배포 명령어, DNS 가이드 출력
+cp .env.example .env  # then fill OPENAI_API_KEY, etc.
 ```
+| 변수 | 설명 |
+|------|------|
+| `OPENAI_ENABLED` | `true`: 실제 OpenAI, `false`: Mock 서비스 |
+| `VECTOR_DB_PROVIDER` | `mock` / `qdrant` / `pinecone` / `weaviate` |
+| `SPRING_PROFILES_ACTIVE=docker` | docker-compose용 PostgreSQL 연결 |
 
-### Frontend Build Notes
+## Key Rules
 
-- `next.config.mjs`: `output: 'export'`, `trailingSlash: true`
-- `NEXT_PUBLIC_API_BASE_URL`은 빌드 타임에 임베딩됨 (런타임 변경 불가). 환경별 `.env` 파일로 자동 관리:
-  - `frontend/.env.development` → `http://localhost:8081` (`npm run dev` 시 자동 로드)
-  - `frontend/.env.production` → `https://api.infottyt.com` (`npm run build` 시 자동 로드)
-  - `frontend/.env.example` → 참고용 템플릿 (자동 로드 안 됨)
-  - **배포 빌드 시 별도 환경변수 지정 불필요** — Next.js가 모드에 따라 해당 `.env` 파일을 자동 로드함
-- `middleware.ts` 없음 (static export 미지원, AuthProvider가 클라이언트 인증 처리)
-- 동적 라우트 `[id]`는 `generateStaticParams` + Suspense boundary 사용
+1. **DDD 경계 준수** — context 모듈 간 직접 의존 금지, app-api 오케스트레이션 경유
+2. **TDD** — 도메인/유스케이스 테스트 우선, 외부 의존성은 Mock/Real 이중 구현 (`@ConditionalOnProperty`)
+3. **빌드 통과 후 커밋** — `./gradlew build` + `npm run build` 모두 성공해야 함
+4. **시크릿 커밋 금지** — `.env`는 gitignore, `.env.example`만 커밋
+5. **한국어 UI / 영문 API** — API는 영문 enum, 프론트엔드에서 `labels.ts`로 한국어 변환
+6. **커밋 컨벤션** — `feat|fix|refactor|docs|test|chore|perf|ci(scope): description`
 
-## Development Principles
+## Reference Docs
 
-- **DDD boundaries**: Do not create direct dependencies between context modules. Cross-context communication should go through app-api orchestration or events.
-- **TDD**: Write domain/usecase tests first. External dependencies (OpenAI, OCR, mail) must be isolated with test doubles.
-- **Commit convention**: `feat|fix|refactor|docs|test|chore|perf|ci(scope): description`
-- **No secrets committed**: `.env` is gitignored. Use `.env.example` as template.
-- **Build must pass before commit**: backend `./gradlew build`, frontend `npm run build`
-- **PRD scope**: Do not expand beyond what's defined in `30_PRD_v2_서비스_고도화.md`
-- **Korean labels**: API responses use English enums; frontend converts to Korean at display time via `labels.ts`
-- **Design tokens**: Use CSS variables from `globals.css` — no hardcoded colors/sizes in components
+작업에 따라 아래 문서를 참조하세요:
+
+| 문서 | 참조 시점 | 경로 |
+|------|----------|------|
+| Backend Architecture | 백엔드 구조/패턴 이해, 서비스 추가 시 | `.claude/docs/reference/backend-architecture.md` |
+| Frontend Guide | 프론트엔드 컴포넌트/페이지 개발 시 | `.claude/docs/reference/frontend-guide.md` |
+| API Endpoints | API 호출 작성/수정, 워크플로 이해 시 | `.claude/docs/reference/api-endpoints.md` |
+| RAG Pipeline | RAG 파이프라인 디버깅, 검색/답변 품질 이슈 시 | `.claude/docs/reference/rag-pipeline.md` |
+| Deployment | 배포, 인프라, Terraform 작업 시 | `.claude/docs/reference/deployment.md` |
+| DB & Migrations | Flyway 마이그레이션 추가, 스키마 변경 시 | `.claude/docs/reference/database-migrations.md` |
 
 ## Skills
 

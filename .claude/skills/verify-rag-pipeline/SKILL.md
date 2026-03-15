@@ -74,8 +74,17 @@ description: RAG 파이프라인 (답변 작성 + 분석 + 다운로드) 검증.
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/SubQuestion.java` | 하위 질문 record (index, text) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/DecomposedQuestion.java` | 질문 분해 결과 record (subQuestions, isMultiQuestion) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/PerQuestionEvidence.java` | 하위 질문별 증거 record (subQuestion, evidences, sufficient) |
-| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/DefaultRetrieveStep.java` | 기본 검색 (단일 + SearchFilter + per-question 오버로드) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/DefaultRetrieveStep.java` | 기본 검색 (단일 + SearchFilter + per-question 오버로드) + enrichEvidenceMetadata |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/SelfReviewStep.java` | 규칙 기반 품질 검토 (중복, 일관성, 절차, 인용, 하위질문) |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/EvidenceQualityGate.java` | 5단계 증거 품질 게이트 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/EvidenceDeduplicator.java` | 증거 중복 제거 |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/rag/budget/TokenBudgetManager.java` | 토큰 예산 관리 |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/rag/budget/TokenUsage.java` | 토큰 사용량 VO |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/rag/cache/SemanticCacheService.java` | 의미론적 캐시 |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/rag/config/RagPipelineProperties.java` | 하이퍼파라미터 설정 |
+| `backend/app-api/src/main/java/com/biorad/csrag/infrastructure/rag/cost/RagCostGuardService.java` | 비용 알림/한도 |
+| `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/VectorStoreCircuitBreaker.java` | Circuit Breaker |
+| `backend/app-api/src/main/resources/prompts/adaptive-search-unified.txt` | 통합 적응형 검색 프롬프트 |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/SearchFilter.java` | 검색 필터 DTO (inquiryId, productFamily, documentIds, sourceTypes) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/ProductExtractorService.java` | 제품명 추출 (12 Bio-Rad 제품 패턴) |
 | `backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/search/KeywordSearchService.java` | 키워드 검색 인터페이스 (tsvector) |
@@ -531,12 +540,12 @@ grep -n "고객 질문\|customerQuestion\|InquiryRepository\|inquiryRepository" 
 
 ### Step 29: QuestionDecomposerService 질문 분해 패턴 확인
 
-**파일:** `QuestionDecomposerService.java`
+**파일:** `OpenAiQuestionDecomposerService.java`, `RegexQuestionDecomposerService.java`
 
-**검사:** multi-question 분해 패턴 (질문 N), N), N., #N))이 정의되어 있고, 단일 질문은 분해하지 않는지 확인.
+**검사:** multi-question 분해 패턴 (질문 N), N), N., #N))이 정의되어 있고, 단일 질문은 분해하지 않는지 확인. QuestionDecomposerService는 인터페이스이며, 실제 구현은 OpenAiQuestionDecomposerService와 RegexQuestionDecomposerService에 존재.
 
 ```bash
-grep -n "질문.*N\|Pattern.*compile\|isMultiQuestion\|SubQuestion" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/QuestionDecomposerService.java
+grep -n "질문.*N\|Pattern.*compile\|isMultiQuestion\|SubQuestion" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/OpenAiQuestionDecomposerService.java backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/RegexQuestionDecomposerService.java
 ```
 
 **PASS:** 4개 이상 분해 패턴 존재 + 단일 질문 시 isMultiQuestion=false 반환
@@ -765,10 +774,10 @@ grep -rn "@ConditionalOnProperty\|@Primary" backend/app-api/src/main/java/com/bi
 
 **파일:** `application.yml`, OpenAi 서비스 파일들
 
-**검사:** application.yml에 3-tier 모델 설정(chat-model-heavy, chat-model-medium, chat-model-light)이 존재하고, 서비스들이 복잡도에 맞는 모델 티어를 사용하는지 확인.
+**검사:** application.yml에 3-tier 모델 설정(chat-heavy, chat-medium, chat-light)이 존재하고, 서비스들이 복잡도에 맞는 모델 티어를 사용하는지 확인.
 
 ```bash
-grep -n "chat-model-heavy\|chat-model-medium\|chat-model-light\|chatModelHeavy\|chatModelMedium\|chatModelLight" backend/app-api/src/main/resources/application.yml
+grep -n "chat-heavy\|chat-medium\|chat-light\|chatHeavy\|chatMedium\|chatLight" backend/app-api/src/main/resources/application.yml
 ```
 
 **PASS:** 3개 티어 설정 존재 (heavy: 복잡 추론용, medium: 중간 복잡도, light: 경량 작업)
@@ -786,6 +795,96 @@ grep -n "maxIterations\|MAX_ITERATIONS\|iterate\|critique\|score\|threshold\|Cri
 
 **PASS:** CriticAgentService 인터페이스 + OpenAi 구현에 반복 제한 (maxIterations ≤ 3) + 임계점 이상 시 조기 종료
 **FAIL:** 무한 루프 가능성 또는 반복 제한 없음
+
+### Step 47: rebuildPerQuestionMapping 호출 확인
+
+**파일:** `AnswerOrchestrationService.java`
+
+**검사:** Adaptive Retrieve 성공 후 `rebuildPerQuestionMapping`이 호출되어 하위 질문별 증거 매핑이 재구성되는지 확인.
+
+```bash
+grep -n "rebuildPerQuestionMapping" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/AnswerOrchestrationService.java
+```
+
+**PASS:** `rebuildPerQuestionMapping` 호출이 Adaptive Retrieve 후 존재
+**FAIL:** Adaptive Retrieve 후 `rebuildPerQuestionMapping` 호출 없음 (하위 질문별 증거 매핑 갱신 누락)
+
+### Step 48: enrichEvidenceMetadata 호출 확인
+
+**파일:** `AnswerOrchestrationService.java`
+
+**검사:** `toEvidenceItems` 메서드 내에서 `enrichEvidenceMetadata`가 호출되어 증거에 파일명/페이지 등 메타데이터가 보강되는지 확인.
+
+```bash
+grep -n "enrichEvidenceMetadata\|toEvidenceItems" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/AnswerOrchestrationService.java
+```
+
+**PASS:** `toEvidenceItems` 내에서 `enrichEvidenceMetadata` 호출 존재
+**FAIL:** `enrichEvidenceMetadata` 호출 없음 (증거 메타데이터 누락)
+
+### Step 49: compose-system.txt 영문 증거 지시 확인
+
+**파일:** `backend/app-api/src/main/resources/prompts/compose-system.txt`
+
+**검사:** compose-system.txt에 영문 증거(Evidence)에 대한 처리 지시가 포함되어 있는지 확인. 증거가 영문으로 제공될 수 있으므로 한국어 답변에 적절히 반영하라는 지시 필요.
+
+```bash
+grep -n "영문\|English\|evidence.*language\|번역" backend/app-api/src/main/resources/prompts/compose-system.txt
+```
+
+**PASS:** 영문 증거 처리에 대한 지시 존재 (번역/한국어 반영 포함)
+**FAIL:** 영문 증거 처리 지시 없음
+
+### Step 50: EvidenceQualityGate 주입 확인
+
+**파일:** `AnalysisService.java`
+
+**검사:** `EvidenceQualityGate`가 `AnalysisService`에 의존성 주입되어 증거 품질 게이트가 분석 파이프라인에 통합되었는지 확인.
+
+```bash
+grep -n "EvidenceQualityGate\|evidenceQualityGate" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/analysis/AnalysisService.java
+```
+
+**PASS:** `EvidenceQualityGate` 필드 선언 + 생성자 주입 존재
+**FAIL:** `EvidenceQualityGate` 주입 없음 (증거 품질 필터링 미적용)
+
+### Step 51: VectorStoreCircuitBreaker 주입 확인
+
+**파일:** `QdrantVectorStore.java`
+
+**검사:** `VectorStoreCircuitBreaker`가 `QdrantVectorStore`에 주입되어 벡터 스토어 장애 시 Circuit Breaker가 작동하는지 확인.
+
+```bash
+grep -n "VectorStoreCircuitBreaker\|circuitBreaker" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/vector/QdrantVectorStore.java
+```
+
+**PASS:** `VectorStoreCircuitBreaker` 필드 선언 + 생성자 주입 존재
+**FAIL:** `VectorStoreCircuitBreaker` 주입 없음 (장애 전파 방지 미적용)
+
+### Step 52: TokenBudgetManager per-request 생성 확인
+
+**파일:** `AnswerOrchestrationService.java`
+
+**검사:** `TokenBudgetManager`가 오케스트레이션 요청별로 새로 생성되어 토큰 예산이 요청 간 공유되지 않는지 확인.
+
+```bash
+grep -n "TokenBudgetManager\|tokenBudget" backend/app-api/src/main/java/com/biorad/csrag/interfaces/rest/answer/orchestration/AnswerOrchestrationService.java
+```
+
+**PASS:** `new TokenBudgetManager()` 또는 팩토리 메서드가 오케스트레이션 메서드 내부에서 호출 (per-request 생성)
+**FAIL:** `TokenBudgetManager`가 필드로 공유되거나 싱글톤으로 사용 (요청 간 토큰 예산 오염)
+
+## Output Format (Updated)
+
+| # | 검사 항목 | 결과 | 상세 |
+|---|----------|------|------|
+| ... | (기존 1~46 항목) | ... | ... |
+| 47 | rebuildPerQuestionMapping 호출 | PASS/FAIL | Adaptive Retrieve 후 매핑 재구성 |
+| 48 | enrichEvidenceMetadata 호출 | PASS/FAIL | toEvidenceItems 내 메타데이터 보강 |
+| 49 | compose-system.txt 영문 증거 지시 | PASS/FAIL | 영문 증거 처리 지시 존재 |
+| 50 | EvidenceQualityGate 주입 | PASS/FAIL | AnalysisService 의존성 주입 |
+| 51 | VectorStoreCircuitBreaker 주입 | PASS/FAIL | QdrantVectorStore 의존성 주입 |
+| 52 | TokenBudgetManager per-request | PASS/FAIL | 요청별 새 인스턴스 생성 |
 
 ## Exceptions
 
