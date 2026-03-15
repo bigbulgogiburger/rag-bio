@@ -63,8 +63,32 @@ src/lib/
 - `middleware.ts` 없음 (static export 미지원, AuthProvider가 클라이언트 인증 처리)
 - 동적 라우트 `[id]`는 `generateStaticParams` + Suspense boundary 사용
 
+## G1 Streaming UI (COMPOSE 실시간 답변 생성)
+
+### SSE 이벤트 핸들링
+```typescript
+// useInquiryEvents.ts — 신규 타입/콜백
+export interface ComposeTokenData { chunk: string; index: number; }
+export interface ComposeCompleteData { draft: string; tokenCount: number; }
+// 옵션: onComposeToken, onComposeDone 콜백
+```
+
+### InquiryAnswerTab 스트리밍 상태
+- `streamingDraft` (string), `isStreaming` (boolean), `streamingTokenCount` (number)
+- `handleComposeToken`: `requestAnimationFrame` 배치 업데이트 (16ms 주기)
+- 3단계 UI: 스트리밍 → 검증 중(dimmed) → 최종 답변
+
+### AnswerEditor streaming prop
+- `streaming={true}`: editable 강제 false, 툴바 숨김, 커서 애니메이션, 자동 스크롤
+- CSS: `.streaming-editor .ProseMirror::after { content:'▍'; animation:blink 0.8s infinite; }`
+
+### PipelineProgress 스트리밍 표시
+- `isStreaming`, `streamingTokenCount` props
+- COMPOSE active 시 "실시간 생성 중 · N토큰" 동적 라벨
+
 ## 주의사항
 
 - 마크다운 서식 사용 금지 (답변 UI에서 순수 텍스트만 렌더링)
 - 새 UI 컴포넌트는 `src/components/ui/` 아래, 도메인별은 `src/components/{domain}/`
 - API 응답의 영문 enum을 직접 표시하지 않음 — 반드시 `labels.ts` 경유
+- 스트리밍 토큰 핸들러에서 `setState` 직접 호출 금지 — 반드시 rAF 배치 처리

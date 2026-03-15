@@ -91,6 +91,27 @@ PromptRegistry.get("hyde-system", Map.of("query", question));
 - **SemanticCacheService**: 임베딩 해시 기반 답변 캐시
 - **RagPipelineProperties**: 전체 RAG 하이퍼파라미터 application.yml 외부화
 
+### G1 Streaming 패턴 (COMPOSE/CRITIC 단계)
+```java
+// ComposeStep 인터페이스 — 스트리밍 콜백
+default ComposeStepResult executeStreaming(
+    AnalyzeResponse analysis, String tone, String channel,
+    String additionalInstructions, String previousAnswerDraft,
+    Consumer<String> onToken) { ... }
+
+// OpenAiComposeStep — RestClient.exchange() 스트리밍
+callLlmStreaming(systemPrompt, userPrompt, onToken)
+  → chatBodyStreaming(model, messages, 4096, 0.3)  // stream:true
+  → BufferedReader SSE 파싱 → onToken.accept(chunk)
+  → 429 지수 백오프 (1s→2s→4s, 최대 3회)
+  → 실패 시 callLlm() fallback
+
+// AnswerOrchestrationService — SSE 이벤트
+AtomicInteger tokenIndex = new AtomicInteger(0);
+composeStep.executeStreaming(..., chunk -> sseService.sendChunk(inquiryId, chunk, tokenIndex.getAndIncrement()));
+sseService.send(inquiryId, "compose-done", Map.of("draft", composed.draft(), "tokenCount", tokenIndex.get()));
+```
+
 ## 주의사항
 
 - context 모듈 간 직접 import 금지 — app-api 오케스트레이션 경유

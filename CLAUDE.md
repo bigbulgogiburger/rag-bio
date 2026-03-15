@@ -5,9 +5,9 @@
 
 ## Project Overview
 
-Bio-Rad CS 대응 허브 — RAG 기반 멀티 에이전트 컨설팅 앱. CS 상담원이 기술 질문+문서를 제출하면 Retrieve→Verify→Compose 파이프라인으로 답변 초안을 생성하고, 사람이 검토/승인 후 발송.
+Bio-Rad CS 대응 허브 — RAG 기반 멀티 에이전트 컨설팅 앱. CS 상담원이 기술 질문+문서를 제출하면 8단계 RAG 파이프라인으로 답변 초안을 **실시간 스트리밍 생성**하고, 사람이 검토/승인 후 발송.
 
-**Tech Stack**: Spring Boot 3.3.8 / Java 21 / Gradle | Next.js 14 / React 18 / TypeScript | PostgreSQL 16 | Qdrant | OpenAI API
+**Tech Stack**: Spring Boot 3.3.8 / Java 21 / Gradle | Next.js 14 / React 18 / TypeScript | PostgreSQL 16 | Qdrant | OpenAI API (stream: true)
 
 ## Architecture
 
@@ -16,6 +16,7 @@ graph TB
     subgraph Frontend["Frontend (Next.js 14)"]
         UI[App Router Pages]
         API_CLIENT[Typed API Client]
+        SSE_HOOK["useInquiryEvents\n(compose-token SSE)"]
     end
 
     subgraph Backend["Backend (Spring Boot)"]
@@ -23,13 +24,13 @@ graph TB
             CTRL[Controllers]
             SEARCH[HybridSearch + Reranking]
             ANALYSIS[AnalysisService]
-            ORCHESTRATION[AnswerOrchestrationService]
+            ORCHESTRATION["AnswerOrchestrationService\n(8-stage pipeline)"]
+            SSE_SVC["SseService\n(compose-token/done)"]
             CHUNK[ChunkingService]
             VECTOR_SVC[VectorizingService]
-            FEEDBACK[FeedbackController]
         end
         subgraph INFRA["infrastructure"]
-            OPENAI[OpenAI Adapters]
+            OPENAI["OpenAI Adapters\n(stream: true)"]
             PERSISTENCE[JPA Entities + Repos]
             RAG_INFRA[TokenBudget + CostGuard + SemanticCache]
             PROMPT[PromptRegistry]
@@ -51,15 +52,18 @@ graph TB
     SEARCH --> QDRANT
     SEARCH --> PG
     ORCHESTRATION --> OPENAI --> OAI
+    ORCHESTRATION --> SSE_SVC --> SSE_HOOK
     CHUNK --> VECTOR_SVC --> QDRANT
     PERSISTENCE --> PG
     RAG_INFRA --> PERSISTENCE
 ```
 
-### RAG Pipeline (8단계)
+### RAG Pipeline (8단계 + Streaming)
 ```
 DECOMPOSE → RETRIEVE(3-level) → ADAPTIVE_RETRIEVE → MULTI_HOP
-    → VERIFY → COMPOSE → CRITIC → SELF_REVIEW
+    → VERIFY → COMPOSE(🔴 stream:true) → CRITIC(🔴 stream:true) → SELF_REVIEW
+                   ↓ 토큰 단위 SSE
+             compose-token → compose-done → pipeline-step:COMPLETED
 ```
 
 ## Commands
@@ -89,7 +93,7 @@ cp .env.example .env  # then fill OPENAI_API_KEY, etc.
 ```
 | 변수 | 설명 |
 |------|------|
-| `OPENAI_ENABLED` | `true`: 실제 OpenAI, `false`: Mock 서비스 |
+| `OPENAI_ENABLED` | `true`: 실제 OpenAI (스트리밍), `false`: Mock 서비스 (20ms 시뮬레이션) |
 | `VECTOR_DB_PROVIDER` | `mock` / `qdrant` / `pinecone` / `weaviate` |
 | `SPRING_PROFILES_ACTIVE=docker` | docker-compose용 PostgreSQL 연결 |
 

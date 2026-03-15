@@ -51,15 +51,21 @@ graph LR
 - 위치 가중 점수: 1위=1.0, 2위=0.5, 3위=0.33...
 - Risk flags: CONFLICTING_EVIDENCE, LOW_CONFIDENCE, WEAK_EVIDENCE_MATCH
 
-### 6. COMPOSE (Heavy 모델)
+### 6. COMPOSE (Heavy 모델, Streaming)
 - 증거 기반 한국어 답변 작성 (길선체 / brief / technical 톤)
 - 토큰 기반 증거 예산 (`rag.compose.evidence-token-budget: 3000`)
 - 압축 포맷: `[index|fileName:page|sourceType|score] excerpt`
 - **영문 증거도 반드시 활용하여 한국어로 답변** (compose-system.txt 규칙5)
+- **G1 Streaming**: `stream: true`로 토큰 단위 실시간 생성
+  - `OpenAiComposeStep.callLlmStreaming()` — RestClient.exchange() + BufferedReader SSE 파싱
+  - 429 Rate Limit: 지수 백오프 재시도 (1s→2s→4s, 최대 3회), 실패 시 블로킹 fallback
+  - SSE: `compose-token {chunk, index}` → `compose-done {draft, tokenCount}`
+  - TTFT: ~25초 → **~2초**
 
-### 7. CRITIC (Heavy 모델, 조건부)
+### 7. CRITIC (Heavy 모델, 조건부, Streaming)
 - 스킵 조건: HIGH_CONFIDENCE (topScore≥0.80 && confidence≥0.75), 증거풍부, 단순문의, 예산부족
 - faithfulness_score < 0.70 → 재작성 트리거 (최대 2회)
+- CRITIC 재작성 시에도 스트리밍 적용 (tokenIndex 리셋 후 재스트리밍)
 
 ### 8. SELF_REVIEW (규칙 기반, LLM 없음)
 - 중복 문장, 팬텀 제품명, 수치 불일치, 인용 오류, 하위 질문 누락 탐지
@@ -85,9 +91,33 @@ rag:
   circuit-breaker: { failure-threshold: 3, reset-timeout-seconds: 30 }
 ```
 
+## Streaming SSE 이벤트 흐름 (G1)
+
+```
+COMPOSE STARTED (pipeline-step)
+  ↓
+compose-token {chunk:"안녕", index:0}     ← 토큰 단위 반복
+compose-token {chunk:"하세요", index:1}
+  ↓
+compose-done {draft:"전체답변", tokenCount:N}  ← 전체 확정
+  ↓
+COMPOSE COMPLETED (pipeline-step)
+  ↓
+CRITIC (재작성 시 compose-token 재스트리밍)
+  ↓
+SELF_REVIEW → DRAFT_COMPLETED
+```
+
+**프론트엔드 3단계 UI 전환:**
+1. `isStreaming=true`: 토큰 실시간 출력 + 커서 애니메이션
+2. `compose-done` 후 CRITIC 진행: "검증 중" 뱃지 + dimmed 프리뷰
+3. `DRAFT_COMPLETED`: 최종 AnswerEditor 표시
+
 ## 주의사항
 
 - 첨부 문서 없는 문의는 KB만 검색 → per-question 검색에서 productFamily 필터 주의
 - Adaptive Retrieve 성공 후 반드시 `perQuestionEvidences` 재구성 필요 (2026-03 버그 수정)
 - `toEvidenceItems()`는 DB 메타데이터 보강 필수 (fileName, pageStart, pageEnd)
 - 영문 매뉴얼 증거도 한국어 답변에 활용되도록 compose 프롬프트에 명시
+- 스트리밍 수정 시 `ComposeStep.executeStreaming()` 인터페이스의 `Consumer<String> onToken` 콜백 계약 유지 필수
+- Mock 스트리밍(`DefaultComposeStep`)은 3글자/20ms 간격 시뮬레이션
