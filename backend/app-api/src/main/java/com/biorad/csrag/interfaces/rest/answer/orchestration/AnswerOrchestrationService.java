@@ -184,6 +184,13 @@ public class AnswerOrchestrationService {
                     emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "COMPLETED",
                             "evidences=" + retrievedEvidences.size() + ", confidence=" +
                                     String.format("%.2f", adaptiveResult.confidence()));
+
+                    // per-question 매핑 재구성: Adaptive 증거를 하위 질문별로 재분배
+                    if (isMultiQuestion && (perQuestionEvidences == null
+                            || perQuestionEvidences.stream().allMatch(pq -> pq.evidences().isEmpty()))) {
+                        log.info("Rebuilding per-question evidence mapping from adaptive results inquiryId={}", inquiryId);
+                        perQuestionEvidences = rebuildPerQuestionMapping(subQuestions, retrievedEvidences);
+                    }
                 }
             } catch (Exception e) {
                 log.warn("AdaptiveRetrievalAgent failed, continuing with empty results inquiryId={}", inquiryId, e);
@@ -479,6 +486,41 @@ public class AnswerOrchestrationService {
     }
 
     private static final int EVIDENCES_PER_SUB_QUESTION = 4;
+
+    /**
+     * Adaptive Retrieve 결과를 하위 질문별로 재분배.
+     * 각 하위 질문의 키워드가 증거 excerpt에 포함되는지 기반으로 매핑.
+     * 매핑되지 않는 증거는 모든 하위 질문에 공통으로 배분.
+     */
+    private List<PerQuestionEvidence> rebuildPerQuestionMapping(
+            List<SubQuestion> subQuestions, List<EvidenceItem> allEvidences) {
+        List<PerQuestionEvidence> result = new ArrayList<>();
+        for (SubQuestion sq : subQuestions) {
+            // 하위 질문 키워드 추출 (2자 이상 토큰)
+            Set<String> keywords = java.util.Arrays.stream(
+                            sq.question().toLowerCase().split("[\\s,;.?!()]+"))
+                    .filter(w -> w.length() >= 2)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            List<EvidenceItem> matched = new ArrayList<>();
+            for (EvidenceItem ev : allEvidences) {
+                String excerptLower = (ev.excerpt() != null ? ev.excerpt() : "").toLowerCase();
+                // 증거 excerpt가 하위 질문 키워드 중 2개 이상 포함하면 매핑
+                long matchCount = keywords.stream().filter(excerptLower::contains).count();
+                if (matchCount >= 2 || ev.score() >= 0.8) {
+                    matched.add(ev);
+                }
+            }
+
+            // 매칭된 증거가 없으면 상위 3개 증거를 공통으로 배정
+            if (matched.isEmpty() && !allEvidences.isEmpty()) {
+                matched.addAll(allEvidences.subList(0, Math.min(3, allEvidences.size())));
+            }
+
+            result.add(PerQuestionEvidence.of(sq, matched));
+        }
+        return result;
+    }
 
     /**
      * 하위 질문별 증거 매핑 정보를 additionalInstructions에 구조화하여 추가.
