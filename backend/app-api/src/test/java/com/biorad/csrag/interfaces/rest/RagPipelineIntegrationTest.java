@@ -177,21 +177,24 @@ class RagPipelineIntegrationTest {
         UUID doc1Id = UUID.randomUUID();
         Path doc1File = tempDir.resolve(doc1Id + "_protocol.txt");
         Files.writeString(doc1File, """
-                Bio-Rad ddPCR System Protocol.
-                The QX200 Droplet Digital PCR system provides absolute quantification of target DNA.
-                Sample preparation requires 20 uL reaction volume per well.
-                Use Bio-Rad ddPCR Supermix for Probes for optimal performance.
+                Bio-Rad ddPCR System Protocol Guide for Laboratory Technicians.
+                The QX200 Droplet Digital PCR system provides absolute quantification of target DNA molecules.
+                Sample preparation requires exactly 20 uL reaction volume per well in the cartridge holder.
+                Use Bio-Rad ddPCR Supermix for Probes to achieve optimal amplification performance.
+                Droplet generation produces approximately 20000 nanoliter-sized water-in-oil emulsions.
+                The thermal cycling protocol consists of enzyme activation at 95 degrees for 10 minutes.
                 """);
 
-        // 문서 2: FAQ
+        // 문서 2: FAQ (completely different vocabulary)
         UUID doc2Id = UUID.randomUUID();
         Path doc2File = tempDir.resolve(doc2Id + "_faq.txt");
         Files.writeString(doc2File, """
-                Frequently Asked Questions about Bio-Rad ddPCR.
-                Q: What is the minimum copy number detectable by QX200?
-                A: The QX200 system can detect as few as 1-10 copies per reaction.
-                Q: Can I use SYBR Green with ddPCR?
-                A: No, ddPCR requires probe-based chemistry such as TaqMan probes.
+                Frequently Asked Questions about Fluorescence Chemistry Selection.
+                Question: Can SYBR Green intercalating dye be utilized with droplet partitioning workflows?
+                Answer: No, droplet partitioning requires hydrolysis probe-based chemistry such as TaqMan probes.
+                SYBR Green binds nonspecifically to all double-stranded amplicons creating false positive signals.
+                Recommended alternatives include FAM-labeled sequence-specific hydrolysis probes with dark quenchers.
+                Contact technical support at biorad.com/support for assay design consultation regarding multiplexing.
                 """);
 
         Instant now = Instant.now();

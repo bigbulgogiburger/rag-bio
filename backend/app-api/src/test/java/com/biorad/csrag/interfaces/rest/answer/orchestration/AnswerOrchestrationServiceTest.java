@@ -128,12 +128,13 @@ class AnswerOrchestrationServiceTest {
         service.run(inquiryId, "question", "professional", "email");
 
         ArgumentCaptor<OrchestrationRunJpaEntity> captor = ArgumentCaptor.forClass(OrchestrationRunJpaEntity.class);
-        verify(runRepository, times(8)).save(captor.capture());
+        // Single question → CRITIC is skipped (SIMPLE_QUERY routing), so 7 steps logged
+        verify(runRepository, times(7)).save(captor.capture());
 
         List<OrchestrationRunJpaEntity> saved = captor.getAllValues();
         assertThat(saved).extracting(OrchestrationRunJpaEntity::getStep)
                 .containsExactly("DECOMPOSE", "RETRIEVE", "ADAPTIVE_RETRIEVE",
-                        "MULTI_HOP", "VERIFY", "COMPOSE", "CRITIC", "SELF_REVIEW");
+                        "MULTI_HOP", "VERIFY", "COMPOSE", "SELF_REVIEW");
         assertThat(saved).allMatch(e -> "SUCCESS".equals(e.getStatus()));
     }
 
@@ -542,7 +543,12 @@ class AnswerOrchestrationServiceTest {
     @Test
     void run_critic_needsRevision_recomposes() {
         UUID inquiryId = UUID.randomUUID();
-        stubSingleQuestionDecompose("question");
+
+        // Use multi-question decompose so Critic is NOT skipped (SIMPLE_QUERY skip only applies to single-question)
+        SubQuestion sq1 = new SubQuestion(1, "question part 1", null);
+        SubQuestion sq2 = new SubQuestion(2, "question part 2", null);
+        when(questionDecomposerService.decompose("question")).thenReturn(
+                new DecomposedQuestion("question", List.of(sq1, sq2), null));
 
         List<EvidenceItem> evidences = List.of();
         AnalyzeResponse analysis = new AnalyzeResponse(
@@ -550,7 +556,6 @@ class AnswerOrchestrationServiceTest {
         ComposeStep.ComposeStepResult firstCompose = new ComposeStep.ComposeStepResult("first draft", List.of());
         ComposeStep.ComposeStepResult revisedCompose = new ComposeStep.ComposeStepResult("revised draft", List.of());
 
-        stubSingleQuestionDecompose("question");
         when(retrieveStep.execute(any(), anyString(), anyInt())).thenReturn(evidences);
         when(verifyStep.execute(any(), anyString(), anyList())).thenReturn(analysis);
         when(composeStep.execute(any(), anyString(), any(), isNull(), isNull())).thenReturn(firstCompose);

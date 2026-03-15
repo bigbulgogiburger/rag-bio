@@ -6,6 +6,7 @@ import com.biorad.csrag.infrastructure.persistence.document.DocumentMetadataJpaR
 import com.biorad.csrag.interfaces.rest.vector.EmbeddingService;
 import com.biorad.csrag.interfaces.rest.vector.VectorSearchResult;
 import com.biorad.csrag.interfaces.rest.vector.VectorStore;
+import com.biorad.csrag.interfaces.rest.vector.VectorStoreCircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,7 @@ public class HybridSearchService {
     private final DocumentMetadataJpaRepository documentRepository;
     private final HydeQueryTransformer hydeQueryTransformer;
     private final RagMetricsService ragMetricsService;
+    private final VectorStoreCircuitBreaker circuitBreaker;
 
     @Value("${search.hybrid.enabled:true}")
     private boolean hybridEnabled;
@@ -46,13 +48,15 @@ public class HybridSearchService {
                                KeywordSearchService keywordSearchService,
                                DocumentMetadataJpaRepository documentRepository,
                                HydeQueryTransformer hydeQueryTransformer,
-                               RagMetricsService ragMetricsService) {
+                               RagMetricsService ragMetricsService,
+                               VectorStoreCircuitBreaker circuitBreaker) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
         this.keywordSearchService = keywordSearchService;
         this.documentRepository = documentRepository;
         this.hydeQueryTransformer = hydeQueryTransformer;
         this.ragMetricsService = ragMetricsService;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public List<HybridSearchResult> search(String query, int topK) {
@@ -68,6 +72,34 @@ public class HybridSearchService {
         List<VectorSearchResult> vectorResults = (vectorFilter != null && !vectorFilter.isEmpty())
                 ? vectorStore.search(queryVector, topK * 2, vectorFilter)
                 : vectorStore.search(queryVector, topK * 2);
+
+        // Vector search가 빈 결과 + circuit breaker가 degraded 상태이면 keyword-only 모드
+        if (vectorResults.isEmpty() && circuitBreaker.isDegraded()) {
+            log.warn("Vector search degraded — using keyword-only results (circuit breaker state={})",
+                    circuitBreaker.getState());
+            List<KeywordSearchResult> keywordOnly = (filter != null && !filter.isEmpty())
+                    ? keywordSearchService.search(query, topK * 2, filter)
+                    : keywordSearchService.search(query, topK * 2);
+
+            List<HybridSearchResult> degradedResults = keywordOnly.stream()
+                    .limit(topK)
+                    .map(kr -> new HybridSearchResult(
+                            kr.chunkId(), kr.documentId(), kr.content(),
+                            0.0, kr.score(), kr.score(),
+                            kr.sourceType(), "KEYWORD_DEGRADED"))
+                    .collect(Collectors.toList());
+
+            degradedResults = normalizeScores(degradedResults);
+
+            log.info("hybrid.search.degraded query={} keyword={} returned={}",
+                    query, keywordOnly.size(), degradedResults.size());
+
+            if (!degradedResults.isEmpty()) {
+                double avgScore = degradedResults.stream().mapToDouble(HybridSearchResult::fusedScore).average().orElse(0.0);
+                ragMetricsService.record(null, "SEARCH_SCORE_DEGRADED", avgScore);
+            }
+            return degradedResults;
+        }
 
         if (!hybridEnabled) {
             log.info("hybrid.search query={} vector={} keyword=0 fused={} (vector-only mode)",

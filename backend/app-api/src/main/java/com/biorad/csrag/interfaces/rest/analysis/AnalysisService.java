@@ -10,6 +10,7 @@ import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJp
 import com.biorad.csrag.infrastructure.persistence.retrieval.RetrievalEvidenceJpaRepository;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.PerQuestionEvidence;
 import com.biorad.csrag.interfaces.rest.answer.orchestration.SubQuestion;
+import com.biorad.csrag.interfaces.rest.search.EvidenceQualityGate;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchResult;
 import com.biorad.csrag.interfaces.rest.search.HybridSearchService;
 import com.biorad.csrag.interfaces.rest.search.QueryTranslationService;
@@ -38,6 +39,7 @@ public class AnalysisService {
     private final QueryTranslationService queryTranslationService;
     private final HybridSearchService hybridSearchService;
     private final RerankingService rerankingService;
+    private final EvidenceQualityGate evidenceQualityGate;
 
     public AnalysisService(
             EmbeddingService embeddingService,
@@ -48,7 +50,8 @@ public class AnalysisService {
             KnowledgeDocumentJpaRepository kbDocRepository,
             QueryTranslationService queryTranslationService,
             HybridSearchService hybridSearchService,
-            RerankingService rerankingService
+            RerankingService rerankingService,
+            EvidenceQualityGate evidenceQualityGate
     ) {
         this.embeddingService = embeddingService;
         this.vectorStore = vectorStore;
@@ -59,6 +62,7 @@ public class AnalysisService {
         this.queryTranslationService = queryTranslationService;
         this.hybridSearchService = hybridSearchService;
         this.rerankingService = rerankingService;
+        this.evidenceQualityGate = evidenceQualityGate;
     }
 
     public AnalyzeResponse analyze(UUID inquiryId, String question, int topK) {
@@ -183,6 +187,14 @@ public class AnalysisService {
             ));
             rank++;
         }
+
+        // Evidence Quality Gate: dedup + min score + per-doc limit + diversity + max items
+        if (evidenceQualityGate != null) {
+            int beforeGate = evidences.size();
+            evidences = evidenceQualityGate.apply(evidences);
+            log.info("Evidence quality gate: {} → {} items", beforeGate, evidences.size());
+        }
+
         return evidences;
     }
 

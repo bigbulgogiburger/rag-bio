@@ -3,6 +3,8 @@ package com.biorad.csrag.infrastructure.openai;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static com.biorad.csrag.infrastructure.openai.OpenAiResponseParser.TokenUsageInfo;
+
 /**
  * OpenAI Chat Completions API 요청 빌더 유틸리티.
  * .env에서 주입된 모델명을 기반으로 파라미터를 자동 선택:
@@ -86,5 +88,16 @@ public final class OpenAiRequestUtils {
         var body = chatBody(model, messages, maxTokens, temperature);
         body.put("response_format", Map.of("type", "json_object"));
         return body;
+    }
+
+    /**
+     * OpenAI API 응답 body(Map)에서 토큰 사용량을 추출한다.
+     * {@link OpenAiResponseParser#extractTokenUsage(Map)}에 위임.
+     *
+     * @param responseBody 이미 파싱된 OpenAI API 응답 Map
+     * @return 추출된 토큰 사용량 정보
+     */
+    public static TokenUsageInfo extractTokenUsage(Map<String, Object> responseBody) {
+        return OpenAiResponseParser.extractTokenUsage(responseBody);
     }
 }

@@ -32,6 +32,23 @@ public class RagPipelineMetricEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    // ── Token tracking columns (V35) ──────────────────────────
+
+    @Column(name = "total_prompt_tokens")
+    private Integer totalPromptTokens;
+
+    @Column(name = "total_completion_tokens")
+    private Integer totalCompletionTokens;
+
+    @Column(name = "total_tokens")
+    private Integer totalTokens;
+
+    @Column(name = "estimated_cost_usd")
+    private Double estimatedCostUsd;
+
+    @Column(name = "token_usage_detail", columnDefinition = "TEXT")
+    private String tokenUsageDetail;
+
     protected RagPipelineMetricEntity() {}
 
     public RagPipelineMetricEntity(Long inquiryId, String metricType, double metricValue, String details) {
@@ -48,4 +65,21 @@ public class RagPipelineMetricEntity {
     public double getMetricValue() { return metricValue; }
     public String getDetails() { return details; }
     public Instant getCreatedAt() { return createdAt; }
+
+    // ── Token tracking getters/setters ────────────────────────
+
+    public Integer getTotalPromptTokens() { return totalPromptTokens; }
+    public void setTotalPromptTokens(Integer totalPromptTokens) { this.totalPromptTokens = totalPromptTokens; }
+
+    public Integer getTotalCompletionTokens() { return totalCompletionTokens; }
+    public void setTotalCompletionTokens(Integer totalCompletionTokens) { this.totalCompletionTokens = totalCompletionTokens; }
+
+    public Integer getTotalTokens() { return totalTokens; }
+    public void setTotalTokens(Integer totalTokens) { this.totalTokens = totalTokens; }
+
+    public Double getEstimatedCostUsd() { return estimatedCostUsd; }
+    public void setEstimatedCostUsd(Double estimatedCostUsd) { this.estimatedCostUsd = estimatedCostUsd; }
+
+    public String getTokenUsageDetail() { return tokenUsageDetail; }
+    public void setTokenUsageDetail(String tokenUsageDetail) { this.tokenUsageDetail = tokenUsageDetail; }
 }

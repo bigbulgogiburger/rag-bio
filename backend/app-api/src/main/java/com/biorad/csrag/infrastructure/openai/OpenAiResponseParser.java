@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+
 /**
  * OpenAI API 응답에서 토큰 사용량을 추출하여 {@link PipelineTraceContext}에 기록.
  *
@@ -83,5 +85,74 @@ public final class OpenAiResponseParser {
                                          int inputTokens, int outputTokens,
                                          long latencyMs) {
         PipelineTraceContext.recordLlmCall(step, model, inputTokens, outputTokens, latencyMs);
+    }
+
+    /**
+     * OpenAI API 응답 body(Map)에서 토큰 사용량을 추출한다.
+     * JSON 파싱이 이미 완료된 경우 사용. {@code usage} 필드가 없으면 0값의 {@link TokenUsageInfo}를 반환한다.
+     *
+     * @param responseBody 이미 파싱된 OpenAI API 응답 Map
+     * @return 추출된 토큰 사용량 정보
+     */
+    @SuppressWarnings("unchecked")
+    public static TokenUsageInfo extractTokenUsage(Map<String, Object> responseBody) {
+        if (responseBody == null) {
+            return TokenUsageInfo.EMPTY;
+        }
+        Object usageObj = responseBody.get("usage");
+        if (usageObj instanceof Map<?, ?> usage) {
+            int promptTokens = toInt(usage.get("prompt_tokens"));
+            int completionTokens = toInt(usage.get("completion_tokens"));
+            int totalTokens = toInt(usage.get("total_tokens"));
+            if (totalTokens == 0) {
+                totalTokens = promptTokens + completionTokens;
+            }
+            return new TokenUsageInfo(promptTokens, completionTokens, totalTokens);
+        }
+        return TokenUsageInfo.EMPTY;
+    }
+
+    /**
+     * OpenAI API 원본 JSON 문자열에서 토큰 사용량을 추출한다.
+     *
+     * @param rawResponse OpenAI API의 원본 JSON 응답 문자열
+     * @return 추출된 토큰 사용량 정보
+     */
+    public static TokenUsageInfo extractTokenUsage(String rawResponse) {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return TokenUsageInfo.EMPTY;
+        }
+        try {
+            JsonNode root = MAPPER.readTree(rawResponse);
+            JsonNode usage = root.path("usage");
+            if (usage.isMissingNode() || usage.isNull()) {
+                return TokenUsageInfo.EMPTY;
+            }
+            int promptTokens = usage.path("prompt_tokens").asInt(0);
+            int completionTokens = usage.path("completion_tokens").asInt(0);
+            int totalTokens = usage.path("total_tokens").asInt(promptTokens + completionTokens);
+            return new TokenUsageInfo(promptTokens, completionTokens, totalTokens);
+        } catch (Exception e) {
+            log.warn("pipeline.trace.extract 토큰 사용량 추출 실패: {}", e.getMessage());
+            return TokenUsageInfo.EMPTY;
+        }
+    }
+
+    private static int toInt(Object value) {
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        return 0;
+    }
+
+    /**
+     * 토큰 사용량 정보.
+     */
+    public record TokenUsageInfo(int promptTokens, int completionTokens, int totalTokens) {
+        public static final TokenUsageInfo EMPTY = new TokenUsageInfo(0, 0, 0);
+
+        public boolean isEmpty() {
+            return totalTokens == 0;
+        }
     }
 }

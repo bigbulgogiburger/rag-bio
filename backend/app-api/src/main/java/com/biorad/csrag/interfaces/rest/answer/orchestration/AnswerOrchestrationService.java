@@ -1,7 +1,10 @@
 package com.biorad.csrag.interfaces.rest.answer.orchestration;
 
+import com.biorad.csrag.infrastructure.openai.PipelineTraceContext;
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.orchestration.OrchestrationRunJpaRepository;
+import com.biorad.csrag.infrastructure.rag.budget.TokenBudgetManager;
+import com.biorad.csrag.infrastructure.rag.budget.TokenUsage;
 import com.biorad.csrag.interfaces.rest.analysis.AnalyzeResponse;
 import com.biorad.csrag.interfaces.rest.analysis.EvidenceItem;
 import com.biorad.csrag.interfaces.rest.search.AdaptiveRetrievalAgent;
@@ -13,6 +16,7 @@ import com.biorad.csrag.interfaces.rest.search.SearchFilter;
 import com.biorad.csrag.interfaces.rest.sse.SseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -29,6 +33,15 @@ public class AnswerOrchestrationService {
 
     private static final Logger log = LoggerFactory.getLogger(AnswerOrchestrationService.class);
     private static final int MAX_RECOMPOSE_ATTEMPTS = 2;
+
+    /** 선택 단계별 예상 토큰 사용량 (canProceed 판단용). */
+    private static final int ESTIMATED_TOKENS_ADAPTIVE_RETRIEVE = 4000;
+    private static final int ESTIMATED_TOKENS_MULTI_HOP = 4000;
+    private static final int ESTIMATED_TOKENS_CRITIC = 5000;
+    private static final int ESTIMATED_TOKENS_SELF_REVIEW = 4000;
+
+    @Value("${rag.budget.max-tokens-per-inquiry:25000}")
+    private int maxBudgetTokens = 25000;
 
     private final RetrieveStep retrieveStep;
     private final VerifyStep verifyStep;
@@ -77,6 +90,8 @@ public class AnswerOrchestrationService {
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel,
                                     String additionalInstructions, String previousAnswerDraft) {
+
+        TokenBudgetManager budgetManager = new TokenBudgetManager(maxBudgetTokens);
 
         // ── DECOMPOSE ──────────────────────────────────────────────
         emitPipelineEvent(inquiryId, "DECOMPOSE", "STARTED", null);
@@ -144,8 +159,12 @@ public class AnswerOrchestrationService {
             retrievalQuality = RetrievalQuality.UNFILTERED;
         }
 
+        // PipelineTraceContext에서 토큰 사용량 기록 (DECOMPOSE + RETRIEVE)
+        recordUsageFromTrace(budgetManager, "DECOMPOSE");
+        recordUsageFromTrace(budgetManager, "RETRIEVE");
+
         // ── ADAPTIVE RETRIEVAL (fallback when 3-Level yields empty) ──
-        if (retrievedEvidences.isEmpty()) {
+        if (retrievedEvidences.isEmpty() && budgetManager.canProceed("ADAPTIVE_RETRIEVE", ESTIMATED_TOKENS_ADAPTIVE_RETRIEVE)) {
             emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "STARTED", null);
             try {
                 String productContext = extractedFamilies.isEmpty() ? "" : String.join(", ", extractedFamilies);
@@ -170,6 +189,11 @@ public class AnswerOrchestrationService {
                 log.warn("AdaptiveRetrievalAgent failed, continuing with empty results inquiryId={}", inquiryId, e);
                 emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "FAILED", e.getMessage());
             }
+            recordUsageFromTrace(budgetManager, "ADAPTIVE_RETRIEVE");
+        } else if (retrievedEvidences.isEmpty()) {
+            log.info("pipeline.budget: skipping ADAPTIVE_RETRIEVE (budget insufficient) inquiryId={} remaining={}",
+                    inquiryId, budgetManager.getRemainingBudget());
+            emitPipelineEvent(inquiryId, "ADAPTIVE_RETRIEVE", "SKIPPED", "budget insufficient");
         }
 
         emitPipelineEvent(inquiryId, "RETRIEVE", "COMPLETED",
@@ -180,7 +204,7 @@ public class AnswerOrchestrationService {
                 : retrievedEvidences.stream().mapToDouble(EvidenceItem::score).max().orElse(0.0);
         boolean sufficientEvidence = topScore >= 0.7 && retrievedEvidences.size() >= 3;
 
-        if (!sufficientEvidence) {
+        if (!sufficientEvidence && budgetManager.canProceed("MULTI_HOP", ESTIMATED_TOKENS_MULTI_HOP)) {
             try {
                 emitPipelineEvent(inquiryId, "MULTI_HOP", "STARTED", null);
                 MultiHopRetriever.MultiHopResult multiHopResult = executeWithRunLog(
@@ -209,11 +233,16 @@ public class AnswerOrchestrationService {
                 log.warn("MultiHopRetriever failed, continuing with existing evidences inquiryId={}", inquiryId, e);
                 emitPipelineEvent(inquiryId, "MULTI_HOP", "FAILED", e.getMessage());
             }
-        } else {
+            recordUsageFromTrace(budgetManager, "MULTI_HOP");
+        } else if (sufficientEvidence) {
             log.info("pipeline.multihop.skipped: sufficient evidence found topScore={} count={} inquiryId={}",
                     String.format("%.3f", topScore), retrievedEvidences.size(), inquiryId);
             emitPipelineEvent(inquiryId, "MULTI_HOP", "SKIPPED",
                     "sufficient evidence: topScore=" + String.format("%.2f", topScore) + " count=" + retrievedEvidences.size());
+        } else {
+            log.info("pipeline.budget: skipping MULTI_HOP (budget insufficient) inquiryId={} remaining={}",
+                    inquiryId, budgetManager.getRemainingBudget());
+            emitPipelineEvent(inquiryId, "MULTI_HOP", "SKIPPED", "budget insufficient");
         }
 
         // ── VERIFY ─────────────────────────────────────────────────
@@ -234,6 +263,7 @@ public class AnswerOrchestrationService {
         }
 
         final AnalyzeResponse finalAnalysis = analysis;
+        recordUsageFromTrace(budgetManager, "VERIFY");
 
         // ── ROUTING (비용 최적화) ──────────────────────────────
         boolean skipCritic = false;
@@ -241,12 +271,35 @@ public class AnswerOrchestrationService {
 
         double topEvidenceScore = allEvidences.isEmpty() ? 0.0
                 : allEvidences.stream().mapToDouble(EvidenceItem::score).max().orElse(0.0);
+        double avgEvidenceScore = allEvidences.isEmpty() ? 0.0
+                : allEvidences.stream().mapToDouble(EvidenceItem::score).average().orElse(0.0);
 
-        if (topEvidenceScore >= 0.85 && finalAnalysis.confidence() >= 0.8) {
-            // High confidence path: skip critic and self-review
+        // Critic skip: 다음 조건 중 하나라도 충족하면 Critic을 건너뛴다
+        //  a) topScore >= 0.80 AND confidence >= 0.75 (완화된 임계값)
+        //  b) 증거 5개 이상 AND 평균 점수 >= 0.75 (풍부한 증거)
+        //  c) 하위 질문 1개 (단순 질의)
+        //  d) 예산 부족 (budgetManager 판단)
+        boolean highConfidence = topEvidenceScore >= 0.80 && finalAnalysis.confidence() >= 0.75;
+        boolean abundantEvidence = allEvidences.size() >= 5 && avgEvidenceScore >= 0.75;
+        boolean simpleQuery = subQuestions.size() == 1;
+        boolean budgetInsufficient = !budgetManager.canProceed("CRITIC", ESTIMATED_TOKENS_CRITIC);
+
+        if (highConfidence || abundantEvidence || simpleQuery || budgetInsufficient) {
             skipCritic = true;
+            String skipReason = highConfidence ? "HIGH_CONFIDENCE"
+                    : abundantEvidence ? "ABUNDANT_EVIDENCE"
+                    : simpleQuery ? "SIMPLE_QUERY"
+                    : "BUDGET_INSUFFICIENT";
+            log.info("pipeline.routing: skipping CRITIC reason={} inquiryId={} topScore={} confidence={} evidenceCount={} subQuestions={}",
+                    skipReason, inquiryId, String.format("%.2f", topEvidenceScore),
+                    String.format("%.2f", finalAnalysis.confidence()), allEvidences.size(), subQuestions.size());
+            emitPipelineEvent(inquiryId, "ROUTING", "SKIP_CRITIC", "reason=" + skipReason);
+        }
+
+        // SelfReview skip: 고신뢰도 경로에서만 건너뛴다
+        if (highConfidence) {
             skipSelfReview = true;
-            log.info("pipeline.routing: HIGH_CONFIDENCE path, skipping Critic+SelfReview inquiryId={} topScore={} confidence={}",
+            log.info("pipeline.routing: HIGH_CONFIDENCE path, skipping SelfReview inquiryId={} topScore={} confidence={}",
                     inquiryId, topEvidenceScore, analysis.confidence());
             emitPipelineEvent(inquiryId, "ROUTING", "HIGH_CONFIDENCE",
                     "topScore=" + String.format("%.2f", topEvidenceScore));
@@ -264,6 +317,7 @@ public class AnswerOrchestrationService {
         ComposeStep.ComposeStepResult composed = executeWithRunLog(inquiryId, "COMPOSE",
                 () -> composeStep.execute(finalAnalysis, tone, channel, mergedInstructions, previousAnswerDraft));
         emitPipelineEvent(inquiryId, "COMPOSE", "COMPLETED", null);
+        recordUsageFromTrace(budgetManager, "COMPOSE");
 
         // ── CRITIC (팩트 검증) ────────────────────────────────────
         CriticAgentService.CriticResult criticResult = null;
@@ -288,15 +342,24 @@ public class AnswerOrchestrationService {
                 log.warn("CriticAgent failed, using original draft inquiryId={}", inquiryId, e);
                 emitPipelineEvent(inquiryId, "CRITIC", "FAILED", e.getMessage());
             }
+            recordUsageFromTrace(budgetManager, "CRITIC");
         } else {
-            log.info("pipeline.routing: skipping CRITIC (high confidence) inquiryId={}", inquiryId);
-            emitPipelineEvent(inquiryId, "CRITIC", "SKIPPED", "high confidence routing");
+            log.info("pipeline.routing: skipping CRITIC inquiryId={}", inquiryId);
+            emitPipelineEvent(inquiryId, "CRITIC", "SKIPPED", "routing decision");
         }
 
         // ── SELF_REVIEW ────────────────────────────────────────────
         String finalDraft = composed.draft();
         List<String> finalWarnings = composed.formatWarnings();
         List<SelfReviewStep.QualityIssue> selfReviewIssues = List.of();
+
+        // 예산 부족 시 SELF_REVIEW도 건너뛴다
+        if (!skipSelfReview && !budgetManager.canProceed("SELF_REVIEW", ESTIMATED_TOKENS_SELF_REVIEW)) {
+            skipSelfReview = true;
+            log.info("pipeline.budget: skipping SELF_REVIEW (budget insufficient) inquiryId={} remaining={}",
+                    inquiryId, budgetManager.getRemainingBudget());
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "SKIPPED", "budget insufficient");
+        }
 
         if (!skipSelfReview) {
             emitPipelineEvent(inquiryId, "SELF_REVIEW", "STARTED", null);
@@ -347,10 +410,16 @@ public class AnswerOrchestrationService {
                 emitPipelineEvent(inquiryId, "SELF_REVIEW", "FAILED", e.getMessage());
                 // Fall through with original draft - self-review is non-blocking
             }
+            recordUsageFromTrace(budgetManager, "SELF_REVIEW");
         } else {
-            log.info("pipeline.routing: skipping SELF_REVIEW (high confidence) inquiryId={}", inquiryId);
-            emitPipelineEvent(inquiryId, "SELF_REVIEW", "SKIPPED", "high confidence routing");
+            log.info("pipeline.routing: skipping SELF_REVIEW inquiryId={}", inquiryId);
+            emitPipelineEvent(inquiryId, "SELF_REVIEW", "SKIPPED", "routing decision");
         }
+
+        // ── 예산 요약 로깅 ──────────────────────────────────────
+        log.info("pipeline.budget.summary inquiryId={} consumed={} max={} remaining={} overBudget={}",
+                inquiryId, budgetManager.getConsumedTokens(), maxBudgetTokens,
+                budgetManager.getRemainingBudget(), budgetManager.isOverBudget());
 
         return new OrchestrationResult(
                 analysis, finalDraft, finalWarnings, selfReviewIssues,
@@ -456,6 +525,32 @@ public class AnswerOrchestrationService {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * PipelineTraceContext에서 해당 단계의 최신 LLM 호출 기록을 읽어 budgetManager에 기록한다.
+     * 추적이 시작되지 않은 상태이거나 해당 단계의 기록이 없으면 무시한다.
+     */
+    private void recordUsageFromTrace(TokenBudgetManager budgetManager, String stepName) {
+        PipelineTraceContext.PipelineTrace trace = PipelineTraceContext.current();
+        if (trace == null) {
+            return;
+        }
+        int promptSum = 0;
+        int completionSum = 0;
+        String model = null;
+        for (PipelineTraceContext.LlmCallRecord call : trace.getCalls()) {
+            if (stepName.equals(call.step())) {
+                promptSum += call.inputTokens();
+                completionSum += call.outputTokens();
+                if (model == null) {
+                    model = call.model();
+                }
+            }
+        }
+        if (promptSum > 0 || completionSum > 0) {
+            budgetManager.recordUsage(TokenUsage.of(stepName, promptSum, completionSum, model));
+        }
     }
 
     private <T> T executeWithRunLog(UUID inquiryId, String step, StepSupplier<T> supplier) {

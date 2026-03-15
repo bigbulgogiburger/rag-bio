@@ -97,6 +97,51 @@ search:
     keyword-weight: 1.0
     min-vector-score: ${MIN_VECTOR_SCORE:0.25}
 
+# RAG Pipeline Configuration
+rag:
+  budget:
+    max-tokens-per-inquiry: 25000
+  cost:
+    daily-budget-usd: 50.0
+    alert-threshold-percent: 80
+    per-inquiry-max-usd: 0.10
+  evidence:
+    max-items: 8
+    min-score: 0.30
+    max-per-document: 3
+    ensure-source-diversity: true
+  search:
+    rrf-k: 60
+    vector-weight: 1.0
+    keyword-weight: 1.0
+    min-vector-score: 0.25
+    top-k: 5
+  confidence:
+    high-confidence-score: 0.80
+    high-confidence-threshold: 0.75
+    supported-threshold: 0.70
+    conditional-threshold: 0.45
+  adaptive:
+    min-confidence: 0.50
+    max-retries: 3
+  multihop:
+    trigger-top-score: 0.70
+    trigger-min-evidence: 3
+    max-hops: 2
+  chunking:
+    parent-size: 1500
+    child-size: 400
+    overlap: 300
+  compose:
+    evidence-token-budget: 3000
+  circuit-breaker:
+    failure-threshold: 3
+    reset-timeout-seconds: 30
+  indexing:
+    enrichment-min-parents: 5
+    enrichment-max-parents: 30
+    enrichment-sample-interval: 3
+
 logging:
   pattern:
     level: "%5p [req:%X{requestId:-none}]"

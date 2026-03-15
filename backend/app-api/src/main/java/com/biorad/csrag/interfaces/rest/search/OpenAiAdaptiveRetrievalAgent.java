@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Primary
@@ -83,13 +84,168 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
 
     @Override
     public AdaptiveResult retrieve(String question, String productContext, UUID inquiryId) {
-        String currentQuery = question;
-        List<RerankingService.RerankResult> bestResults = List.of();
-        double bestScore = 0.0;
-
         SearchFilter filter = SearchFilter.forInquiry(inquiryId);
 
-        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        // 1차 시도: 원본 쿼리로 검색
+        List<HybridSearchResult> candidates = hybridSearchService.search(question, 50, filter);
+        List<RerankingService.RerankResult> bestResults = rerankingService.rerank(question, candidates, 10);
+        double bestScore = bestResults.isEmpty() ? 0.0
+                : bestResults.stream().mapToDouble(RerankingService.RerankResult::rerankScore).max().orElse(0.0);
+
+        log.info("adaptive.retrieve attempt=1 query={} topScore={} inquiryId={}",
+                question, String.format("%.3f", bestScore), inquiryId);
+
+        if (bestScore >= MIN_CONFIDENCE) {
+            if (ragMetricsService != null) ragMetricsService.record(null, "ADAPTIVE_RETRY", 0);
+            return AdaptiveResult.success(bestResults, 1);
+        }
+
+        // 2차 시도: Unified LLM call로 3개 변형 쿼리를 한 번에 생성 후 검색
+        try {
+            List<ReformulatedQuery> variants = generateAllVariants(question, productContext);
+
+            // Unified 응답 파싱 실패 시 (빈 variants) 순차 폴백
+            if (variants.isEmpty()) {
+                log.warn("adaptive.unified: no variants parsed, falling back to sequential");
+                return fallbackSequentialRetrieval(question, productContext, inquiryId, filter, bestResults, bestScore);
+            }
+
+            log.info("Adaptive retrieval: generated {} variants in 1 LLM call (was 3 sequential calls)", variants.size());
+
+            List<RerankingService.RerankResult> allResults = new ArrayList<>(bestResults);
+
+            for (ReformulatedQuery variant : variants) {
+                List<HybridSearchResult> variantCandidates = hybridSearchService.search(variant.query(), 50, filter);
+                List<RerankingService.RerankResult> variantResults = rerankingService.rerank(variant.query(), variantCandidates, 10);
+
+                double topScore = variantResults.isEmpty() ? 0.0
+                        : variantResults.stream().mapToDouble(RerankingService.RerankResult::rerankScore).max().orElse(0.0);
+
+                log.info("adaptive.retrieve unified strategy={} query={} topScore={} inquiryId={}",
+                        variant.strategy(), variant.query(), String.format("%.3f", topScore), inquiryId);
+
+                allResults.addAll(variantResults);
+            }
+
+            // chunkId 기준 중복 제거 (최고 점수 유지)
+            allResults = deduplicateByChunkId(allResults);
+            // 점수 내림차순 정렬
+            allResults.sort(Comparator.comparingDouble(RerankingService.RerankResult::rerankScore).reversed());
+
+            // 상위 10개로 제한
+            if (allResults.size() > 10) {
+                allResults = new ArrayList<>(allResults.subList(0, 10));
+            }
+
+            double unifiedBestScore = allResults.isEmpty() ? 0.0
+                    : allResults.stream().mapToDouble(RerankingService.RerankResult::rerankScore).max().orElse(0.0);
+
+            if (ragMetricsService != null) ragMetricsService.record(null, "ADAPTIVE_RETRY", 1);
+
+            if (unifiedBestScore >= MIN_CONFIDENCE) {
+                return AdaptiveResult.success(allResults, 2);
+            }
+            return allResults.isEmpty()
+                    ? AdaptiveResult.noEvidence(question)
+                    : AdaptiveResult.lowConfidence(allResults, unifiedBestScore);
+
+        } catch (Exception e) {
+            log.warn("adaptive.unified.failed, falling back to sequential: {}", e.getMessage());
+            return fallbackSequentialRetrieval(question, productContext, inquiryId, filter, bestResults, bestScore);
+        }
+    }
+
+    /**
+     * Unified LLM call: 1번의 LLM 호출로 3가지 전략의 쿼리를 동시에 생성.
+     * JSON 모드를 사용하여 구조화된 응답을 보장.
+     */
+    List<ReformulatedQuery> generateAllVariants(String query, String productContext) {
+        String prompt;
+        if (promptRegistry != null) {
+            prompt = promptRegistry.get("adaptive-search-unified", Map.of(
+                    "query", query,
+                    "productContext", productContext != null ? productContext : ""
+            ));
+        } else {
+            prompt = String.format("""
+                    You are a search query reformulation expert for Bio-Rad technical documents.
+                    Given a search query that returned insufficient results, generate 3 alternative queries.
+
+                    Return a JSON array with exactly 3 objects:
+                    [
+                      {"strategy": "expand", "query": "expanded query"},
+                      {"strategy": "broaden", "query": "broadened query"},
+                      {"strategy": "translate", "query": "translated query"}
+                    ]
+
+                    Original query: %s
+                    Product context: %s""", query, productContext != null ? productContext : "");
+        }
+
+        Map<String, Object> body = OpenAiRequestUtils.chatBodyWithJsonMode(
+                chatModel,
+                List.of(Map.of("role", "user", "content", prompt)),
+                300, 0.3
+        );
+
+        String json = restClient.post()
+                .uri("/chat/completions")
+                .body(body)
+                .retrieve()
+                .body(String.class);
+
+        return parseVariants(json);
+    }
+
+    /**
+     * OpenAI JSON 응답에서 변형 쿼리 목록을 파싱.
+     */
+    List<ReformulatedQuery> parseVariants(String responseJson) {
+        List<ReformulatedQuery> variants = new ArrayList<>();
+        try {
+            JsonNode root = objectMapper.readTree(responseJson);
+            String content = root.at("/choices/0/message/content").asText().trim();
+
+            JsonNode array = objectMapper.readTree(content);
+            if (array.isArray()) {
+                for (JsonNode item : array) {
+                    String strategy = item.has("strategy") ? item.get("strategy").asText() : "unknown";
+                    String query = item.has("query") ? item.get("query").asText() : "";
+                    if (!query.isBlank()) {
+                        variants.add(new ReformulatedQuery(strategy, query));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("adaptive.parseVariants.failed: {}", e.getMessage());
+        }
+        return variants;
+    }
+
+    /**
+     * chunkId 기준 중복 제거. 동일 chunkId가 여러 번 나타나면 최고 rerankScore를 가진 것만 유지.
+     */
+    List<RerankingService.RerankResult> deduplicateByChunkId(List<RerankingService.RerankResult> results) {
+        Map<UUID, RerankingService.RerankResult> bestByChunk = new LinkedHashMap<>();
+        for (RerankingService.RerankResult result : results) {
+            bestByChunk.merge(result.chunkId(), result,
+                    (existing, incoming) -> incoming.rerankScore() > existing.rerankScore() ? incoming : existing);
+        }
+        return new ArrayList<>(bestByChunk.values());
+    }
+
+    /**
+     * Unified call 실패 시 기존 순차 방식으로 폴백.
+     */
+    private AdaptiveResult fallbackSequentialRetrieval(String question, String productContext,
+                                                        UUID inquiryId, SearchFilter filter,
+                                                        List<RerankingService.RerankResult> bestResults,
+                                                        double bestScore) {
+        String currentQuery = question;
+
+        for (int attempt = 1; attempt < MAX_RETRIES; attempt++) {
+            currentQuery = reformulateQuery(question, currentQuery, bestResults, attempt - 1);
+
             List<HybridSearchResult> candidates = hybridSearchService.search(currentQuery, 50, filter);
             List<RerankingService.RerankResult> results = rerankingService.rerank(currentQuery, candidates, 10);
 
@@ -101,16 +257,12 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
                 bestResults = results;
             }
 
-            log.info("adaptive.retrieve attempt={} query={} topScore={} inquiryId={}",
+            log.info("adaptive.retrieve.fallback attempt={} query={} topScore={} inquiryId={}",
                     attempt + 1, currentQuery, String.format("%.3f", topScore), inquiryId);
 
             if (topScore >= MIN_CONFIDENCE) {
                 if (ragMetricsService != null) ragMetricsService.record(null, "ADAPTIVE_RETRY", attempt);
                 return AdaptiveResult.success(bestResults, attempt + 1);
-            }
-
-            if (attempt < MAX_RETRIES - 1) {
-                currentQuery = reformulateQuery(question, currentQuery, results, attempt);
             }
         }
 
@@ -121,7 +273,7 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
     }
 
     /**
-     * 쿼리 재구성 전략:
+     * 쿼리 재구성 전략 (폴백용):
      *   1차: 동의어/관련어 확장
      *   2차: 상위 개념으로 확장
      *   3차: 영어/한국어 교차 검색
@@ -177,4 +329,9 @@ public class OpenAiAdaptiveRetrievalAgent implements AdaptiveRetrievalAgent {
             return current;
         }
     }
+
+    /**
+     * 변형 쿼리 레코드.
+     */
+    record ReformulatedQuery(String strategy, String query) {}
 }

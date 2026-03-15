@@ -28,12 +28,23 @@ public class OpenAiCriticAgentService implements CriticAgentService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiCriticAgentService.class);
     private static final double REVISION_THRESHOLD = 0.70;
+    /** Threshold above which subsequent Critic calls can be skipped (already high quality). */
+    private static final double SKIP_THRESHOLD = 0.90;
+    /** Maximum excerpt length per evidence item (chars). */
+    private static final int MAX_EXCERPT_LENGTH = 300;
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final RagMetricsService ragMetricsService;
     private final PromptRegistry promptRegistry;
+
+    /**
+     * Tracks the last faithfulness score from a Critic call.
+     * When >= {@link #SKIP_THRESHOLD}, subsequent calls in the same recompose loop can be skipped.
+     * Thread-safety note: this service is typically scoped per-request or called sequentially.
+     */
+    private Double lastFaithfulnessScore;
 
     @Autowired
     public OpenAiCriticAgentService(
@@ -73,18 +84,31 @@ public class OpenAiCriticAgentService implements CriticAgentService {
 
     @Override
     public CriticResult critique(String draft, String question, List<EvidenceItem> evidences) {
+        // Skip subsequent Critic calls if previous score was already high quality
+        if (lastFaithfulnessScore != null && lastFaithfulnessScore >= SKIP_THRESHOLD) {
+            log.info("critic.skipped: previous faithfulness_score={} >= {} threshold",
+                    String.format("%.2f", lastFaithfulnessScore), SKIP_THRESHOLD);
+            return CriticResult.passing(lastFaithfulnessScore);
+        }
+
         try {
             String formattedEvidences = formatEvidences(evidences);
             String userPrompt = buildCriticPrompt(draft, question, formattedEvidences);
             String systemPrompt = promptRegistry.get("critic-system");
             String response = callLlm(systemPrompt, userPrompt);
             CriticResult result = parseCriticResponse(response);
+            lastFaithfulnessScore = result.faithfulnessScore();
             if (ragMetricsService != null) ragMetricsService.record(null, "CRITIC_REVISION", result.needsRevision() ? 1.0 : 0.0);
             return result;
         } catch (Exception e) {
             log.warn("critic.agent.failed, returning default passing result: {}", e.getMessage());
             return CriticResult.passing(1.0);
         }
+    }
+
+    /** Resets the skip-tracking state. Call this when starting a new orchestration cycle. */
+    public void resetSkipState() {
+        this.lastFaithfulnessScore = null;
     }
 
     private String buildCriticPrompt(String draft, String question, String formattedEvidences) {
@@ -120,16 +144,49 @@ public class OpenAiCriticAgentService implements CriticAgentService {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < evidences.size(); i++) {
             EvidenceItem ev = evidences.get(i);
-            sb.append("[근거 ").append(i + 1).append("]");
-            if (ev.fileName() != null) {
-                sb.append(" 파일: ").append(ev.fileName());
-                if (ev.pageStart() != null) {
-                    sb.append(", p.").append(ev.pageStart());
-                }
-            }
-            sb.append("\n").append(ev.excerpt()).append("\n\n");
+            sb.append(formatEvidenceCompact(i + 1, ev)).append("\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * Compact inline evidence format with excerpt truncation:
+     * {@code [index|fileName:pageRange|sourceAbbrev|score] excerpt (max 300 chars)}
+     */
+    static String formatEvidenceCompact(int index, EvidenceItem ev) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(index).append("|");
+
+        String fileName = ev.fileName() != null ? ev.fileName() : "unknown";
+        sb.append(fileName);
+        if (ev.pageStart() != null) {
+            sb.append(":").append(ev.pageStart());
+            if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
+                sb.append("-").append(ev.pageEnd());
+            }
+        }
+        sb.append("|");
+
+        sb.append(abbreviateSourceType(ev.sourceType()));
+        sb.append("|");
+        sb.append(String.format("%.2f", ev.score()));
+        sb.append("] ");
+
+        String excerpt = ev.excerpt() != null ? ev.excerpt() : "";
+        if (excerpt.length() > MAX_EXCERPT_LENGTH) {
+            excerpt = excerpt.substring(0, MAX_EXCERPT_LENGTH) + "...";
+        }
+        sb.append(excerpt);
+
+        return sb.toString();
+    }
+
+    static String abbreviateSourceType(String sourceType) {
+        if (sourceType == null) return "INQ";
+        return switch (sourceType) {
+            case "KNOWLEDGE_BASE" -> "KB";
+            default -> "INQ";
+        };
     }
 
     private String callLlm(String systemPrompt, String userPrompt) {

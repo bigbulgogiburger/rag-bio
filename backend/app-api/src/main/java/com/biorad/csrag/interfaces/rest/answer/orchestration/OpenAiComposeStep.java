@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -25,18 +27,22 @@ import java.util.Map;
 public class OpenAiComposeStep implements ComposeStep {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiComposeStep.class);
-    private static final int EVIDENCE_CHAR_BUDGET = 12000;
+    /** @deprecated Use token-based budget via {@code rag.compose.evidence-token-budget} instead. Kept for backward compatibility. */
+    @Deprecated
+    static final int EVIDENCE_CHAR_BUDGET = 12000;
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String chatModel;
     private final DefaultComposeStep fallback;
     private final PromptRegistry promptRegistry;
+    private final int evidenceTokenBudget;
 
     public OpenAiComposeStep(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
             @Value("${openai.model.chat-heavy:gpt-5-mini}") String chatModel,
+            @Value("${rag.compose.evidence-token-budget:3000}") int evidenceTokenBudget,
             ObjectMapper objectMapper,
             DefaultComposeStep fallback,
             PromptRegistry promptRegistry
@@ -48,6 +54,18 @@ public class OpenAiComposeStep implements ComposeStep {
                 .build();
         this.objectMapper = objectMapper;
         this.chatModel = chatModel;
+        this.fallback = fallback;
+        this.promptRegistry = promptRegistry;
+        this.evidenceTokenBudget = evidenceTokenBudget;
+    }
+
+    /** Test-visible constructor */
+    OpenAiComposeStep(RestClient restClient, String chatModel, int evidenceTokenBudget,
+                      ObjectMapper objectMapper, DefaultComposeStep fallback, PromptRegistry promptRegistry) {
+        this.restClient = restClient;
+        this.chatModel = chatModel;
+        this.evidenceTokenBudget = evidenceTokenBudget;
+        this.objectMapper = objectMapper;
         this.fallback = fallback;
         this.promptRegistry = promptRegistry;
     }
@@ -192,25 +210,12 @@ public class OpenAiComposeStep implements ComposeStep {
 
         List<EvidenceItem> evidences = analysis.evidences();
         if (evidences != null && !evidences.isEmpty()) {
-            sb.append("[참고 자료] (").append(evidences.size()).append("건)\n");
-            int charUsed = 0;
-            for (EvidenceItem ev : evidences) {
-                String excerptText = ev.excerpt() != null ? ev.excerpt() : "";
-                if (charUsed > 0 && charUsed + excerptText.length() > EVIDENCE_CHAR_BUDGET) break;
-                sb.append("- ");
-                if (ev.fileName() != null) {
-                    sb.append("(").append(ev.fileName());
-                    if (ev.pageStart() != null) {
-                        sb.append(", p.").append(ev.pageStart());
-                        if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
-                            sb.append("-").append(ev.pageEnd());
-                        }
-                    }
-                    sb.append(") ");
-                }
-                sb.append(excerptText).append("\n\n");
-                charUsed += excerptText.length();
+            List<EvidenceItem> budgeted = applyTokenBudget(evidences);
+            sb.append("[참고 자료] (").append(budgeted.size()).append("건)\n");
+            for (int i = 0; i < budgeted.size(); i++) {
+                sb.append(formatEvidenceCompact(i + 1, budgeted.get(i))).append("\n");
             }
+            sb.append("\n");
         }
 
         sb.append("[채널] ").append(channel).append("\n");
@@ -233,27 +238,10 @@ public class OpenAiComposeStep implements ComposeStep {
 
         List<EvidenceItem> evidences = analysis.evidences();
         if (evidences != null && !evidences.isEmpty()) {
-            sb.append("[참고 자료] (").append(evidences.size()).append("건)\n");
-            int charUsed = 0;
-            for (EvidenceItem ev : evidences) {
-                String excerptText = ev.excerpt() != null ? ev.excerpt() : "";
-                if (charUsed > 0 && charUsed + excerptText.length() > EVIDENCE_CHAR_BUDGET) break;
-                sb.append("- (");
-                if (ev.fileName() != null) {
-                    sb.append("파일명: ").append(ev.fileName());
-                    if (ev.pageStart() != null) {
-                        sb.append(", p.").append(ev.pageStart());
-                        if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
-                            sb.append("-").append(ev.pageEnd());
-                        }
-                    }
-                    sb.append(", ");
-                }
-                sb.append("유사도: ")
-                        .append(String.format("%.3f", ev.score()))
-                        .append(")\n")
-                        .append(excerptText).append("\n\n");
-                charUsed += excerptText.length();
+            List<EvidenceItem> budgeted = applyTokenBudget(evidences);
+            sb.append("[참고 자료] (").append(budgeted.size()).append("건)\n");
+            for (int i = 0; i < budgeted.size(); i++) {
+                sb.append(formatEvidenceCompact(i + 1, budgeted.get(i))).append("\n");
             }
         }
 
@@ -322,6 +310,94 @@ public class OpenAiComposeStep implements ComposeStep {
         }
 
         return sb.toString();
+    }
+
+    // ── Evidence format & budget helpers ──────────────────────────────────
+
+    /**
+     * Compact inline evidence format:
+     * {@code [index|fileName:pageRange|sourceAbbrev|score] excerpt}
+     */
+    static String formatEvidenceCompact(int index, EvidenceItem ev) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(index).append("|");
+
+        String fileName = ev.fileName() != null ? ev.fileName() : "unknown";
+        sb.append(fileName);
+        if (ev.pageStart() != null) {
+            sb.append(":").append(ev.pageStart());
+            if (ev.pageEnd() != null && !ev.pageEnd().equals(ev.pageStart())) {
+                sb.append("-").append(ev.pageEnd());
+            }
+        }
+        sb.append("|");
+
+        sb.append(abbreviateSourceType(ev.sourceType()));
+        sb.append("|");
+        sb.append(String.format("%.2f", ev.score()));
+        sb.append("] ");
+
+        String excerpt = ev.excerpt() != null ? ev.excerpt() : "";
+        sb.append(excerpt);
+
+        return sb.toString();
+    }
+
+    /**
+     * Abbreviates source type: KNOWLEDGE_BASE → "KB", INQUIRY → "INQ".
+     */
+    static String abbreviateSourceType(String sourceType) {
+        if (sourceType == null) return "INQ";
+        return switch (sourceType) {
+            case "KNOWLEDGE_BASE" -> "KB";
+            default -> "INQ";
+        };
+    }
+
+    /**
+     * Estimates token count for a string.
+     * Uses chars/3 for Korean (multibyte), chars/4 for predominantly ASCII text.
+     */
+    static int estimateTokens(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        long nonAsciiCount = text.chars().filter(c -> c > 127).count();
+        boolean predominantlyKorean = nonAsciiCount > text.length() / 3;
+        return (int) Math.ceil((double) text.length() / (predominantlyKorean ? 3 : 4));
+    }
+
+    /**
+     * Sorts evidence by score descending, then trims lowest-score items until
+     * total estimated tokens fit within {@link #evidenceTokenBudget}.
+     * Returns a new list (never mutates the input).
+     */
+    List<EvidenceItem> applyTokenBudget(List<EvidenceItem> evidences) {
+        if (evidences == null || evidences.isEmpty()) return List.of();
+
+        // Sort by score descending (highest relevance first)
+        List<EvidenceItem> sorted = new ArrayList<>(evidences);
+        sorted.sort(Comparator.comparingDouble(EvidenceItem::score).reversed());
+
+        // Accumulate until budget exceeded
+        List<EvidenceItem> result = new ArrayList<>();
+        int tokenSum = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            String formatted = formatEvidenceCompact(i + 1, sorted.get(i));
+            int tokens = estimateTokens(formatted);
+            if (!result.isEmpty() && tokenSum + tokens > evidenceTokenBudget) {
+                log.info("Evidence budget: trimmed from {} to {} items (budget: {} tokens)",
+                        sorted.size(), result.size(), evidenceTokenBudget);
+                break;
+            }
+            result.add(sorted.get(i));
+            tokenSum += tokens;
+        }
+
+        return result;
+    }
+
+    /** Exposes token budget for testing. */
+    int getEvidenceTokenBudget() {
+        return evidenceTokenBudget;
     }
 
 }

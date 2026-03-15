@@ -2,6 +2,8 @@ package com.biorad.csrag.interfaces.rest.chunk;
 
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaEntity;
 import com.biorad.csrag.infrastructure.persistence.chunk.DocumentChunkJpaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.biorad.csrag.interfaces.rest.document.DocumentTextExtractor.PageText;
@@ -16,9 +18,9 @@ import java.util.stream.Collectors;
 @Service
 public class ChunkingService {
 
-    private static final int CHUNK_SIZE = 1500;
-    private static final int CHILD_CHUNK_SIZE = 400;
-    private static final int OVERLAP_CHARS = 300;
+    private final int chunkSize;
+    private final int childChunkSize;
+    private final int overlapChars;
 
     // 과학 약어 보호 패턴
     private static final Pattern ABBREVIATION = Pattern.compile(
@@ -45,8 +47,22 @@ public class ChunkingService {
 
     private final DocumentChunkJpaRepository chunkRepository;
 
-    public ChunkingService(DocumentChunkJpaRepository chunkRepository) {
+    @Autowired
+    public ChunkingService(
+            DocumentChunkJpaRepository chunkRepository,
+            @Value("${rag.chunking.parent-size:1500}") int chunkSize,
+            @Value("${rag.chunking.child-size:400}") int childChunkSize,
+            @Value("${rag.chunking.overlap:300}") int overlapChars
+    ) {
         this.chunkRepository = chunkRepository;
+        this.chunkSize = chunkSize;
+        this.childChunkSize = childChunkSize;
+        this.overlapChars = overlapChars;
+    }
+
+    /** 하위 호환 테스트용 생성자 — 기본값 사용 */
+    ChunkingService(DocumentChunkJpaRepository chunkRepository) {
+        this(chunkRepository, 1500, 400, 300);
     }
 
     /**
@@ -89,10 +105,10 @@ public class ChunkingService {
             StringBuilder chunkContent = new StringBuilder();
             int sentenceEnd = sentenceStart;
 
-            // 문장을 누적하면서 CHUNK_SIZE 이내로 병합
+            // 문장을 누적하면서 chunkSize 이내로 병합
             while (sentenceEnd < sentences.size()) {
                 String nextSentence = sentences.get(sentenceEnd);
-                if (chunkContent.length() + nextSentence.length() > CHUNK_SIZE && chunkContent.length() > 0) {
+                if (chunkContent.length() + nextSentence.length() > chunkSize && chunkContent.length() > 0) {
                     break;
                 }
                 // 제목 감지: 현재 청크에 내용이 있고 다음 문장이 제목이면 새 청크 시작
@@ -108,11 +124,11 @@ public class ChunkingService {
 
             String rawContent = chunkContent.toString();
 
-            // 단일 문장이 CHUNK_SIZE를 초과하면 강제 분할
-            if (rawContent.length() > CHUNK_SIZE) {
+            // 단일 문장이 chunkSize를 초과하면 강제 분할
+            if (rawContent.length() > chunkSize) {
                 int pos = 0;
                 while (pos < rawContent.length()) {
-                    int end = Math.min(pos + CHUNK_SIZE, rawContent.length());
+                    int end = Math.min(pos + chunkSize, rawContent.length());
                     String subChunk = rawContent.substring(pos, end);
                     int startOff = globalOffset + pos;
                     int endOff = startOff + subChunk.length();
@@ -168,16 +184,16 @@ public class ChunkingService {
                 break;
             }
 
-            // 오버랩: 끝에서 ~300자에 해당하는 문장들을 다음 청크에 포함
+            // 오버랩: 끝에서 ~overlapChars에 해당하는 문장들을 다음 청크에 포함
             sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
-        // Parent-Child 분할: 각 Parent를 ~400자 Child로 분할
+        // Parent-Child 분할: 각 Parent를 ~childChunkSize Child로 분할
         List<DocumentChunkJpaEntity> allChunks = new ArrayList<>();
         for (DocumentChunkJpaEntity parent : parentChunks) {
             allChunks.add(parent);
 
-            List<String> childTexts = splitIntoChildTexts(parent.getContent(), CHILD_CHUNK_SIZE);
+            List<String> childTexts = splitIntoChildTexts(parent.getContent(), childChunkSize);
             for (int ci = 0; ci < childTexts.size(); ci++) {
                 DocumentChunkJpaEntity child = new DocumentChunkJpaEntity(
                         UUID.randomUUID(),
@@ -248,7 +264,7 @@ public class ChunkingService {
 
             while (sentenceEnd < sentences.size()) {
                 String nextSentence = sentences.get(sentenceEnd);
-                if (chunkContent.length() + nextSentence.length() > CHUNK_SIZE && chunkContent.length() > 0) {
+                if (chunkContent.length() + nextSentence.length() > chunkSize && chunkContent.length() > 0) {
                     break;
                 }
                 // 제목 감지: 현재 청크에 내용이 있고 다음 문장이 제목이면 새 청크 시작
@@ -264,10 +280,10 @@ public class ChunkingService {
 
             String rawContent = chunkContent.toString();
 
-            if (rawContent.length() > CHUNK_SIZE) {
+            if (rawContent.length() > chunkSize) {
                 int pos = 0;
                 while (pos < rawContent.length()) {
-                    int end = Math.min(pos + CHUNK_SIZE, rawContent.length());
+                    int end = Math.min(pos + chunkSize, rawContent.length());
                     String subChunk = rawContent.substring(pos, end);
                     int startOff = globalOffset + pos;
                     int endOff = startOff + subChunk.length();
@@ -323,12 +339,12 @@ public class ChunkingService {
             sentenceStart = Math.max(sentenceStart + 1, overlapSentencesForChars(sentences, sentenceStart, sentenceEnd));
         }
 
-        // Parent-Child 분할: 각 Parent를 ~400자 Child로 분할
+        // Parent-Child 분할: 각 Parent를 ~childChunkSize Child로 분할
         List<DocumentChunkJpaEntity> allChunks = new ArrayList<>();
         for (DocumentChunkJpaEntity parent : parentChunks) {
             allChunks.add(parent);
 
-            List<String> childTexts = splitIntoChildTexts(parent.getContent(), CHILD_CHUNK_SIZE);
+            List<String> childTexts = splitIntoChildTexts(parent.getContent(), childChunkSize);
             for (int ci = 0; ci < childTexts.size(); ci++) {
                 DocumentChunkJpaEntity child = new DocumentChunkJpaEntity(
                         UUID.randomUUID(),
@@ -415,16 +431,16 @@ public class ChunkingService {
     }
 
     /**
-     * 청크 끝에서 ~OVERLAP_CHARS(300자)에 해당하는 문장 수를 역산하여
+     * 청크 끝에서 ~overlapChars에 해당하는 문장 수를 역산하여
      * 다음 청크의 시작 인덱스를 반환한다.
-     * 이렇게 하면 인접 청크가 양쪽 300자씩 겹치게 된다.
+     * 이렇게 하면 인접 청크가 양쪽 overlapChars씩 겹치게 된다.
      */
     private int overlapSentencesForChars(List<String> sentences, int sentenceStart, int sentenceEnd) {
         int overlapLen = 0;
         int newStart = sentenceEnd;
         for (int k = sentenceEnd - 1; k > sentenceStart; k--) {
             overlapLen += sentences.get(k).length() + 1; // +1 for space
-            if (overlapLen >= OVERLAP_CHARS) {
+            if (overlapLen >= overlapChars) {
                 newStart = k;
                 break;
             }

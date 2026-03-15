@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +28,13 @@ public class QdrantVectorStore implements VectorStore {
 
     private static final Logger log = LoggerFactory.getLogger(QdrantVectorStore.class);
 
+    private static final int UPSERT_MAX_RETRIES = 3;
+    private static final long UPSERT_INITIAL_DELAY_MS = 1000L;
+
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String collection;
+    private final VectorStoreCircuitBreaker circuitBreaker;
     private volatile boolean collectionReady = false;
     private final ReentrantLock collectionLock = new ReentrantLock();
 
@@ -37,7 +42,8 @@ public class QdrantVectorStore implements VectorStore {
             @Value("${vector.qdrant.url}") String qdrantUrl,
             @Value("${vector.qdrant.api-key:}") String apiKey,
             @Value("${vector.qdrant.collection:csrag_chunks}") String collection,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            VectorStoreCircuitBreaker circuitBreaker
     ) {
         RestClient.Builder builder = RestClient.builder()
                 .baseUrl(qdrantUrl)
@@ -50,6 +56,7 @@ public class QdrantVectorStore implements VectorStore {
         this.restClient = builder.build();
         this.objectMapper = objectMapper;
         this.collection = collection;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -80,13 +87,59 @@ public class QdrantVectorStore implements VectorStore {
 
         Map<String, Object> body = Map.of("points", List.of(point));
 
-        restClient.put()
-                .uri("/collections/{collection}/points?wait=true", collection)
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
+        upsertWithRetry(body, chunkId, documentId, sourceType, productFamily, vector.size());
+    }
 
-        log.info("qdrant.upsert.success chunkId={} documentId={} sourceType={} productFamily={} dim={}", chunkId, documentId, sourceType, productFamily, vector.size());
+    /**
+     * Upsert에 지수 백오프 재시도를 적용한다.
+     * 연결/타임아웃 오류만 재시도하고, 4xx 클라이언트 오류는 즉시 전파한다.
+     */
+    private void upsertWithRetry(Map<String, Object> body, UUID chunkId, UUID documentId,
+                                  String sourceType, String productFamily, int dim) {
+        long delay = UPSERT_INITIAL_DELAY_MS;
+        for (int attempt = 1; attempt <= UPSERT_MAX_RETRIES; attempt++) {
+            try {
+                restClient.put()
+                        .uri("/collections/{collection}/points?wait=true", collection)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("qdrant.upsert.success chunkId={} documentId={} sourceType={} productFamily={} dim={} attempt={}",
+                        chunkId, documentId, sourceType, productFamily, dim, attempt);
+                return;
+            } catch (Exception ex) {
+                if (isClientError(ex)) {
+                    log.error("qdrant.upsert.client_error chunkId={} reason={}", chunkId, ex.getMessage());
+                    throw new RuntimeException("Qdrant upsert client error for chunkId=" + chunkId, ex);
+                }
+                if (attempt == UPSERT_MAX_RETRIES) {
+                    log.error("qdrant.upsert.failed chunkId={} after {} retries: {}", chunkId, UPSERT_MAX_RETRIES, ex.getMessage());
+                    throw new RuntimeException("Qdrant upsert failed after " + UPSERT_MAX_RETRIES + " retries for chunkId=" + chunkId, ex);
+                }
+                log.warn("qdrant.upsert.retry chunkId={} attempt={}/{} delay={}ms reason={}",
+                        chunkId, attempt, UPSERT_MAX_RETRIES, delay, ex.getMessage());
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Qdrant upsert interrupted", ie);
+                }
+                delay *= 2;
+            }
+        }
+    }
+
+    /**
+     * HTTP 4xx 클라이언트 오류 여부를 판별한다.
+     * 4xx 오류는 재시도 대상이 아니다.
+     */
+    private boolean isClientError(Exception ex) {
+        String msg = ex.getMessage();
+        if (msg == null) return false;
+        // Spring RestClient의 HttpClientErrorException은 4xx 상태 코드를 포함한다
+        return msg.contains("4") && (msg.contains("400") || msg.contains("401")
+                || msg.contains("403") || msg.contains("404") || msg.contains("409")
+                || msg.contains("422"));
     }
 
     @Override
@@ -96,6 +149,16 @@ public class QdrantVectorStore implements VectorStore {
 
     @Override
     public List<VectorSearchResult> search(List<Double> queryVector, int topK, SearchFilter filter) {
+        return circuitBreaker.execute(
+                () -> doSearch(queryVector, topK, filter),
+                Collections::emptyList
+        );
+    }
+
+    /**
+     * Qdrant HTTP 검색 — circuit breaker에 의해 래핑됨.
+     */
+    private List<VectorSearchResult> doSearch(List<Double> queryVector, int topK, SearchFilter filter) {
         ensureCollection(queryVector.size());
 
         Map<String, Object> body = new HashMap<>();

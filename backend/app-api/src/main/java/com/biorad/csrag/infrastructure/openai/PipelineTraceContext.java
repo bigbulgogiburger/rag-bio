@@ -1,9 +1,15 @@
 package com.biorad.csrag.infrastructure.openai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +30,8 @@ import java.util.Map;
  */
 public final class PipelineTraceContext {
 
+    private static final Logger log = LoggerFactory.getLogger(PipelineTraceContext.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final ThreadLocal<PipelineTrace> CURRENT = new ThreadLocal<>();
 
     private PipelineTraceContext() {}
@@ -50,6 +58,60 @@ public final class PipelineTraceContext {
     }
 
     /**
+     * 현재 파이프라인 추적에 토큰 사용량을 기록한다.
+     * {@link #recordLlmCall}의 간편 버전으로, 레이턴시 없이 토큰만 기록할 때 사용.
+     * 추적이 시작되지 않은 상태에서 호출하면 아무 동작도 하지 않는다 (no-op).
+     */
+    public static void recordTokenUsage(String stepName, int promptTokens, int completionTokens, String modelId) {
+        recordLlmCall(stepName, modelId, promptTokens, completionTokens, 0L);
+    }
+
+    /**
+     * 현재 파이프라인의 전체 프롬프트 토큰 합계를 반환한다.
+     * 추적이 시작되지 않은 경우 0을 반환한다.
+     */
+    public static int getTotalPromptTokens() {
+        PipelineTrace trace = CURRENT.get();
+        return trace != null ? trace.totalInputTokens() : 0;
+    }
+
+    /**
+     * 현재 파이프라인의 전체 완료 토큰 합계를 반환한다.
+     * 추적이 시작되지 않은 경우 0을 반환한다.
+     */
+    public static int getTotalCompletionTokens() {
+        PipelineTrace trace = CURRENT.get();
+        return trace != null ? trace.totalOutputTokens() : 0;
+    }
+
+    /**
+     * 현재 파이프라인의 전체 토큰 합계를 반환한다.
+     * 추적이 시작되지 않은 경우 0을 반환한다.
+     */
+    public static int getTotalTokens() {
+        PipelineTrace trace = CURRENT.get();
+        return trace != null ? trace.totalTokens() : 0;
+    }
+
+    /**
+     * 현재 파이프라인의 추정 비용(USD)을 반환한다.
+     * 추적이 시작되지 않은 경우 0.0을 반환한다.
+     */
+    public static double getEstimatedCostUsd() {
+        PipelineTrace trace = CURRENT.get();
+        return trace != null ? trace.estimatedCostUsd() : 0.0;
+    }
+
+    /**
+     * 현재 파이프라인의 단계별 토큰 사용량을 JSON 문자열로 반환한다.
+     * 추적이 시작되지 않은 경우 빈 배열 {@code "[]"}을 반환한다.
+     */
+    public static String getTokenUsageDetail() {
+        PipelineTrace trace = CURRENT.get();
+        return trace != null ? trace.tokenUsageDetailJson() : "[]";
+    }
+
+    /**
      * 파이프라인 추적을 종료하고 결과를 반환한다. ThreadLocal을 정리한다.
      *
      * @return 누적된 추적 결과, 또는 시작되지 않은 경우 {@code null}
@@ -70,6 +132,11 @@ public final class PipelineTraceContext {
     }
 
     // ── Inner types ──────────────────────────────────────────────
+
+    /**
+     * 단계별 토큰 사용량 요약.
+     */
+    public record StepTokenUsage(String stepName, int promptTokens, int completionTokens, int totalTokens, String modelId) {}
 
     /**
      * 개별 LLM 호출 기록.
@@ -111,8 +178,8 @@ public final class PipelineTraceContext {
                 "text-embedding-3-small",    new double[]{0.02, 0.00}
         );
 
-        /** 알 수 없는 모델에 적용할 기본 비용 (보수적 추정). */
-        private static final double[] DEFAULT_COST = {0.50, 2.00};
+        /** 알 수 없는 모델에 적용할 기본 비용 (보수적 추정, mini 티어 기준). */
+        private static final double[] DEFAULT_COST = {3.00, 12.00};
 
         PipelineTrace(String inquiryId, Instant startTime) {
             this.inquiryId = inquiryId;
@@ -179,6 +246,45 @@ public final class PipelineTraceContext {
             return Duration.between(startTime, Instant.now());
         }
 
+        /**
+         * 단계별 토큰 사용량 요약 리스트를 반환한다.
+         */
+        public List<StepTokenUsage> getStepTokenUsages() {
+            return calls.stream()
+                    .map(c -> new StepTokenUsage(
+                            c.step(), c.inputTokens(), c.outputTokens(), c.totalTokens(), c.model()))
+                    .toList();
+        }
+
+        /**
+         * 단계별 토큰 사용량을 JSON 문자열로 직렬화한다.
+         * 직렬화 실패 시 빈 배열 {@code "[]"}을 반환한다.
+         */
+        public String tokenUsageDetailJson() {
+            try {
+                List<Map<String, Object>> details = new ArrayList<>();
+                for (LlmCallRecord call : calls) {
+                    var entry = new LinkedHashMap<String, Object>();
+                    entry.put("step", call.step());
+                    entry.put("model", call.model());
+                    entry.put("promptTokens", call.inputTokens());
+                    entry.put("completionTokens", call.outputTokens());
+                    entry.put("totalTokens", call.totalTokens());
+                    entry.put("latencyMs", call.latencyMs());
+                    details.add(entry);
+                }
+                return MAPPER.writeValueAsString(details);
+            } catch (JsonProcessingException e) {
+                log.warn("pipeline.trace 토큰 사용량 JSON 직렬화 실패: {}", e.getMessage());
+                return "[]";
+            }
+        }
+
+        /** 티어 기반 폴백 비용 (per 1M tokens): [input, output] */
+        private static final double[] TIER_NANO = {0.50, 2.00};
+        private static final double[] TIER_MINI = {3.00, 12.00};
+        private static final double[] TIER_EMBEDDING = {0.13, 0.00};
+
         private static double[] resolveCost(String model) {
             if (model == null) {
                 return DEFAULT_COST;
@@ -194,6 +300,16 @@ public final class PipelineTraceContext {
                 if (lower.startsWith(entry.getKey())) {
                     return entry.getValue();
                 }
+            }
+            // 티어 기반 폴백: 모델 이름에 포함된 키워드로 비용 추정
+            if (lower.contains("embedding")) {
+                return TIER_EMBEDDING;
+            }
+            if (lower.contains("nano")) {
+                return TIER_NANO;
+            }
+            if (lower.contains("mini")) {
+                return TIER_MINI;
             }
             return DEFAULT_COST;
         }
