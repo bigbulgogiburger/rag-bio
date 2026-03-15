@@ -38,6 +38,12 @@ import { cn } from "@/lib/utils";
 import { showToast } from "@/lib/toast";
 import { useInquiryEvents, type DraftStepData, type IndexingProgressData } from "@/hooks/useInquiryEvents";
 import { usePipelineStatus } from "@/hooks/usePipelineStatus";
+import { copyForGmail } from "@/lib/editor/gmailCopy";
+
+const AnswerEditor = dynamic(() => import("@/components/inquiry/AnswerEditor"), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">에디터 로딩 중...</div>,
+});
 
 const PdfViewer = dynamic(() => import("@/components/ui/PdfViewer"), {
   ssr: false,
@@ -178,8 +184,8 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
         status: s.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : s.status as DraftStepData['status'],
         message: s.message,
       })));
-    } else if (pipelineStatus.status === 'COMPLETED' && !answerDraft) {
-      // Generation completed while away — load the latest answer
+    } else if ((pipelineStatus.status === 'COMPLETED' || pipelineStatus.status === 'IDLE' || pipelineStatus.status === 'FAILED') && !answerDraft) {
+      // Generation completed / idle / failed — try loading the latest answer if it exists
       getLatestAnswerDraft(inquiryId).then(setAnswerDraft).catch(() => {});
     }
   }, [pipelineStatus, inquiryId, answerDraft]);
@@ -373,7 +379,8 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
     if (!answerDraft || !editedDraft.trim()) return;
     setSavingDraft(true);
     try {
-      const updated = await updateAnswerDraft(inquiryId, answerDraft.answerId, editedDraft);
+      const isHtml = editedDraft.startsWith("<");
+      const updated = await updateAnswerDraft(inquiryId, answerDraft.answerId, editedDraft, isHtml ? "HTML" : undefined);
       setAnswerDraft(updated);
       setIsEditing(false);
       showToast("답변 본문이 수정되었습니다", "success");
@@ -381,6 +388,21 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
       showToast(err instanceof Error ? err.message : "답변 수정 중 오류가 발생했습니다.", "error");
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  const handleGmailCopy = async () => {
+    if (!answerDraft) return;
+    const html = answerDraft.draftFormat === "HTML" ? answerDraft.draft : editedDraft || answerDraft.draft;
+    try {
+      const result = await copyForGmail(html);
+      if (result.warnings.length > 0) {
+        showToast(`Gmail 복사 완료 (경고: ${result.warnings[0]})`, "info");
+      } else {
+        showToast("Gmail용 HTML이 클립보드에 복사되었습니다", "success");
+      }
+    } catch {
+      showToast("클립보드 복사에 실패했습니다", "error");
     }
   };
 
@@ -831,7 +853,7 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
 
               <hr className="border-t border-border" />
 
-              {/* Answer Body */}
+              {/* Answer Body — Rich Text Editor */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-base font-semibold">답변 본문</h4>
@@ -850,15 +872,26 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                         수정
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleGmailCopy}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                      Gmail 복사
+                    </Button>
                   </div>
                 </div>
                 {isEditing ? (
                   <div className="space-y-3">
-                    <textarea
-                      className="w-full min-h-[200px] rounded-lg border border-input bg-transparent p-4 text-sm leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={editedDraft}
-                      onChange={(e) => setEditedDraft(e.target.value)}
-                      aria-label="답변 본문 수정"
+                    <AnswerEditor
+                      content={editedDraft}
+                      draftFormat={answerDraft.draftFormat as "TEXT" | "HTML" | undefined}
+                      inquiryId={inquiryId}
+                      onChange={(html) => setEditedDraft(html)}
+                      onCopyForGmail={handleGmailCopy}
+                      editable={true}
                     />
                     <div className="flex items-center gap-2">
                       <Button size="sm" onClick={handleSaveDraft} disabled={savingDraft || !editedDraft.trim()}>
@@ -871,9 +904,12 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-lg border bg-muted/20 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                    {renderDraftWithCitations(answerDraft.draft)}
-                  </div>
+                  <AnswerEditor
+                    content={answerDraft.draft}
+                    draftFormat={answerDraft.draftFormat as "TEXT" | "HTML" | undefined}
+                    inquiryId={inquiryId}
+                    editable={false}
+                  />
                 )}
               </div>
 

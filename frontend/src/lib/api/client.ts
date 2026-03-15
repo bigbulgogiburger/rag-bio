@@ -659,12 +659,15 @@ export async function autoWorkflow(inquiryId: string, answerId: string): Promise
 export async function updateAnswerDraft(
   inquiryId: string,
   answerId: string,
-  draft: string
+  draft: string,
+  draftFormat?: "TEXT" | "HTML"
 ): Promise<AnswerDraftResult> {
+  const body: Record<string, string> = { draft };
+  if (draftFormat) body.draftFormat = draftFormat;
   const response = await authFetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/answers/${answerId}/edit-draft`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draft })
+    body: JSON.stringify(body)
   });
   if (!response.ok) {
     throw new Error(`Failed to update draft: ${response.status}`);
