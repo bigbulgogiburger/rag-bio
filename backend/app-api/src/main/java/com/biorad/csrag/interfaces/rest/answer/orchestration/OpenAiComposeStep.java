@@ -38,6 +38,7 @@ public class OpenAiComposeStep implements ComposeStep {
     private final PromptRegistry promptRegistry;
     private final int evidenceTokenBudget;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OpenAiComposeStep(
             @Value("${openai.api-key}") String apiKey,
             @Value("${openai.base-url:https://api.openai.com/v1}") String baseUrl,
