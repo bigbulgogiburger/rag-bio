@@ -136,6 +136,7 @@ export interface AnswerDraftResult {
   verdict: "SUPPORTED" | "REFUTED" | "CONDITIONAL";
   confidence: number;
   draft: string;
+  draftFormat?: 'TEXT' | 'HTML';
   citations: string[];
   riskFlags: string[];
   tone: AnswerTone;
@@ -230,6 +231,29 @@ export interface ImageAnalysisResult {
   technicalContext: string;
   suggestedQuery: string;
   confidence: number;
+}
+
+export interface ImageUploadResult {
+  imageId: string;
+  url: string;
+  width: number;
+  height: number;
+  format: string;
+  sizeBytes: number;
+}
+
+export interface PipelineStepStatus {
+  step: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'RETRY' | 'SKIPPED';
+  message?: string;
+  updatedAt?: string;
+}
+
+export interface PipelineStatusResult {
+  status: 'IDLE' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+  startedAt?: string;
+  error?: string;
+  steps: PipelineStepStatus[];
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8081";
@@ -1011,4 +1035,32 @@ export function getDocumentDownloadUrl(documentId: string): string {
 
 export function getDocumentPagesUrl(documentId: string, from: number, to: number): string {
   return `${API_BASE_URL}/api/v1/documents/${documentId}/pages?from=${from}&to=${to}`;
+}
+
+// ===== Image Upload =====
+
+export async function uploadImage(file: File, inquiryId?: string): Promise<ImageUploadResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (inquiryId) formData.append('inquiryId', inquiryId);
+
+  const response = await authFetch(`${API_BASE_URL}/api/v1/images/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || '이미지 업로드 실패');
+  }
+  return (await response.json()) as ImageUploadResult;
+}
+
+// ===== Pipeline Status =====
+
+export async function getPipelineStatus(inquiryId: string): Promise<PipelineStatusResult> {
+  const response = await authFetch(`${API_BASE_URL}/api/v1/inquiries/${inquiryId}/pipeline-status`);
+  if (!response.ok) {
+    throw new Error('파이프라인 상태 조회 실패');
+  }
+  return (await response.json()) as PipelineStatusResult;
 }

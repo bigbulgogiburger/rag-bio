@@ -146,6 +146,11 @@ logging:
   pattern:
     level: "%5p [req:%X{requestId:-none}]"
 
+image:
+  storage:
+    path: ${IMAGE_STORAGE_PATH:./uploads/images}
+    base-url: ${IMAGE_BASE_URL:http://localhost:8081}
+
 server:
   port: 8081
 

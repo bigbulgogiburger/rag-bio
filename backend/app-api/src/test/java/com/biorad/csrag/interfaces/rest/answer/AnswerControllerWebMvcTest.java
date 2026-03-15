@@ -128,6 +128,7 @@ class AnswerControllerWebMvcTest {
                 "CONDITIONAL",
                 0.5,
                 "draft",
+                "TEXT",
                 List.of(),
                 List.of(),
                 "professional",

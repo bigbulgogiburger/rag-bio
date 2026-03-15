@@ -12,6 +12,7 @@ import {
   getDocumentDownloadUrl,
   getDocumentPagesUrl,
   getInquiryIndexingStatus,
+  getLatestAnswerDraft,
   type AnswerDraftResult,
   type InquiryDetail,
   type InquiryIndexingStatus,
@@ -31,11 +32,12 @@ import {
 } from "@/lib/i18n/labels";
 import WorkflowResultCard from "./WorkflowResultCard";
 import PipelineProgress from "./PipelineProgress";
-import { Badge, EmptyState } from "@/components/ui";
+import { Badge, EmptyState, Skeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/lib/toast";
 import { useInquiryEvents, type DraftStepData, type IndexingProgressData } from "@/hooks/useInquiryEvents";
+import { usePipelineStatus } from "@/hooks/usePipelineStatus";
 
 const PdfViewer = dynamic(() => import("@/components/ui/PdfViewer"), {
   ssr: false,
@@ -163,6 +165,39 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
   const MAX_REFINEMENTS = 5;
   const [refinementInstructions, setRefinementInstructions] = useState("");
 
+  // Pipeline status restoration from server
+  const { pipelineStatus, isLoading: statusLoading } = usePipelineStatus(inquiryId);
+
+  // Restore pipeline state from server on mount (tab switch / refresh recovery)
+  useEffect(() => {
+    if (!pipelineStatus) return;
+    if (pipelineStatus.status === 'GENERATING') {
+      setDraftGenerating(true);
+      setDraftSteps(pipelineStatus.steps.map(s => ({
+        step: s.step,
+        status: s.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : s.status as DraftStepData['status'],
+        message: s.message,
+      })));
+    } else if (pipelineStatus.status === 'COMPLETED' && !answerDraft) {
+      // Generation completed while away — load the latest answer
+      getLatestAnswerDraft(inquiryId).then(setAnswerDraft).catch(() => {});
+    }
+  }, [pipelineStatus, inquiryId, answerDraft]);
+
+  // Timeout: abort if generating for over 30 minutes
+  useEffect(() => {
+    if (pipelineStatus?.status === 'GENERATING' && pipelineStatus.startedAt) {
+      const elapsed = Date.now() - new Date(pipelineStatus.startedAt).getTime();
+      if (elapsed > 30 * 60 * 1000) {
+        setDraftGenerating(false);
+        showToast('답변 생성이 시간 초과되었습니다. 다시 시도해주세요.', 'error');
+      }
+    }
+  }, [pipelineStatus]);
+
+  // SSE should be connected when generating (locally started or server-restored)
+  const shouldConnectSSE = draftGenerating || pipelineStatus?.status === 'GENERATING';
+
   // Initialize channel from inquiry
   useEffect(() => {
     if (inquiry.customerChannel === "messenger") {
@@ -171,7 +206,8 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
   }, [inquiry.customerChannel]);
 
   // SSE: real-time indexing + draft step events
-  useInquiryEvents(inquiryId, {
+  const { connectionStatus } = useInquiryEvents(inquiryId, {
+    enabled: shouldConnectSSE || indexingInProgress,
     onIndexingProgress: (data: IndexingProgressData) => {
       setIndexingInProgress(data.status !== "COMPLETED" && data.status !== "INDEXED" && data.status !== "FAILED");
       // Update indexing status display
@@ -452,10 +488,24 @@ export default function InquiryAnswerTab({ inquiryId, inquiry }: InquiryAnswerTa
     return parts.length > 0 ? parts : text;
   };
 
+  // Pipeline error state for display
+  const pipelineError = pipelineStatus?.status === 'FAILED' ? (pipelineStatus.error ?? '답변 생성에 실패했습니다') : undefined;
+
+  if (statusLoading) {
+    return <Skeleton className="h-48 w-full rounded-xl" />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Pipeline Progress with cute cat animation */}
-      <PipelineProgress steps={draftSteps} isGenerating={draftGenerating} />
+      <PipelineProgress
+        steps={draftSteps}
+        isGenerating={draftGenerating}
+        startedAt={pipelineStatus?.startedAt}
+        connectionStatus={connectionStatus}
+        onRetry={handleDraftAnswer}
+        error={pipelineError}
+      />
 
       {/* Indexing Warning Banner */}
       {indexingInProgress && (

@@ -351,6 +351,7 @@ public class AnswerComposerService {
                 entity.getVerdict(),
                 entity.getConfidence(),
                 entity.getDraft(),
+                entity.getDraftFormat(),
                 citations,
                 riskFlags,
                 entity.getTone(),

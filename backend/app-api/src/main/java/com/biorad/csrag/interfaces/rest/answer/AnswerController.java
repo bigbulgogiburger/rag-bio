@@ -251,6 +251,9 @@ public class AnswerController {
         }
 
         entity.updateDraft(request.draft());
+        if (request.draftFormat() != null && !request.draftFormat().isBlank()) {
+            entity.setDraftFormat(request.draftFormat());
+        }
         return answerComposerService.toResponsePublic(answerDraftRepository.save(entity));
     }
 

@@ -44,11 +44,16 @@ function toDisplayKey(step: string): string {
 interface PipelineProgressProps {
   steps: DraftStepData[];
   isGenerating: boolean;
+  startedAt?: string;
+  connectionStatus?: string;
+  onRetry?: () => void;
+  error?: string;
 }
 
-export default function PipelineProgress({ steps, isGenerating }: PipelineProgressProps) {
+export default function PipelineProgress({ steps, isGenerating, startedAt, connectionStatus, onRetry, error }: PipelineProgressProps) {
   const [waitIdx, setWaitIdx] = useState(0);
   const [dots, setDots] = useState("");
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (!isGenerating) return;
@@ -61,6 +66,41 @@ export default function PipelineProgress({ steps, isGenerating }: PipelineProgre
     const id = setInterval(() => setDots((d) => (d.length >= 3 ? "" : d + ".")), 500);
     return () => clearInterval(id);
   }, [isGenerating]);
+
+  // Elapsed time counter
+  useEffect(() => {
+    if (!startedAt || !isGenerating) {
+      setElapsed(0);
+      return;
+    }
+    const startMs = new Date(startedAt).getTime();
+    const update = () => setElapsed(Math.floor((Date.now() - startMs) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [startedAt, isGenerating]);
+
+  // Error state (pipeline failed)
+  if (error) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-destructive/30 bg-destructive/5 px-4 py-5 sm:px-6">
+        <div className="flex items-center gap-3">
+          <svg className="h-5 w-5 text-destructive shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+          <span className="text-sm text-destructive">{error}</span>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="ml-auto shrink-0 rounded-md border border-destructive/30 bg-background px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              재시도
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!isGenerating || steps.length === 0) return null;
 
@@ -112,6 +152,16 @@ export default function PipelineProgress({ steps, isGenerating }: PipelineProgre
               {WAIT_MESSAGES[waitIdx]}
             </p>
           </div>
+        </div>
+
+        {/* ── Elapsed time + connection status ── */}
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
+          {elapsed > 0 && (
+            <span>{Math.floor(elapsed / 60)}분 {elapsed % 60}초 경과</span>
+          )}
+          {connectionStatus === "connecting" && (
+            <span className="animate-pulse">진행 상태에 다시 연결하고 있어요...</span>
+          )}
         </div>
 
         {/* ── Step Progress ── */}

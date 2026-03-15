@@ -10,6 +10,7 @@ public record AnswerDraftResponse(
         String verdict,
         double confidence,
         String draft,
+        String draftFormat,
         List<String> citations,
         List<String> riskFlags,
         String tone,

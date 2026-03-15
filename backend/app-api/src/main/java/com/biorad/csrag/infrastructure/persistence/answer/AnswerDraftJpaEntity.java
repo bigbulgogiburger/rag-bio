@@ -108,6 +108,9 @@ public class AnswerDraftJpaEntity {
     @Column(name = "decomposed_questions", columnDefinition = "TEXT")
     private String decomposedQuestions;
 
+    @Column(name = "draft_format", length = 10)
+    private String draftFormat = "TEXT";
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -165,6 +168,8 @@ public class AnswerDraftJpaEntity {
     public int getWorkflowRunCount() { return workflowRunCount; }
     public int getSubQuestionCount() { return subQuestionCount; }
     public String getDecomposedQuestions() { return decomposedQuestions; }
+    public String getDraftFormat() { return draftFormat != null ? draftFormat : "TEXT"; }
+    public void setDraftFormat(String draftFormat) { this.draftFormat = draftFormat; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 

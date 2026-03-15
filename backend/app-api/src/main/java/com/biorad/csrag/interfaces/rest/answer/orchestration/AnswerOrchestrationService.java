@@ -55,6 +55,7 @@ public class AnswerOrchestrationService {
     private final AdaptiveRetrievalAgent adaptiveRetrievalAgent;
     private final MultiHopRetriever multiHopRetriever;
     private final CriticAgentService criticAgentService;
+    private final PipelineStatusService pipelineStatusService;
 
     public AnswerOrchestrationService(
             RetrieveStep retrieveStep,
@@ -68,7 +69,8 @@ public class AnswerOrchestrationService {
             ProductFamilyRegistry productFamilyRegistry,
             AdaptiveRetrievalAgent adaptiveRetrievalAgent,
             MultiHopRetriever multiHopRetriever,
-            CriticAgentService criticAgentService
+            CriticAgentService criticAgentService,
+            PipelineStatusService pipelineStatusService
     ) {
         this.retrieveStep = retrieveStep;
         this.verifyStep = verifyStep;
@@ -82,6 +84,7 @@ public class AnswerOrchestrationService {
         this.adaptiveRetrievalAgent = adaptiveRetrievalAgent;
         this.multiHopRetriever = multiHopRetriever;
         this.criticAgentService = criticAgentService;
+        this.pipelineStatusService = pipelineStatusService;
     }
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel) {
@@ -90,6 +93,19 @@ public class AnswerOrchestrationService {
 
     public OrchestrationResult run(UUID inquiryId, String question, String tone, String channel,
                                     String additionalInstructions, String previousAnswerDraft) {
+
+        pipelineStatusService.startExecution(inquiryId);
+
+        try {
+            return doRun(inquiryId, question, tone, channel, additionalInstructions, previousAnswerDraft);
+        } catch (Exception e) {
+            pipelineStatusService.failExecution(inquiryId, e.getMessage());
+            throw e;
+        }
+    }
+
+    private OrchestrationResult doRun(UUID inquiryId, String question, String tone, String channel,
+                                       String additionalInstructions, String previousAnswerDraft) {
 
         TokenBudgetManager budgetManager = new TokenBudgetManager(maxBudgetTokens);
 
@@ -428,6 +444,8 @@ public class AnswerOrchestrationService {
                 inquiryId, budgetManager.getConsumedTokens(), maxBudgetTokens,
                 budgetManager.getRemainingBudget(), budgetManager.isOverBudget());
 
+        pipelineStatusService.completeExecution(inquiryId);
+
         return new OrchestrationResult(
                 analysis, finalDraft, finalWarnings, selfReviewIssues,
                 perQuestionEvidences, retrievalQuality, extractedFamilies, criticResult);
@@ -618,6 +636,11 @@ public class AnswerOrchestrationService {
     }
 
     private void emitPipelineEvent(UUID inquiryId, String step, String status, String error) {
+        try {
+            pipelineStatusService.updateStep(inquiryId, step, status, error);
+        } catch (Exception e) {
+            log.debug("pipeline.status.update.failed inquiryId={} step={} status={}", inquiryId, step, status);
+        }
         try {
             sseService.send(inquiryId, "pipeline-step", Map.of(
                     "step", step,
