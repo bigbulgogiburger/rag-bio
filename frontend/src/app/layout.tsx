@@ -27,8 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             본문으로 건너뛰기
           </a>
-          <header className="sticky top-0 z-50 pt-3 pb-2 px-4">
-            <nav className="mx-auto max-w-5xl rounded-2xl border border-border/50 bg-card/70 backdrop-blur-xl px-4 py-2 shadow-brand">
+          <header className="sticky top-0 z-50 pt-3 pb-2 px-4 sm:px-6">
+            <nav className="mx-auto max-w-7xl rounded-2xl border border-border/50 bg-card/70 backdrop-blur-xl px-4 py-2 shadow-brand sm:px-6">
               <div className="flex items-center justify-between">
                 <Link href="/dashboard" className="flex items-center gap-3 transition-opacity hover:opacity-80">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
