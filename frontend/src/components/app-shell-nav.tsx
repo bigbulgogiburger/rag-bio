@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const baseClass =
   "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
-const activeClass = "bg-primary/10 text-primary font-semibold";
+const activeClass = "bg-primary/10 text-primary font-semibold shadow-[inset_0_-2px_0_hsl(var(--primary))]";
 
 function isActive(href: string, pathname: string): boolean {
   if (href === "/inquiries/new") return pathname === "/inquiries/new";
@@ -102,12 +102,24 @@ export function MobileBottomNav() {
           key={href}
           href={href}
           className={cn(
-            "flex flex-1 flex-col items-center gap-1 px-2 py-3 text-[0.65rem] font-medium transition-colors",
-            isActive(href, pathname) ? "text-primary" : "text-muted-foreground"
+            "flex flex-1 flex-col items-center gap-0.5 px-2 py-2.5",
+            "text-[0.65rem] font-medium transition-all"
           )}
         >
-          <Icon className="h-5 w-5" />
-          <span>{shortLabel}</span>
+          <div className={cn(
+            "flex h-8 w-16 items-center justify-center rounded-2xl transition-all",
+            isActive(href, pathname)
+              ? "bg-primary/10"
+              : "bg-transparent"
+          )}>
+            <Icon className={cn("h-5 w-5 transition-colors",
+              isActive(href, pathname) ? "text-primary" : "text-muted-foreground"
+            )} />
+          </div>
+          <span className={cn(
+            "transition-colors",
+            isActive(href, pathname) ? "text-primary" : "text-muted-foreground"
+          )}>{shortLabel}</span>
         </Link>
       ))}
     </nav>

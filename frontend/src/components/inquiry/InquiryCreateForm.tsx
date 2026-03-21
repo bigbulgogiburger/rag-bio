@@ -184,8 +184,8 @@ export default function InquiryCreateForm() {
         />
       )}
 
-      <form className="rounded-xl border bg-card p-4 shadow-sm space-y-6 sm:p-6" onSubmit={handleSubmit(onSubmit)}>
-        <h2 className="text-xl font-semibold tracking-tight">새 고객 문의 등록</h2>
+      <form className="rounded-2xl border border-border/50 bg-card shadow-brand space-y-6 p-4 sm:p-6" onSubmit={handleSubmit(onSubmit)}>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">새 고객 문의 등록</h2>
         <p className="text-sm text-muted-foreground">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
 
         <hr className="border-t border-border" />
@@ -195,7 +195,7 @@ export default function InquiryCreateForm() {
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             질문
             <textarea
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[120px] resize-y"
+              className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[160px] resize-y"
               rows={5}
               placeholder="고객 기술 문의 내용을 입력하세요"
               aria-invalid={!!errors.question}
@@ -207,62 +207,41 @@ export default function InquiryCreateForm() {
             )}
           </label>
 
-          {/* Product Family Tag Picker */}
+          {/* Product Family Chip Toggle */}
           <div className="space-y-2">
             <label className="text-sm font-medium">
               관련 제품군 (최대 3개)
             </label>
-            <div className="flex items-center gap-2">
-              <select
-                className="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
-                value={pfSelectValue}
-                onChange={(e) => setPfSelectValue(e.target.value)}
-                disabled={selectedProductFamilies.length >= 3}
-              >
-                <option value="">제품군 선택</option>
-                {Object.keys(PRODUCT_FAMILY_LABELS)
-                  .filter((key) => !selectedProductFamilies.includes(key))
-                  .map((key) => (
-                    <option key={key} value={key}>
-                      {labelProductFamily(key)}
-                    </option>
-                  ))}
-              </select>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!pfSelectValue || selectedProductFamilies.length >= 3}
-                onClick={() => {
-                  if (pfSelectValue && !selectedProductFamilies.includes(pfSelectValue)) {
-                    setSelectedProductFamilies((prev) => [...prev, pfSelectValue]);
-                    setPfSelectValue("");
-                  }
-                }}
-              >
-                추가
-              </Button>
-            </div>
-            {selectedProductFamilies.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {selectedProductFamilies.map((pf) => (
-                  <span
-                    key={pf}
-                    className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(PRODUCT_FAMILY_LABELS).map((key) => {
+                const isSelected = selectedProductFamilies.includes(key);
+                const isDisabled = !isSelected && selectedProductFamilies.length >= 3;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                      isSelected
+                        ? "border-primary bg-primary/10 text-primary"
+                        : isDisabled
+                          ? "border-border bg-card text-muted-foreground opacity-40 cursor-not-allowed"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/30"
+                    }`}
+                    disabled={isDisabled}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedProductFamilies((prev) => prev.filter((v) => v !== key));
+                      } else {
+                        setSelectedProductFamilies((prev) => [...prev, key]);
+                      }
+                    }}
+                    aria-pressed={isSelected}
                   >
-                    {labelProductFamily(pf)}
-                    <button
-                      type="button"
-                      className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20 transition-colors"
-                      onClick={() => setSelectedProductFamilies((prev) => prev.filter((v) => v !== pf))}
-                      aria-label={`${labelProductFamily(pf)} 제거`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+                    {labelProductFamily(key)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -298,18 +277,26 @@ export default function InquiryCreateForm() {
 
         <div className="space-y-4">
           <h3 className="text-base font-semibold">파일 첨부</h3>
-          <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, PNG, JPG, WEBP 형식을 지원합니다.</p>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            <div className="rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
+          <label className="flex flex-col gap-1.5 text-sm font-medium cursor-pointer">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border p-8 text-center hover:border-primary/40 hover:bg-accent/30 transition-all">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" x2="12" y1="3" y2="15" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">파일을 끌어다 놓거나 <span className="text-primary">선택</span>하세요</p>
+                <p className="mt-1 text-xs text-muted-foreground/70">PDF, DOC, DOCX, PNG, JPG, WEBP (최대 20MB)</p>
+              </div>
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
                 onChange={handleFileChange}
                 aria-label="파일 선택"
+                className="sr-only"
               />
-              {!file && (
-                <p className="text-sm text-muted-foreground">클릭하여 파일을 선택하거나 드래그하세요</p>
-              )}
             </div>
           </label>
 
@@ -376,10 +363,10 @@ export default function InquiryCreateForm() {
 
         <hr className="border-t border-border" />
 
-        <div className="sticky bottom-20 z-10 -mx-4 bg-card px-4 py-3 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 md:bottom-0">
+        <div className="sticky bottom-20 z-10 -mx-4 px-4 py-3 bg-gradient-to-t from-card via-card to-card/0 sm:static sm:mx-0 sm:bg-transparent sm:bg-none sm:px-0 sm:py-0 md:bottom-0">
           <Button
             size="lg"
-            className="w-full rounded-full"
+            className="w-full rounded-full shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
             type="submit"
             disabled={isSubmitting}
           >

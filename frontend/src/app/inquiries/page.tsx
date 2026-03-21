@@ -203,7 +203,12 @@ export default function InquiriesPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">문의 대응 내역</h2>
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">문의 대응 내역</h2>
+          {response ? (
+            <p className="mt-1 text-sm text-muted-foreground">총 {response.totalElements}건의 문의</p>
+          ) : null}
+        </div>
         <Button
           onClick={() => router.push("/inquiries/new")}
           className="hidden sm:inline-flex"
@@ -212,8 +217,18 @@ export default function InquiriesPage() {
         </Button>
       </div>
 
+      {/* Mobile FAB */}
+      <button
+        onClick={() => router.push("/inquiries/new")}
+        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:scale-105 active:scale-95 md:hidden"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="문의 작성"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
+      </button>
+
       {/* Main Content Card */}
-      <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-border/50 bg-card shadow-brand space-y-4 p-4 sm:p-6">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -233,7 +248,7 @@ export default function InquiriesPage() {
             {/* Mobile skeleton cards */}
             <div className="flex flex-col gap-3 md:hidden">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-3">
+                <div key={i} className="rounded-xl border border-border/50 bg-card p-4 shadow-brand space-y-3">
                   <Skeleton className="h-4 w-3/4" />
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-3 w-12" />
@@ -246,7 +261,7 @@ export default function InquiriesPage() {
           </>
         )}
 
-        {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+        {error && <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
 
         {!error && response && (
           <>
@@ -277,16 +292,23 @@ export default function InquiriesPage() {
                     <button
                       key={item.inquiryId}
                       type="button"
-                      className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                      className="w-full rounded-xl border border-border/50 bg-card p-4 text-left shadow-brand active:scale-[0.98] transition-all"
                       onClick={() => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
                     >
-                      <p className="mb-2 text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}</span>
-                        <span>{labelChannel(item.customerChannel)}</span>
+                      {/* Top: status badge + date */}
+                      <div className="flex items-center justify-between mb-2">
                         <Badge variant={getStatusBadgeVariant(item.status)}>
                           {labelInquiryStatus(item.status)}
                         </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}
+                        </span>
+                      </div>
+                      {/* Middle: question */}
+                      <p className="mb-3 text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
+                      {/* Bottom: channel + answer status + doc count */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{labelChannel(item.customerChannel)}</span>
                         {item.latestAnswerStatus && (
                           <Badge variant={getAnswerStatusBadgeVariant(item.latestAnswerStatus)}>
                             {labelAnswerStatus(item.latestAnswerStatus)}

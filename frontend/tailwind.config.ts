@@ -44,7 +44,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Bio-Rad 커스텀 시맨틱 색상
+        // Bio-Rad semantic status colors
         success: {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
@@ -79,7 +79,6 @@ const config: Config = {
         sans: [
           "Pretendard Variable",
           "Pretendard",
-          "Noto Sans KR",
           "-apple-system",
           "BlinkMacSystemFont",
           "system-ui",
@@ -91,6 +90,15 @@ const config: Config = {
           "ui-monospace",
           "monospace",
         ],
+      },
+      transitionTimingFunction: {
+        smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
+        bounce: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+      },
+      transitionDuration: {
+        fast: "150ms",
+        normal: "200ms",
+        slow: "300ms",
       },
       keyframes: {
         "accordion-down": {

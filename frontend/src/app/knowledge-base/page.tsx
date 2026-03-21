@@ -328,11 +328,23 @@ export default function KnowledgeBasePage() {
     },
   ];
 
+  // Compute indexing percentage
+  const indexPercentage = stats && stats.totalDocuments > 0
+    ? Math.round((stats.indexedDocuments / stats.totalDocuments) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">지식 기반 관리</h2>
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">지식 기반 관리</h2>
+          {stats && (
+            <p className="text-sm text-muted-foreground mt-1">
+              총 {stats.totalDocuments}건의 문서, {indexPercentage}% 인덱싱 완료
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
@@ -350,50 +362,80 @@ export default function KnowledgeBasePage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Metric Strip */}
       {stats ? (
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          <article className="rounded-xl border bg-card p-3 shadow-sm sm:p-5">
-            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
-          </article>
-          <article className="rounded-xl border bg-card p-3 shadow-sm sm:p-5">
-            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.indexedDocuments}건</p>
-          </article>
-          <article className="col-span-2 rounded-xl border bg-card p-3 shadow-sm sm:col-span-1 sm:p-5">
-            <p className="text-[0.65rem] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
-          </article>
-        </section>
+        <div className="space-y-3">
+          <div className="flex items-center gap-6 rounded-2xl border border-border/50 bg-card px-6 py-4 shadow-brand overflow-x-auto scrollbar-none">
+            <div className="shrink-0">
+              <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">전체 문서</p>
+              <p className="text-lg font-bold tracking-tight text-foreground">{stats.totalDocuments}건</p>
+            </div>
+            <div className="h-8 w-px bg-border shrink-0" />
+            <div className="shrink-0">
+              <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">인덱싱 완료</p>
+              <p className="text-lg font-bold tracking-tight text-[hsl(var(--success))]">{stats.indexedDocuments}건</p>
+            </div>
+            <div className="h-8 w-px bg-border shrink-0" />
+            <div className="shrink-0">
+              <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">총 청크</p>
+              <p className="text-lg font-bold tracking-tight text-foreground">{stats.totalChunks.toLocaleString()}개</p>
+            </div>
+          </div>
+
+          {/* Indexing Progress Bar */}
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[hsl(var(--success))] transition-all duration-500"
+              style={{ width: `${indexPercentage}%` }}
+            />
+          </div>
+        </div>
       ) : (
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <article className={`rounded-xl border bg-card p-3 shadow-sm sm:p-5 ${i === 3 ? "col-span-2 sm:col-span-1" : ""}`} key={i}>
-              <Skeleton className="h-3.5 w-20 mb-2" />
-              <Skeleton className="h-8 w-[100px]" />
-            </article>
-          ))}
-        </section>
+        <div className="space-y-3">
+          <div className="flex items-center gap-6 rounded-2xl border border-border/50 bg-card px-6 py-4 shadow-brand">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-6">
+                {i > 1 && <div className="h-8 w-px bg-border shrink-0" />}
+                <div>
+                  <Skeleton className="h-3 w-16 mb-2" />
+                  <Skeleton className="h-6 w-[60px]" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <Skeleton className="h-2 w-full rounded-full" />
+        </div>
       )}
 
-      {/* Product Family Distribution */}
+      {/* Product Family Distribution - Bar Chart */}
       {stats && stats.byProductFamily && Object.keys(stats.byProductFamily).length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">제품군별 분포</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-            {Object.entries(stats.byProductFamily).map(([family, count]) => (
-              <article key={family} className="rounded-xl border bg-card p-4 shadow-sm">
-                <p className="text-xs font-medium text-muted-foreground truncate">{labelProductFamily(family)}</p>
-                <p className="text-lg font-bold tracking-tight text-foreground">{count}건</p>
-              </article>
-            ))}
+          <div className="space-y-2">
+            {Object.entries(stats.byProductFamily)
+              .sort(([, a], [, b]) => (b as number) - (a as number))
+              .map(([family, count]) => {
+                const maxCount = Math.max(...Object.values(stats.byProductFamily).map(Number));
+                const barPercentage = maxCount > 0 ? ((count as number) / maxCount) * 100 : 0;
+                return (
+                  <div key={family} className="flex items-center gap-3">
+                    <span className="text-xs font-medium w-24 truncate text-right">{labelProductFamily(family)}</span>
+                    <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary/60 transition-all duration-500"
+                        style={{ width: `${barPercentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs tabular-nums text-muted-foreground w-12 text-right">{count as number}건</span>
+                  </div>
+                );
+              })}
           </div>
         </section>
       )}
 
       {/* Main Content */}
-      <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-border/50 bg-card shadow-brand p-4 sm:p-6 space-y-4">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -413,7 +455,7 @@ export default function KnowledgeBasePage() {
             {/* Mobile skeleton cards */}
             <div className="flex flex-col gap-3 md:hidden">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-3">
+                <div key={i} className="rounded-2xl border border-border/50 bg-card p-4 shadow-brand space-y-3">
                   <Skeleton className="h-4 w-3/4" />
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-3 w-14" />
@@ -460,7 +502,7 @@ export default function KnowledgeBasePage() {
                     <button
                       key={item.documentId}
                       type="button"
-                      className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                      className="w-full rounded-xl border border-border/50 bg-card p-4 shadow-brand text-left active:scale-[0.98] transition-all"
                       onClick={() => {
                         setSelectedDoc(item);
                         setShowDetailModal(true);
@@ -503,34 +545,75 @@ export default function KnowledgeBasePage() {
         onComplete={handleUploadComplete}
       />
 
-      {/* Detail Modal */}
+      {/* Detail Modal — Bottom Sheet on mobile */}
       {showDetailModal && selectedDoc && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[hsl(var(--overlay))/50] backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowDetailModal(false)}
         >
           <div
-            className="mx-4 w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 sm:mx-auto sm:p-6"
+            className="mx-0 sm:mx-4 w-full max-w-3xl rounded-t-2xl sm:rounded-2xl border bg-card shadow-2xl max-h-[85vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold">{selectedDoc.title}</h3>
+            {/* Mobile drag handle */}
+            <div className="flex justify-center py-2 sm:hidden">
+              <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
+            </div>
 
-            <div className="space-y-2 text-sm">
-              <div><b>카테고리:</b> {labelKbCategory(selectedDoc.category)}</div>
-              <div><b>제품군:</b> {selectedDoc.productFamily ? <Badge variant="info">{labelProductFamily(selectedDoc.productFamily)}</Badge> : "-"}</div>
-              <div><b>파일:</b> {selectedDoc.fileName} ({(selectedDoc.fileSize / 1024).toFixed(1)} KB)</div>
-              <div>
-                <b>상태:</b>{" "}
-                <Badge variant={getStatusBadgeVariant(selectedDoc.status)}>
-                  {(selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING") && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
-                  {labelDocStatus(selectedDoc.status)}
-                </Badge>
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-card border-b border-border px-4 sm:px-6 py-4">
+              <h3 className="text-base font-semibold line-clamp-2">{selectedDoc.title}</h3>
+            </div>
+
+            {/* Content */}
+            <div className="px-4 sm:px-6 py-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">카테고리</p>
+                  <p>{labelKbCategory(selectedDoc.category)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">제품군</p>
+                  <p>{selectedDoc.productFamily ? <Badge variant="info">{labelProductFamily(selectedDoc.productFamily)}</Badge> : "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">파일</p>
+                  <p>{selectedDoc.fileName} ({(selectedDoc.fileSize / 1024).toFixed(1)} KB)</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">상태</p>
+                  <p>
+                    <Badge variant={getStatusBadgeVariant(selectedDoc.status)}>
+                      {(selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING") && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                      {labelDocStatus(selectedDoc.status)}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">청크 / 벡터</p>
+                  <p>{selectedDoc.chunkCount ?? "-"}개 / {selectedDoc.vectorCount ?? "-"}개</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">등록자</p>
+                  <p>{selectedDoc.uploadedBy || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">등록일</p>
+                  <p>{new Date(selectedDoc.createdAt).toLocaleString("ko-KR")}</p>
+                </div>
+                {selectedDoc.tags && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">태그</p>
+                    <p>{selectedDoc.tags}</p>
+                  </div>
+                )}
               </div>
-              <div><b>청크:</b> {selectedDoc.chunkCount ?? "-"}개 &middot; <b>벡터:</b> {selectedDoc.vectorCount ?? "-"}개</div>
-              <div><b>등록자:</b> {selectedDoc.uploadedBy || "-"}</div>
-              <div><b>등록일:</b> {new Date(selectedDoc.createdAt).toLocaleString("ko-KR")}</div>
-              {selectedDoc.tags && <div><b>태그:</b> {selectedDoc.tags}</div>}
-              {selectedDoc.description && <div><b>설명:</b> {selectedDoc.description}</div>}
+              {selectedDoc.description && (
+                <div className="text-sm">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">설명</p>
+                  <p>{selectedDoc.description}</p>
+                </div>
+              )}
               {selectedDoc.lastError && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   <b>오류:</b> {selectedDoc.lastError}
@@ -538,29 +621,30 @@ export default function KnowledgeBasePage() {
               )}
             </div>
 
-            <hr className="border-t border-border" />
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 sm:justify-end">
-              <Button
-                variant="outline"
-                onClick={() => handleIndex(selectedDoc.documentId)}
-                disabled={selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING"}
-              >
-                {selectedDoc.status === "INDEXED" ? "재인덱싱" : "인덱싱 실행"}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleDelete(selectedDoc)}
-                disabled={loading}
-              >
-                삭제
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setShowDetailModal(false)}
-              >
-                닫기
-              </Button>
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 bg-card border-t border-border px-4 sm:px-6 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 sm:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => handleIndex(selectedDoc.documentId)}
+                  disabled={selectedDoc.status === "INDEXING" || selectedDoc.status === "REINDEXING"}
+                >
+                  {selectedDoc.status === "INDEXED" ? "재인덱싱" : "인덱싱 실행"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDelete(selectedDoc)}
+                  disabled={loading}
+                >
+                  삭제
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowDetailModal(false)}
+                >
+                  닫기
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -570,8 +654,7 @@ export default function KnowledgeBasePage() {
       <button
         type="button"
         onClick={() => setShowUploadModal(true)}
-        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:scale-105 active:scale-95 md:hidden"
         aria-label="문서 등록"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -148,11 +148,14 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">운영 대시보드</h2>
+            <p className="text-sm text-muted-foreground mt-1">실시간 CS 대응 현황을 한눈에 확인하세요</p>
+          </div>
         </div>
-        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={i}>
+            <article className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5" key={i}>
               <Skeleton className="mb-3 h-3.5 w-20" />
               <Skeleton className="mb-2 h-8 w-24" />
               <Skeleton className="h-3 w-16" />
@@ -173,7 +176,10 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">운영 대시보드</h2>
+            <p className="text-sm text-muted-foreground mt-1">실시간 CS 대응 현황을 한눈에 확인하세요</p>
+          </div>
         </div>
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
       </div>
@@ -184,7 +190,10 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header with period selector + CSV export */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">운영 대시보드</h2>
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">운영 대시보드</h2>
+          <p className="text-sm text-muted-foreground mt-1">실시간 CS 대응 현황을 한눈에 확인하세요</p>
+        </div>
         <div className="flex items-center gap-3">
           <PeriodSelector value={period} onChange={setPeriod} />
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExportCsv}>
@@ -194,13 +203,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric Cards */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {metricCards.map((metric) => (
-          <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5" key={metric.label}>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{metric.value}</p>
+          <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5" key={metric.label}>
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+            <p className="relative text-2xl font-bold tracking-tight text-foreground">{metric.value}</p>
             {metric.subValue && (
-              <p className="text-xs text-muted-foreground">{metric.subValue}</p>
+              <p className="relative text-xs text-muted-foreground">{metric.subValue}</p>
             )}
           </article>
         ))}
@@ -208,29 +218,32 @@ export default function DashboardPage() {
         {/* Processing Time Metrics */}
         {processingTime && (
           <>
-            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">평균 처리 시간</p>
-              <p className="text-2xl font-bold tracking-tight text-foreground">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">평균 처리 시간</p>
+              <p className="relative text-2xl font-bold tracking-tight text-foreground">
                 {processingTime.avgProcessingTimeHours > 0 ? `${processingTime.avgProcessingTimeHours}h` : "-"}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="relative text-xs text-muted-foreground">
                 중앙값 {processingTime.medianProcessingTimeHours}h
               </p>
             </article>
-            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">완료 건수</p>
-              <p className="text-2xl font-bold tracking-tight text-foreground">{processingTime.totalCompleted}건</p>
-              <p className="text-xs text-muted-foreground">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">완료 건수</p>
+              <p className="relative text-2xl font-bold tracking-tight text-foreground">{processingTime.totalCompleted}건</p>
+              <p className="relative text-xs text-muted-foreground">
                 {processingTime.minProcessingTimeHours}h ~ {processingTime.maxProcessingTimeHours}h
               </p>
             </article>
-            <article className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">KB 활용률</p>
-              <p className="text-2xl font-bold tracking-tight text-foreground">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">KB 활용률</p>
+              <p className="relative text-2xl font-bold tracking-tight text-foreground">
                 {kbUsage ? `${kbUsage.kbUsageRate}%` : "-"}
               </p>
               {kbUsage && (
-                <p className="text-xs text-muted-foreground">
+                <p className="relative text-xs text-muted-foreground">
                   {kbUsage.kbEvidences}/{kbUsage.totalEvidences}건
                 </p>
               )}
@@ -244,7 +257,7 @@ export default function DashboardPage() {
         {/* Timeline Chart */}
         <Card>
           <CardContent className="p-6">
-            <h3 className="mb-4 text-base font-semibold">문의 처리 현황</h3>
+            <h3 className="mb-4 text-lg font-semibold">문의 처리 현황</h3>
             {analyticsLoading ? (
               <Skeleton className="h-[300px] w-full" />
             ) : (
@@ -256,7 +269,7 @@ export default function DashboardPage() {
         {/* Status Pie Chart */}
         <Card>
           <CardContent className="p-6">
-            <h3 className="mb-4 text-base font-semibold">상태별 분포</h3>
+            <h3 className="mb-4 text-lg font-semibold">상태별 분포</h3>
             <StatusPieChart inquiries={inquiryListResponse} />
           </CardContent>
         </Card>
@@ -266,15 +279,15 @@ export default function DashboardPage() {
       {kbUsage && kbUsage.topDocuments.length > 0 && (
         <Card>
           <CardContent className="p-6">
-            <h3 className="mb-4 text-base font-semibold">KB 상위 참조 문서</h3>
+            <h3 className="mb-4 text-lg font-semibold">KB 상위 참조 문서</h3>
             <div className="space-y-2">
               {kbUsage.topDocuments.map((doc, idx) => (
                 <div
                   key={doc.documentId}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 px-4 py-3"
+                  className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-accent/50"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold ${idx < 3 ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
                       {idx + 1}
                     </span>
                     <span className="text-sm font-medium">{doc.fileName}</span>
@@ -296,7 +309,7 @@ export default function DashboardPage() {
       <Card>
         <CardContent className="p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-semibold">최근 문의 (5건)</h3>
+            <h3 className="text-lg font-semibold">최근 문의 (5건)</h3>
             <Button
               variant="outline"
               size="sm"
@@ -325,21 +338,25 @@ export default function DashboardPage() {
                 <button
                   key={item.inquiryId}
                   type="button"
-                  className="w-full rounded-lg border border-border/50 bg-muted/20 p-4 text-left transition-colors hover:bg-primary/5"
+                  className="w-full rounded-xl border border-border/50 bg-card p-4 shadow-brand active:scale-[0.98] transition-all text-left"
                   onClick={() => { window.location.href = `/inquiries/${item.inquiryId}/`; }}
                 >
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getStatusVariant(item.status)}>
+                        {labelInquiryStatus(item.status)}
+                      </Badge>
+                      {item.latestAnswerStatus && (
+                        <Badge variant={getAnswerVariant(item.latestAnswerStatus)}>
+                          {labelAnswerStatus(item.latestAnswerStatus)}
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{item.createdAt.slice(0, 10)}</span>
+                  </div>
                   <p className="mb-2 text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>{item.createdAt.slice(0, 10)}</span>
                     <span>{labelChannel(item.customerChannel)}</span>
-                    <Badge variant={getStatusVariant(item.status)}>
-                      {labelInquiryStatus(item.status)}
-                    </Badge>
-                    {item.latestAnswerStatus && (
-                      <Badge variant={getAnswerVariant(item.latestAnswerStatus)}>
-                        {labelAnswerStatus(item.latestAnswerStatus)}
-                      </Badge>
-                    )}
                   </div>
                 </button>
               ))
@@ -351,19 +368,20 @@ export default function DashboardPage() {
       {/* Failure Reasons */}
       <Card>
         <CardContent className="p-6">
-          <h3 className="mb-4 text-base font-semibold">
+          <h3 className="mb-4 text-lg font-semibold">
             최근 실패 사유 Top
           </h3>
           {(metrics?.topFailureReasons ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">실패 사유 데이터 없음</p>
           ) : (
-            <ul className="list-disc pl-5">
+            <div className="space-y-2">
               {metrics?.topFailureReasons.map((item, idx) => (
-                <li key={`${item.reason}-${idx}`} className="mb-1">
-                  {item.reason} <span className="text-sm text-muted-foreground">({item.count}건)</span>
-                </li>
+                <div key={`${item.reason}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/30 bg-destructive/5 px-4 py-3">
+                  <span className="text-sm">{item.reason}</span>
+                  <Badge variant="danger">{item.count}건</Badge>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -402,7 +420,7 @@ function RagMetricsSection({ ragMetrics }: { ragMetrics: RagMetrics }) {
   return (
     <Card>
       <CardContent className="p-6">
-        <h3 className="mb-4 text-base font-semibold">RAG 파이프라인 성능</h3>
+        <h3 className="mb-4 text-lg font-semibold">RAG 파이프라인 성능</h3>
         <div
           className="grid gap-3"
           style={{
@@ -412,11 +430,10 @@ function RagMetricsSection({ ragMetrics }: { ragMetrics: RagMetrics }) {
           {ragCards.map((card) => (
             <article
               key={card.label}
-              className="rounded-lg border bg-muted/20 p-3"
+              className="rounded-xl border border-border/50 bg-card p-4"
             >
               <p
-                className="text-xs font-medium uppercase tracking-wide"
-                style={{ color: "var(--color-text-secondary, var(--muted-foreground))" }}
+                className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
               >
                 {card.label}
               </p>
