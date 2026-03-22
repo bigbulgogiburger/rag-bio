@@ -200,7 +200,7 @@ export default function InquiriesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -210,8 +210,9 @@ export default function InquiriesPage() {
           ) : null}
         </div>
         <Button
+          size="lg"
           onClick={() => router.push("/inquiries/new")}
-          className="hidden sm:inline-flex"
+          className="hidden sm:inline-flex rounded-full px-6"
         >
           문의 작성
         </Button>
@@ -228,7 +229,7 @@ export default function InquiriesPage() {
       </button>
 
       {/* Main Content Card */}
-      <div className="rounded-2xl border border-border/50 bg-card shadow-brand space-y-4 p-4 sm:p-6">
+      <div className="rounded-2xl border border-border/50 bg-card shadow-brand space-y-3 p-4 sm:p-6">
         <FilterBar
           fields={filterFields}
           values={filters}
@@ -277,7 +278,7 @@ export default function InquiriesPage() {
             ) : (
               <>
                 {/* Desktop table */}
-                <div className="hidden md:block">
+                <div className="hidden md:block [&_tr[role=button]]:transition-all [&_tr[role=button]:hover]:bg-accent/50 [&_tr[role=button]:hover]:shadow-sm">
                   <DataTable
                     columns={columns}
                     data={response.content}
@@ -333,6 +334,15 @@ export default function InquiriesPage() {
           </>
         )}
       </div>
+
+      {/* Mini stats bar */}
+      {response && response.content.length > 0 && (
+        <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground py-2">
+          <span>접수: {response.content.filter(i => i.status === 'RECEIVED').length}건</span>
+          <span className="h-1 w-1 rounded-full bg-border" />
+          <span>답변 완료: {response.content.filter(i => i.latestAnswerStatus === 'SENT').length}건</span>
+        </div>
+      )}
     </div>
   );
 }

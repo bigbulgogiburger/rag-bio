@@ -184,24 +184,30 @@ export default function InquiryCreateForm() {
         />
       )}
 
-      <form className="rounded-2xl border border-border/50 bg-card shadow-brand space-y-6 p-4 sm:p-6" onSubmit={handleSubmit(onSubmit)}>
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">새 고객 문의 등록</h2>
-        <p className="text-sm text-muted-foreground">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* 섹션 1: 문의 내용 */}
+        <div className="rounded-2xl border border-border/50 bg-card shadow-brand p-4 sm:p-6 space-y-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">새 고객 문의 등록</h2>
+            <p className="text-sm text-muted-foreground mt-1">고객의 기술 문의를 등록하고 문서를 첨부할 수 있습니다.</p>
+          </div>
 
-        <hr className="border-t border-border" />
+          <hr className="border-t border-border" />
 
-        <div className="space-y-4">
-          <h3 className="text-base font-semibold">문의 내용</h3>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            질문
-            <textarea
-              className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[160px] resize-y"
-              rows={5}
-              placeholder="고객 기술 문의 내용을 입력하세요"
-              aria-invalid={!!errors.question}
-              aria-describedby={errors.question ? "question-error" : undefined}
-              {...register("question")}
-            />
+          <div className="space-y-4">
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              질문
+              <span className="text-xs text-muted-foreground font-normal">
+                고객이 문의한 내용을 가능한 상세히 입력하세요
+              </span>
+              <textarea
+                className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[160px] resize-y"
+                rows={5}
+                placeholder="고객 기술 문의 내용을 입력하세요"
+                aria-invalid={!!errors.question}
+                aria-describedby={errors.question ? "question-error" : undefined}
+                {...register("question")}
+              />
             {errors.question && (
               <p id="question-error" className="text-xs text-destructive mt-1" role="alert">{errors.question.message}</p>
             )}
@@ -212,7 +218,7 @@ export default function InquiryCreateForm() {
             <label className="text-sm font-medium">
               관련 제품군 (최대 3개)
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
               {Object.keys(PRODUCT_FAMILY_LABELS).map((key) => {
                 const isSelected = selectedProductFamilies.includes(key);
                 const isDisabled = !isSelected && selectedProductFamilies.length >= 3;
@@ -220,7 +226,7 @@ export default function InquiryCreateForm() {
                   <button
                     key={key}
                     type="button"
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium text-center justify-center transition-all ${
                       isSelected
                         ? "border-primary bg-primary/10 text-primary"
                         : isDisabled
@@ -272,11 +278,12 @@ export default function InquiryCreateForm() {
             </label>
           </div>
         </div>
+        </div>
 
-        <hr className="border-t border-border" />
-
-        <div className="space-y-4">
+        {/* 섹션 2: 파일 첨부 */}
+        <div className="rounded-2xl border border-border/50 bg-card shadow-brand p-4 sm:p-6 space-y-4">
           <h3 className="text-base font-semibold">파일 첨부</h3>
+          <p className="text-xs text-muted-foreground">선택사항 — PDF, DOC, DOCX, PNG, JPG, WEBP 형식 지원</p>
           <label className="flex flex-col gap-1.5 text-sm font-medium cursor-pointer">
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border p-8 text-center hover:border-primary/40 hover:bg-accent/30 transition-all">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
@@ -361,8 +368,7 @@ export default function InquiryCreateForm() {
           )}
         </div>
 
-        <hr className="border-t border-border" />
-
+        {/* CTA 버튼 (카드 바깥) */}
         <div className="sticky bottom-20 z-10 -mx-4 px-4 py-3 bg-gradient-to-t from-card via-card to-card/0 sm:static sm:mx-0 sm:bg-transparent sm:bg-none sm:px-0 sm:py-0 md:bottom-0">
           <Button
             size="lg"

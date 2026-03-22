@@ -4,10 +4,11 @@ import LoginForm from "@/components/auth/LoginForm";
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[100dvh] -mx-4 -my-6 sm:-mx-6 sm:-my-10">
+    <div className="fixed inset-0 z-[60] flex bg-background">
       {/* 좌측 브랜딩 패널 -- lg만 표시 */}
-      <div className="hidden lg:flex lg:w-1/2 lg:flex-col lg:justify-between bg-[hsl(var(--foreground))] text-[hsl(var(--background))] p-12">
-        <div className="flex items-center gap-3">
+      <div className="hidden lg:flex lg:w-1/2 lg:flex-col lg:items-start lg:justify-center bg-[hsl(var(--foreground))] text-[hsl(var(--background))] p-12 lg:p-16">
+        {/* 로고 */}
+        <div className="flex items-center gap-3 mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg">
             <svg
               width="20"
@@ -31,35 +32,35 @@ export default function LoginPage() {
           <span className="text-lg font-bold">Bio-Rad</span>
         </div>
 
-        <div className="space-y-6">
-          <h1 className="text-4xl font-bold tracking-tight leading-tight">
-            고객 문의에<br />더 빠르고 정확하게<br />대응하세요
-          </h1>
-          <p className="text-[hsl(var(--background))]/60 text-lg max-w-md leading-relaxed">
-            RAG 기반 파이프라인이 기술 문서를 분석하고 전문적인 답변 초안을 실시간으로 생성합니다.
-          </p>
-        </div>
+        {/* 카피 */}
+        <h1 className="text-4xl font-bold tracking-tight leading-tight mb-4">
+          고객 문의에<br />더 빠르고 정확하게<br />대응하세요
+        </h1>
+        <p className="opacity-60 text-lg max-w-md leading-relaxed mb-12">
+          RAG 기반 파이프라인이 기술 문서를 분석하고 전문적인 답변 초안을 실시간으로 생성합니다.
+        </p>
 
-        <div className="flex items-center gap-8 text-sm text-[hsl(var(--background))]/40">
+        {/* 통계 */}
+        <div className="flex items-center gap-8 text-sm opacity-40">
           <div>
-            <p className="text-2xl font-bold text-[hsl(var(--background))]/80 tabular-nums">87%</p>
+            <p className="text-2xl font-bold opacity-80 tabular-nums">87%</p>
             <p>자동화율</p>
           </div>
           <div className="h-8 w-px bg-[hsl(var(--background))]/10" />
           <div>
-            <p className="text-2xl font-bold text-[hsl(var(--background))]/80 tabular-nums">3.2초</p>
+            <p className="text-2xl font-bold opacity-80 tabular-nums">3.2초</p>
             <p>평균 생성</p>
           </div>
           <div className="h-8 w-px bg-[hsl(var(--background))]/10" />
           <div>
-            <p className="text-2xl font-bold text-[hsl(var(--background))]/80 tabular-nums">98.5%</p>
+            <p className="text-2xl font-bold opacity-80 tabular-nums">98.5%</p>
             <p>인용 정확도</p>
           </div>
         </div>
       </div>
 
       {/* 우측 로그인 폼 */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+      <div className="flex flex-1 flex-col items-center justify-center px-8 sm:px-12">
         <div className="w-full max-w-sm space-y-8">
           {/* 모바일 로고 */}
           <div className="text-center lg:hidden">

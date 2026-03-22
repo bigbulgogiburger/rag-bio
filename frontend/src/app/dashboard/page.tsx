@@ -205,7 +205,7 @@ export default function DashboardPage() {
       {/* Metric Cards */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {metricCards.map((metric) => (
-          <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5" key={metric.label}>
+          <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-lg hover:-translate-y-1 hover:border-primary/20" key={metric.label}>
             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
             <p className="relative text-2xl font-bold tracking-tight text-foreground">{metric.value}</p>
@@ -218,7 +218,7 @@ export default function DashboardPage() {
         {/* Processing Time Metrics */}
         {processingTime && (
           <>
-            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-lg hover:-translate-y-1 hover:border-primary/20">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">평균 처리 시간</p>
               <p className="relative text-2xl font-bold tracking-tight text-foreground">
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                 중앙값 {processingTime.medianProcessingTimeHours}h
               </p>
             </article>
-            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-lg hover:-translate-y-1 hover:border-primary/20">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">완료 건수</p>
               <p className="relative text-2xl font-bold tracking-tight text-foreground">{processingTime.totalCompleted}건</p>
@@ -236,7 +236,7 @@ export default function DashboardPage() {
                 {processingTime.minProcessingTimeHours}h ~ {processingTime.maxProcessingTimeHours}h
               </p>
             </article>
-            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-brand-lg hover:-translate-y-0.5">
+            <article className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 sm:p-5 shadow-brand transition-all hover:shadow-lg hover:-translate-y-1 hover:border-primary/20">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <p className="relative text-xs font-medium uppercase tracking-wide text-muted-foreground">KB 활용률</p>
               <p className="relative text-2xl font-bold tracking-tight text-foreground">
@@ -255,7 +255,7 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         {/* Timeline Chart */}
-        <Card>
+        <Card className="h-full">
           <CardContent className="p-6">
             <h3 className="mb-4 text-lg font-semibold">문의 처리 현황</h3>
             {analyticsLoading ? (
@@ -267,7 +267,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Status Pie Chart */}
-        <Card>
+        <Card className="h-full">
           <CardContent className="p-6">
             <h3 className="mb-4 text-lg font-semibold">상태별 분포</h3>
             <StatusPieChart inquiries={inquiryListResponse} />
@@ -277,27 +277,23 @@ export default function DashboardPage() {
 
       {/* KB Usage - Top Referenced Documents */}
       {kbUsage && kbUsage.topDocuments.length > 0 && (
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="mb-4 text-lg font-semibold">KB 상위 참조 문서</h3>
-            <div className="space-y-2">
-              {kbUsage.topDocuments.map((doc, idx) => (
-                <div
-                  key={doc.documentId}
-                  className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-accent/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold ${idx < 3 ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                      {idx + 1}
-                    </span>
-                    <span className="text-sm font-medium">{doc.fileName}</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">{doc.referenceCount}회 참조</span>
-                </div>
-              ))}
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">KB 상위 참조 문서</h3>
+          {kbUsage.topDocuments.map((doc, idx) => (
+            <div
+              key={doc.documentId}
+              className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-accent/50"
+            >
+              <div className="flex items-center gap-3">
+                <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold ${idx < 3 ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                  {idx + 1}
+                </span>
+                <span className="text-sm font-medium">{doc.fileName}</span>
+              </div>
+              <span className="text-sm text-muted-foreground">{doc.referenceCount}회 참조</span>
             </div>
-          </CardContent>
-        </Card>
+          ))}
+        </section>
       )}
 
       {/* RAG Pipeline Metrics */}
@@ -366,25 +362,23 @@ export default function DashboardPage() {
       </Card>
 
       {/* Failure Reasons */}
-      <Card>
-        <CardContent className="p-6">
-          <h3 className="mb-4 text-lg font-semibold">
-            최근 실패 사유 Top
-          </h3>
-          {(metrics?.topFailureReasons ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">실패 사유 데이터 없음</p>
-          ) : (
-            <div className="space-y-2">
-              {metrics?.topFailureReasons.map((item, idx) => (
-                <div key={`${item.reason}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/30 bg-destructive/5 px-4 py-3">
-                  <span className="text-sm">{item.reason}</span>
-                  <Badge variant="danger">{item.count}건</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl bg-destructive/5 border border-destructive/10 p-6">
+        <h3 className="mb-4 text-lg font-semibold">
+          최근 실패 사유 Top
+        </h3>
+        {(metrics?.topFailureReasons ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">실패 사유 데이터 없음</p>
+        ) : (
+          <div className="space-y-2">
+            {metrics?.topFailureReasons.map((item, idx) => (
+              <div key={`${item.reason}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/30 bg-destructive/5 px-4 py-3">
+                <span className="text-sm">{item.reason}</span>
+                <Badge variant="danger">{item.count}건</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -421,20 +415,13 @@ function RagMetricsSection({ ragMetrics }: { ragMetrics: RagMetrics }) {
     <Card>
       <CardContent className="p-6">
         <h3 className="mb-4 text-lg font-semibold">RAG 파이프라인 성능</h3>
-        <div
-          className="grid gap-3"
-          style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))",
-          }}
-        >
+        <div className="flex overflow-x-auto gap-3 scrollbar-none pb-1">
           {ragCards.map((card) => (
             <article
               key={card.label}
-              className="rounded-xl border border-border/50 bg-card p-4"
+              className="shrink-0 w-40 rounded-xl border border-border/50 bg-card p-4"
             >
-              <p
-                className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
-              >
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {card.label}
               </p>
               <p className="mt-1 text-xl font-bold tracking-tight">

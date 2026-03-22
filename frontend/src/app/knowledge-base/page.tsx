@@ -347,15 +347,16 @@ export default function KnowledgeBasePage() {
         </div>
         <div className="flex items-center gap-3">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={handleIndexAll}
-            className="flex-1 sm:flex-none"
           >
             일괄 인덱싱
           </Button>
           <Button
+            size="lg"
+            className="rounded-full px-6"
             onClick={() => setShowUploadModal(true)}
-            className="flex-1 sm:flex-none"
           >
             문서 등록
           </Button>
@@ -419,7 +420,7 @@ export default function KnowledgeBasePage() {
                 const barPercentage = maxCount > 0 ? ((count as number) / maxCount) * 100 : 0;
                 return (
                   <div key={family} className="flex items-center gap-3">
-                    <span className="text-xs font-medium w-24 truncate text-right">{labelProductFamily(family)}</span>
+                    <span className="text-xs font-medium w-32 sm:w-40 truncate text-right">{labelProductFamily(family)}</span>
                     <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full bg-primary/60 transition-all duration-500"
@@ -442,6 +443,8 @@ export default function KnowledgeBasePage() {
           onChange={handleFilterChange}
           onSearch={handleSearch}
         />
+
+        <div className="border-t border-border/30" />
 
         {/* Loading skeleton */}
         {loading && !response && (
