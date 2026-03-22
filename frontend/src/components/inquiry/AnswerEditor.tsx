@@ -76,8 +76,13 @@ export default function AnswerEditor({
     ],
     content: draftFormat === 'TEXT' ? convertPlainTextToHtml(content) : content,
     editable: isEditable,
+    autofocus: false,
     onUpdate: ({ editor: ed }) => {
       onChange?.(ed.getHTML());
+    },
+    onCreate: ({ editor: ed }) => {
+      // Prevent auto-scroll on mount: move cursor to start without scrolling
+      ed.commands.setTextSelection(0);
     },
   });
 
