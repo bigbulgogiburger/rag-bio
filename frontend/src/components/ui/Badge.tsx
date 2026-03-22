@@ -2,7 +2,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold tracking-tight border whitespace-nowrap leading-relaxed',
+  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-tight border whitespace-nowrap leading-relaxed',
   {
     variants: {
       variant: {
@@ -19,14 +19,6 @@ const badgeVariants = cva(
   }
 );
 
-const dotColors: Record<string, string> = {
-  info: 'currentColor',
-  success: 'currentColor',
-  warn: 'currentColor',
-  danger: 'currentColor',
-  neutral: 'currentColor',
-};
-
 interface BadgeProps {
   variant: 'info' | 'success' | 'warn' | 'danger' | 'neutral';
   children: React.ReactNode;
@@ -38,14 +30,14 @@ export default function Badge({ variant, children, style, className }: BadgeProp
   return (
     <span className={cn(badgeVariants({ variant }), className)} role="status" style={style}>
       <svg
-        width="6"
-        height="6"
-        viewBox="0 0 6 6"
+        width="7"
+        height="7"
+        viewBox="0 0 7 7"
         fill="none"
         aria-hidden="true"
-        className="shrink-0"
+        className={cn("shrink-0", variant === "warn" && "animate-pulse")}
       >
-        <circle cx="3" cy="3" r="3" fill={dotColors[variant]} />
+        <circle cx="3.5" cy="3.5" r="3.5" fill="currentColor" />
       </svg>
       {children}
     </span>

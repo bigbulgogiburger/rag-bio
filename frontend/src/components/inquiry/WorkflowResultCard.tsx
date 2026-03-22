@@ -95,18 +95,18 @@ export default function WorkflowResultCard({
     <div className="space-y-4">
       {/* Case A: AUTO_APPROVED */}
       {workflowResult.approval.decision === "AUTO_APPROVED" && (
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5 dark:border-emerald-800 dark:bg-emerald-950" role="status">
+        <div className="rounded-xl border border-success-border bg-success-light p-5" role="status">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-400" aria-hidden="true">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success-light text-success-foreground" aria-hidden="true">
               <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </span>
             <div className="flex-1">
-              <p className="font-semibold text-emerald-800 dark:text-emerald-200">
+              <p className="font-semibold text-success-foreground">
                 AI 리뷰 통과 ({workflowResult.review.score}점) &rarr; 자동 승인 완료
               </p>
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">{workflowResult.summary}</p>
+              <p className="text-sm text-success-foreground">{workflowResult.summary}</p>
             </div>
             <Badge variant="success">{workflowResult.review.score}점</Badge>
           </div>
@@ -114,7 +114,7 @@ export default function WorkflowResultCard({
           {/* Gate Results Summary */}
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {workflowResult.approval.gateResults.map((gate) => (
-              <div key={gate.gate} className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <div key={gate.gate} className="flex items-center gap-1.5 text-xs text-success-foreground">
                 <span aria-hidden="true">{gate.passed ? "\u2705" : "\u274C"}</span>
                 <span>{gate.gate}</span>
               </div>
@@ -141,18 +141,18 @@ export default function WorkflowResultCard({
 
       {/* Case B: ESCALATED */}
       {workflowResult.approval.decision === "ESCALATED" && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950" role="alert">
+        <div className="rounded-xl border border-warning-border bg-warning-light p-5" role="alert">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400" aria-hidden="true">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning-light text-warning-foreground" aria-hidden="true">
               <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
               </svg>
             </span>
             <div className="flex-1">
-              <p className="font-semibold text-amber-800 dark:text-amber-200">
+              <p className="font-semibold text-warning-foreground">
                 {labelApprovalDecision("ESCALATED")}
               </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300">{workflowResult.approval.reason}</p>
+              <p className="text-sm text-warning-foreground">{workflowResult.approval.reason}</p>
             </div>
             <Badge variant="warn">{workflowResult.review.score}점</Badge>
           </div>
@@ -160,7 +160,7 @@ export default function WorkflowResultCard({
           {/* Failed Gates */}
           <div className="mt-4 space-y-2">
             {workflowResult.approval.gateResults.filter((g) => !g.passed).map((gate) => (
-              <div key={gate.gate} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white/60 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/50">
+              <div key={gate.gate} className="flex items-center gap-2 rounded-lg border border-warning-border bg-white/60 px-3 py-2 text-sm">
                 <span aria-hidden="true">{"\u274C"}</span>
                 <span className="font-medium">{gate.gate}</span>
                 <span className="text-muted-foreground">실제: {gate.actualValue} / 기준: {gate.threshold}</span>
@@ -198,18 +198,18 @@ export default function WorkflowResultCard({
 
       {/* Case C: REJECTED */}
       {workflowResult.approval.decision === "REJECTED" && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-5 dark:border-red-800 dark:bg-red-950" role="alert">
+        <div className="rounded-xl border border-danger-border bg-danger-light p-5" role="alert">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400" aria-hidden="true">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger-light text-danger-foreground" aria-hidden="true">
               <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </span>
             <div className="flex-1">
-              <p className="font-semibold text-red-800 dark:text-red-200">
+              <p className="font-semibold text-danger-foreground">
                 답변 품질이 기준 미달입니다
               </p>
-              <p className="text-sm text-red-700 dark:text-red-300">{workflowResult.approval.reason}</p>
+              <p className="text-sm text-danger-foreground">{workflowResult.approval.reason}</p>
             </div>
             <Badge variant="danger">{workflowResult.review.score}점</Badge>
           </div>
@@ -217,7 +217,7 @@ export default function WorkflowResultCard({
           {/* Issues Summary */}
           <div className="mt-4 space-y-1.5">
             {workflowResult.review.issues.slice(0, 5).map((issue, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+              <div key={idx} className="flex items-start gap-2 text-sm text-danger-foreground">
                 <span className="shrink-0" aria-hidden="true">{getSeverityIcon(issue.severity)}</span>
                 <span>
                   <Badge variant={getSeverityBadgeVariant(issue.severity)} className="mr-1.5">
@@ -339,7 +339,7 @@ export default function WorkflowResultCard({
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">수정안</p>
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto dark:border-emerald-800 dark:bg-emerald-950/30">
+                    <div className="rounded-lg border border-success-border bg-success-light p-3 text-sm leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
                       {workflowResult.review.revisedDraft}
                     </div>
                   </div>
@@ -373,8 +373,8 @@ export default function WorkflowResultCard({
                   className={cn(
                     "rounded-lg border p-3 text-center",
                     gate.passed
-                      ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
-                      : "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
+                      ? "border-success-border bg-success-light"
+                      : "border-danger-border bg-danger-light"
                   )}
                 >
                   <span className="text-lg" aria-hidden="true">{gate.passed ? "\u2705" : "\u274C"}</span>

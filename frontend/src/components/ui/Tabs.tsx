@@ -12,22 +12,9 @@ interface Tab {
 interface TabsProps {
   tabs: Tab[];
   defaultTab?: string;
-  /** Additional className for the tab list (e.g. sticky positioning) */
   listClassName?: string;
 }
 
-/**
- * Tabs 컴포넌트
- *
- * 사용 예:
- * <Tabs
- *   defaultTab="info"
- *   tabs={[
- *     { key: 'info', label: '기본 정보', content: <InfoTab /> },
- *     { key: 'analysis', label: '분석', content: <AnalysisTab /> },
- *   ]}
- * />
- */
 export default function Tabs({ tabs, defaultTab, listClassName }: TabsProps) {
   return (
     <TabsPrimitive.Root defaultValue={defaultTab || tabs[0]?.key}>
@@ -40,11 +27,11 @@ export default function Tabs({ tabs, defaultTab, listClassName }: TabsProps) {
             key={tab.key}
             value={tab.key}
             className={cn(
-              'px-6 py-2 text-sm font-medium text-muted-foreground',
+              'px-4 sm:px-6 py-2.5 text-sm font-medium text-muted-foreground/70',
               'border-b-2 border-transparent -mb-px',
-              'transition-colors whitespace-nowrap',
+              'transition-all whitespace-nowrap rounded-t-md',
               'hover:text-foreground hover:bg-muted/50',
-              'data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:font-semibold',
+              'data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:font-semibold data-[state=active]:bg-primary/5',
             )}
           >
             {tab.label}
@@ -57,7 +44,7 @@ export default function Tabs({ tabs, defaultTab, listClassName }: TabsProps) {
           key={tab.key}
           value={tab.key}
           tabIndex={0}
-          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md animate-in fade-in duration-200"
         >
           {tab.content}
         </TabsPrimitive.Content>

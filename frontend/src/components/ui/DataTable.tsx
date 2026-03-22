@@ -31,8 +31,8 @@ export default function DataTable<T>({
           aria-hidden="true"
           className="mb-4 opacity-45"
         >
-          <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" strokeWidth="2" fill="none" />
-          <path d="M6 18h36" stroke="currentColor" strokeWidth="2" />
+          <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M6 18h36" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           <circle cx="12" cy="14" r="1.5" fill="currentColor" />
           <circle cx="17" cy="14" r="1.5" fill="currentColor" />
           <circle cx="22" cy="14" r="1.5" fill="currentColor" />
@@ -46,53 +46,56 @@ export default function DataTable<T>({
   }
 
   return (
-    <div className="overflow-x-auto">
-    <table className="w-full min-w-[640px] border-separate border-spacing-0" role="table" aria-label="데이터 테이블">
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th
-              key={column.key}
-              scope="col"
-              style={{ width: column.width }}
-              className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/50 whitespace-nowrap first:rounded-tl-md last:rounded-tr-md"
-            >
-              {column.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((item, index) => (
-          <tr
-            key={index}
-            onClick={() => onRowClick?.(item)}
-            className={cn(
-              onRowClick && 'transition-colors hover:bg-primary/5 cursor-pointer'
-            )}
-            role={onRowClick ? 'button' : undefined}
-            tabIndex={onRowClick ? 0 : undefined}
-            onKeyDown={(e) => {
-              if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
-                e.preventDefault();
-                onRowClick(item);
-              }
-            }}
-          >
+    <div className="relative overflow-x-auto">
+      {/* 가로 스크롤 힌트 — 우측 그라데이션 */}
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-10 md:hidden" aria-hidden="true" />
+      <table className="w-full min-w-[640px] border-separate border-spacing-0" role="table" aria-label="데이터 테이블">
+        <thead>
+          <tr>
             {columns.map((column) => (
-              <td
+              <th
                 key={column.key}
-                className="px-4 py-3 text-sm border-b border-border/30 align-middle"
+                scope="col"
+                style={{ width: column.width }}
+                className="text-left px-4 py-2.5 font-semibold text-xs text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/50 whitespace-nowrap first:rounded-tl-md last:rounded-tr-md"
               >
-                {column.render
-                  ? column.render(item)
-                  : String((item as any)[column.key] ?? '')}
-              </td>
+                {column.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {data.map((item, index) => (
+            <tr
+              key={index}
+              onClick={() => onRowClick?.(item)}
+              className={cn(
+                'border-b border-border/30 last:border-0',
+                onRowClick && 'transition-all duration-150 hover:bg-accent/50 cursor-pointer focus-visible:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-inset'
+              )}
+              role={onRowClick ? 'button' : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  onRowClick(item);
+                }
+              }}
+            >
+              {columns.map((column) => (
+                <td
+                  key={column.key}
+                  className="px-4 py-3 text-sm align-middle"
+                >
+                  {column.render
+                    ? column.render(item)
+                    : String((item as any)[column.key] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
